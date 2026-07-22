@@ -39,6 +39,11 @@ export default function Home() {
     <main>
       <section style={S.hero}>
         <div className="wrap">
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <a href="/dashboard" style={{ color: "rgba(255,255,255,.85)", fontSize: 13.5, fontWeight: 600, textDecoration: "none" }}>
+              Sign in / My results →
+            </a>
+          </div>
           <span style={S.free}>Free · A Ministry Resource of Mission USA</span>
           <h1 className="serif" style={S.h1}>
             Know where you stand.<br />

@@ -1,48 +1,136 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState, useRef } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getSupabase } from "../../lib/supabase";
+import { scaleOptions } from "../../lib/content";
+import { TURNSTILE_SITE_KEY, CONSENT_VERSION } from "../../lib/config";
 
 const AGE_BANDS = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
 const ROLES = ["Pastor", "Staff", "Lay leader", "Member", "Other"];
-const CONSENT_VERSION = "2026-07-v1";
 
-export default function AssessmentFlow() {
+export default function AssessmentPage() {
+  return (
+    <Suspense fallback={<Centered><p style={{ color: "var(--ink-soft)" }}>Loading…</p></Centered>}>
+      <AssessmentFlow />
+    </Suspense>
+  );
+}
+
+function AssessmentFlow() {
   const { slug } = useParams();
   const router = useRouter();
+  const params = useSearchParams();
   const supabase = useRef(getSupabase()).current;
 
-  const [phase, setPhase] = useState("loading"); // loading | intro | questions | submitting | error
+  const [phase, setPhase] = useState("loading"); // loading | gate | intro | questions | submitting | error
   const [assessment, setAssessment] = useState(null);
   const [items, setItems] = useState([]);
   const [churches, setChurches] = useState([]);
   const [err, setErr] = useState(null);
+  const [user, setUser] = useState(null);
 
-  // intake
   const [form, setForm] = useState({
     first_name: "", last_name: "", email: "", phone: "",
     age_band: "", ministry_role: "", church_id: "", is_chc: "",
   });
   const [churchAck, setChurchAck] = useState(false);
+  const [honeypot, setHoneypot] = useState("");
+  const [tsToken, setTsToken] = useState("");
 
-  // question state
   const [answers, setAnswers] = useState({}); // item_id -> value
   const [page, setPage] = useState(0);
   const startedAt = useRef(null);
+
+  const assignmentToken = params.get("a") || null;
+  const sourceTag = params.get("source") || null;
+  const cohort = params.get("cohort") || null;
 
   useEffect(() => {
     (async () => {
       const { data: a, error: ae } = await supabase
         .from("assessments").select("*").eq("slug", slug).eq("is_published", true).single();
       if (ae || !a) { setErr("This assessment isn't available."); setPhase("error"); return; }
+
+      const { data: udata } = await supabase.auth.getUser();
+      const u = udata?.user || null;
+      setUser(u);
+
+      // Sensitive assessments require login before anything else.
+      if (a.sensitivity === "sensitive" && !u) {
+        setAssessment(a);
+        setPhase("gate");
+        return;
+      }
+
       const { data: its, error: ie } = await supabase
         .from("items").select("id,text,item_order").eq("assessment_id", a.id).order("item_order");
       if (ie) { setErr("Couldn't load the questions."); setPhase("error"); return; }
+
       const { data: ch } = await supabase
         .from("churches").select("id,name").eq("is_active", true).order("name");
+
+      // Assignment link: resolve and pre-stamp the church (never the person).
+      let prefillChurch = "";
+      if (assignmentToken) {
+        const { data: ca } = await supabase
+          .from("church_assessments")
+          .select("church_id")
+          .eq("assignment_token", assignmentToken)
+          .maybeSingle();
+        if (ca?.church_id) prefillChurch = ca.church_id;
+      }
+
+      // Prefill from the logged-in user's profile where available.
+      let prefill = {};
+      if (u) {
+        const { data: p } = await supabase
+          .from("profiles")
+          .select("first_name,last_name,email,phone,age_band,ministry_role,church_id,is_chc")
+          .eq("id", u.id).maybeSingle();
+        prefill = {
+          first_name: p?.first_name || "",
+          last_name: p?.last_name || "",
+          email: p?.email || u.email || "",
+          phone: p?.phone || "",
+          age_band: p?.age_band || "",
+          ministry_role: p?.ministry_role || "",
+          is_chc: p?.is_chc === true ? "yes" : p?.is_chc === false ? "no" : "",
+        };
+      }
+
+      setForm((f) => ({ ...f, ...prefill, church_id: prefillChurch || f.church_id }));
       setAssessment(a); setItems(its || []); setChurches(ch || []); setPhase("intro");
     })();
-  }, [slug, supabase]);
+  }, [slug, supabase, assignmentToken]);
+
+  // Turnstile widget (only when a site key is configured)
+  useEffect(() => {
+    if (phase !== "intro" || !TURNSTILE_SITE_KEY) return;
+    let widgetId;
+    function render() {
+      if (!window.turnstile) return false;
+      const el = document.getElementById("ts-widget");
+      if (!el || el.dataset.rendered) return true;
+      el.dataset.rendered = "1";
+      widgetId = window.turnstile.render("#ts-widget", {
+        sitekey: TURNSTILE_SITE_KEY,
+        callback: (t) => setTsToken(t),
+        "error-callback": () => setTsToken(""),
+        "expired-callback": () => setTsToken(""),
+      });
+      return true;
+    }
+    if (!render()) {
+      const s = document.createElement("script");
+      s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+      s.async = true;
+      s.onload = render;
+      document.body.appendChild(s);
+    }
+    return () => {
+      try { if (widgetId && window.turnstile) window.turnstile.remove(widgetId); } catch {}
+    };
+  }, [phase]);
 
   const perPage = assessment?.questions_per_page || 25;
   const pageCount = Math.ceil(items.length / perPage);
@@ -50,8 +138,7 @@ export default function AssessmentFlow() {
   const answeredCount = Object.keys(answers).length;
   const allAnswered = answeredCount === items.length;
   const pageComplete = pageItems.every((it) => answers[it.id] !== undefined);
-
-  const scaleLabels = labelsFor(assessment);
+  const options = scaleOptions(assessment);
 
   function startQuestions() {
     startedAt.current = Date.now();
@@ -61,7 +148,8 @@ export default function AssessmentFlow() {
 
   const canStart =
     form.first_name && form.last_name && emailOk(form.email) && form.phone &&
-    form.age_band && (!form.church_id || churchAck);
+    form.age_band && (!form.church_id || churchAck) &&
+    (!TURNSTILE_SITE_KEY || tsToken);
 
   async function submit() {
     setPhase("submitting");
@@ -75,10 +163,15 @@ export default function AssessmentFlow() {
             ...form,
             is_chc: form.is_chc === "yes" ? true : form.is_chc === "no" ? false : null,
             church_id: form.church_id || null,
+            assignment_token: assignmentToken,
+            source_tag: sourceTag || "public",
+            cohort,
             consent_statement_version: CONSENT_VERSION,
           },
           answers,
           duration_seconds: Math.round((Date.now() - startedAt.current) / 1000),
+          turnstileToken: tsToken,
+          honeypot,
         }),
       });
       const out = await res.json();
@@ -91,6 +184,26 @@ export default function AssessmentFlow() {
 
   if (phase === "loading")
     return <Centered><p style={{ color: "var(--ink-soft)" }}>Loading…</p></Centered>;
+
+  if (phase === "gate")
+    return (
+      <Centered>
+        <div style={{ textAlign: "center", maxWidth: 460 }}>
+          <h1 className="serif" style={{ ...h1, marginTop: 0 }}>{assessment.name}</h1>
+          <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.6 }}>
+            This assessment includes personal, sensitive content, so your results are kept private to
+            your account. Please sign in with a one-tap magic link to begin.
+          </p>
+          <a className="btn btn-primary" href={`/login?next=/assessment/${slug}`} style={{ marginTop: 12 }}>
+            Sign in to continue
+          </a>
+          <div style={{ marginTop: 14 }}>
+            <a href="/" style={back}>← All assessments</a>
+          </div>
+        </div>
+      </Centered>
+    );
+
   if (phase === "error")
     return (
       <Centered>
@@ -122,7 +235,7 @@ export default function AssessmentFlow() {
 
             <Select label="Age range" v={form.age_band} on={(v) => setForm({ ...form, age_band: v })} opts={AGE_BANDS} />
             <Select label="Your role (optional)" v={form.ministry_role} on={(v) => setForm({ ...form, ministry_role: v })} opts={ROLES} optional />
-            <Select label="Are you part of the CHC? (optional)" v={form.is_chc} on={(v) => setForm({ ...form, is_chc: v })} opts={[["yes","Yes"],["no","No"]]} optional />
+            <Select label="Are you part of the CHC? (optional)" v={form.is_chc} on={(v) => setForm({ ...form, is_chc: v })} opts={[["yes", "Yes"], ["no", "No"]]} optional />
 
             {churches.length > 0 && (
               <Select
@@ -131,6 +244,7 @@ export default function AssessmentFlow() {
                 on={(v) => { setForm({ ...form, church_id: v }); setChurchAck(false); }}
                 opts={churches.map((c) => [c.id, c.name])}
                 optional
+                disabled={!!assignmentToken}
               />
             )}
 
@@ -139,10 +253,18 @@ export default function AssessmentFlow() {
                 <input type="checkbox" checked={churchAck} onChange={(e) => setChurchAck(e.target.checked)} />
                 <span>
                   I understand a copy of my results will be shared with{" "}
-                  {churches.find((c) => c.id === form.church_id)?.name}, and a leader there may follow up.
+                  {churches.find((c) => c.id === form.church_id)?.name || "this church"}, and a leader
+                  there may follow up.
                 </span>
               </label>
             )}
+
+            {/* Honeypot — hidden from humans; bots that fill it are silently rejected */}
+            <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", opacity: 0, height: 0, overflow: "hidden" }}>
+              <label>Website<input tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} /></label>
+            </div>
+
+            {TURNSTILE_SITE_KEY && <div id="ts-widget" style={{ marginTop: 8 }} />}
 
             <p style={consent}>
               By providing your email and continuing, you agree to receive messages from
@@ -172,13 +294,13 @@ export default function AssessmentFlow() {
                 <span style={qNum}>{page * perPage + i + 1}.</span> {it.text}
               </div>
               <div style={scaleRow}>
-                {scaleLabels.map((lbl, val) => {
+                {options.map(([val, lbl]) => {
                   const active = answers[it.id] === val;
                   return (
                     <button key={val} onClick={() => setAnswers({ ...answers, [it.id]: val })}
                       style={{ ...scaleBtn, ...(active ? scaleBtnActive : {}) }}>
                       <span style={{ fontWeight: 700, fontSize: 15 }}>{val}</span>
-                      <span style={{ fontSize: 11, opacity: .8 }}>{lbl}</span>
+                      <span style={{ fontSize: 11, opacity: 0.8, textAlign: "center" }}>{lbl}</span>
                     </button>
                   );
                 })}
@@ -219,19 +341,8 @@ export default function AssessmentFlow() {
   );
 }
 
-/* scale labels per assessment scale range */
-function labelsFor(a) {
-  if (!a) return [];
-  if (a.scale_min === 0 && a.scale_max === 3) return ["Not at all", "Little", "Some", "Much"];
-  if (a.scale_min === 1 && a.scale_max === 5)
-    return ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"];
-  const out = [];
-  for (let v = a.scale_min; v <= a.scale_max; v++) out.push(String(v));
-  return out;
-}
 const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
-/* small components */
 function Field({ label, v, on, type = "text" }) {
   return (
     <label style={fieldWrap}>
@@ -240,11 +351,11 @@ function Field({ label, v, on, type = "text" }) {
     </label>
   );
 }
-function Select({ label, v, on, opts, optional }) {
+function Select({ label, v, on, opts, optional, disabled }) {
   return (
     <label style={fieldWrap}>
       <span style={fieldLabel}>{label}</span>
-      <select style={input} value={v} onChange={(e) => on(e.target.value)}>
+      <select style={input} value={v} disabled={disabled} onChange={(e) => on(e.target.value)}>
         <option value="">{optional ? "Select (optional)" : "Select"}</option>
         {opts.map((o) => Array.isArray(o)
           ? <option key={o[0]} value={o[0]}>{o[1]}</option>
@@ -257,11 +368,10 @@ function Centered({ children }) {
   return <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 24 }}>{children}</main>;
 }
 
-/* styles */
 const back = { color: "var(--teal-deep)", fontSize: 14, fontWeight: 600, textDecoration: "none" };
 const h1 = { fontWeight: 500, fontSize: "clamp(30px,4vw,40px)", margin: "16px 0 4px", color: "var(--ink)" };
 const introSub = { color: "var(--ink-soft)", fontSize: 17, margin: "0 0 24px" };
-const card = { background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 18, padding: 28 };
+const card = { background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 18, padding: 28, position: "relative" };
 const fieldWrap = { display: "block", marginBottom: 16 };
 const fieldLabel = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 6 };
 const input = { width: "100%", padding: "12px 14px", fontSize: 15, borderRadius: 10, border: "1.5px solid var(--line)", fontFamily: "inherit", background: "#fff", color: "var(--ink)" };
