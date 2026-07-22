@@ -132,6 +132,34 @@ function inlineSummary(scored, assessment) {
   return "";
 }
 
+// Branded one-tap sign-in email.
+export function buildMagicLinkEmail({ link }) {
+  const inner = `<h1 style="font-size:22px;margin:0 0 12px;color:${INK};">Your sign-in link</h1>
+    <p style="font-size:15px;line-height:1.6;color:#4A5B6D;">Tap the button below to sign in to Mission USA Ministry Assessments. No password needed. This link is for you, so please don't forward it.</p>
+    <p style="margin:24px 0;">${button(link, "Sign in")}</p>
+    <p style="font-size:13px;color:#7C8A9C;">Or paste this link into your browser:<br><span style="color:${NAVY};word-break:break-all;">${link}</span></p>
+    <p style="font-size:12.5px;color:#8CA0B3;margin-top:20px;">If you didn't request this, you can safely ignore this email.</p>`;
+  return { subject: "Your Mission USA sign-in link", html: shell(inner) };
+}
+
+// Purchase confirmation with the access code + a redeem link.
+export function buildAccessEmail({ code, seats = 1, slugs = [], isBundle, name }) {
+  const first = name || "there";
+  const redeem = `${APP_URL}/access/${code}`;
+  const seatLine = seats > 1
+    ? `Your purchase includes <strong>${seats} seats</strong>. Share the code below with your people, and each person uses it once.`
+    : `Use the code below to begin.`;
+  const inner = `<h1 style="font-size:22px;margin:0 0 12px;color:${INK};">Thank you, ${first}. Your access is ready.</h1>
+    <p style="font-size:15px;line-height:1.6;color:#4A5B6D;">${isBundle ? "Your bundle is unlocked." : "Your assessment is unlocked."} ${seatLine}</p>
+    <div style="background:#F6F8FA;border:1px solid #E7E9EC;border-radius:12px;padding:16px 18px;margin:16px 0;text-align:center;">
+      <div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:${GOLD};font-weight:bold;">Your access code</div>
+      <div style="font-size:26px;font-weight:bold;letter-spacing:.08em;color:${NAVY};margin-top:6px;font-family:monospace;">${code}</div>
+    </div>
+    <p style="margin:22px 0;">${button(redeem, "Open my assessment" + (seats > 1 ? "s" : ""))}</p>
+    <p style="font-size:13px;color:#7C8A9C;">Or paste this link into your browser:<br><span style="color:${NAVY};">${redeem}</span></p>`;
+  return { subject: "Your Mission USA assessment access", html: shell(inner) };
+}
+
 // resultToken: the tokenized link; namesBySlug: { slug: name } for cross-promo.
 export function buildResultEmail({ assessment, scored, resultToken, namesBySlug = {}, sensitive }) {
   const first = scored.contact?.first_name || "there";

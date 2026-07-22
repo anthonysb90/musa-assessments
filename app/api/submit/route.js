@@ -258,6 +258,11 @@ export async function POST(req) {
       metadata_json: { slug, category: assessment.category },
     });
 
+    // 6b. Consume a seat when a paid assessment was taken with an access code.
+    if (body.access_code) {
+      try { await supabase.rpc("consume_seat", { p_code: body.access_code }); } catch { /* non-fatal */ }
+    }
+
     // 7. Email delivery (best-effort, env-gated). Never blocks the response.
     try {
       const to = profile?.email || user?.email;

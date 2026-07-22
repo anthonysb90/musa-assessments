@@ -43,6 +43,7 @@ function AssessmentFlow() {
   const [teamName, setTeamName] = useState("");
   const [coupleName, setCoupleName] = useState("");
   const [safetyFlagged, setSafetyFlagged] = useState(false);
+  const [accessCode, setAccessCode] = useState("");
 
   const [answers, setAnswers] = useState({}); // item_id -> value
   const [page, setPage] = useState(0);
@@ -55,6 +56,7 @@ function AssessmentFlow() {
   const isRater = !!(assessment?.is_multi_rater && teamCode);
   const coupleCode = params.get("couple") || null;
   const isCouple = slug === "called-together" && !!coupleCode;
+  const codeParam = params.get("code") || null;
 
   useEffect(() => {
     (async () => {
@@ -97,6 +99,14 @@ function AssessmentFlow() {
         setAssessment(a);
         setPhase("gate");
         return;
+      }
+
+      // Paid assessments require a valid access code (purchased or granted).
+      if (a.is_paid && a.price_cents > 0) {
+        if (!codeParam) { setAssessment(a); setPhase("paywall"); return; }
+        const { data: acc } = await supabase.rpc("check_access", { p_code: codeParam, p_slug: slug });
+        if (!acc?.ok) { setAssessment(a); setPhase("paywall"); return; }
+        setAccessCode(codeParam);
       }
 
       const { data: its, error: ie } = await supabase
@@ -262,6 +272,7 @@ function AssessmentFlow() {
           duration_seconds: Math.round((Date.now() - startedAt.current) / 1000),
           turnstileToken: tsToken,
           honeypot,
+          access_code: accessCode || null,
         }),
       });
       const out = await res.json();
@@ -290,6 +301,23 @@ function AssessmentFlow() {
           <div style={{ marginTop: 14 }}>
             <a href="/" style={back}>← All assessments</a>
           </div>
+        </div>
+      </Centered>
+    );
+
+  if (phase === "paywall")
+    return (
+      <Centered>
+        <div style={{ textAlign: "center", maxWidth: 480 }}>
+          <h1 className="serif" style={{ ...h1, marginTop: 0 }}>{assessment.name}</h1>
+          <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.6 }}>
+            This is a premium assessment. Unlock it once to take it and receive your full report.
+            {codeParam ? " The code on this link is invalid or its seats are already used up." : ""}
+          </p>
+          <a className="btn btn-primary" href={`/assessment/${slug}/buy`} style={{ marginTop: 12 }}>
+            See pricing and unlock →
+          </a>
+          <div style={{ marginTop: 14 }}><a href="/" style={back}>← All assessments</a></div>
         </div>
       </Centered>
     );

@@ -82,6 +82,10 @@ export default async function AdminPage() {
         </div>
 
         <div style={{ display: "flex", gap: 12, margin: "18px 0 26px", flexWrap: "wrap" }}>
+          <a className="btn btn-primary" href="/admin/people">People / CRM</a>
+          <a className="btn btn-primary" href="/admin/pricing">Pricing</a>
+          <a className="btn btn-primary" href="/admin/bundles">Bundles</a>
+          <a className="btn btn-primary" href="/admin/embed">Embed codes</a>
           <a className="btn btn-ghost" href="/api/admin/export?type=contacts">Export contacts (CSV)</a>
           <a className="btn btn-ghost" href="/api/admin/export?type=scores">Export scores (CSV)</a>
         </div>

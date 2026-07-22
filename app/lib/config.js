@@ -31,10 +31,12 @@ export const CARE_CONTACT_EMAIL = process.env.CARE_CONTACT_EMAIL || "";
 export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 export const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || "";
 
-// Donation. On the web report we always invite a gift. When a Stripe key is
-// present, the inline give form shows; otherwise the button links here.
+// Donations are handled by Tithe.ly (not Stripe). The report's giving card
+// links here, appending &amount=<cents> for the chosen gift. Override with
+// NEXT_PUBLIC_DONATE_URL if the Tithe.ly form/location/fund ever changes.
 export const DONATE_URL =
-  process.env.NEXT_PUBLIC_DONATE_URL || "https://gomissionusa.com/give";
+  process.env.NEXT_PUBLIC_DONATE_URL ||
+  "https://give.tithe.ly/?formId=6fb88928-6864-11ee-90fc-1260ab546d11&locationId=8bb7e6ce-8846-4e95-a99b-4b2434ede92d&fundId=1bf0d77f-44e9-4f38-881b-5a177219d5d5";
 
 // Credit line printed on every PDF / printed report.
 export const REPORT_CREDIT =

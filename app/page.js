@@ -36,22 +36,26 @@ export default function Home() {
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [cost, setCost] = useState("all");
 
   useEffect(() => {
     (async () => {
       const supabase = getSupabase();
       const { data } = await supabase
         .from("assessments")
-        .select("slug,name,subtitle,category,estimated_minutes,is_published")
+        .select("slug,name,subtitle,category,estimated_minutes,is_published,is_paid,price_cents")
         .eq("is_published", true);
       setAssessments(data || []);
       setLoading(false);
     })();
   }, []);
 
+  const isPaid = (a) => a.is_paid && a.price_cents > 0;
+  const costOk = (a) => cost === "all" || (cost === "paid" ? isPaid(a) : !isPaid(a));
+
   const visibleGroups = GROUPS
     .filter((g) => filter === "all" || filter === g.cat)
-    .map((g) => ({ ...g, items: assessments.filter((a) => a.category === g.cat) }))
+    .map((g) => ({ ...g, items: assessments.filter((a) => a.category === g.cat && costOk(a)) }))
     .filter((g) => g.items.length);
 
   return (
@@ -118,6 +122,14 @@ export default function Home() {
             ))}
           </div>
 
+          <div className="filter-bar filter-cost" role="tablist">
+            {[["all", "All"], ["free", "Free"], ["paid", "Paid"]].map(([key, label]) => (
+              <button key={key} className={`filter-btn${cost === key ? " is-active" : ""}`} onClick={() => setCost(key)} role="tab" aria-selected={cost === key}>
+                {label}
+              </button>
+            ))}
+          </div>
+
           {loading && <p style={{ textAlign: "center", color: "var(--ink-soft)" }}>Loading assessments…</p>}
 
           {visibleGroups.map((g) => (
@@ -136,13 +148,14 @@ export default function Home() {
                         <div className="logo-plate" dangerouslySetInnerHTML={{ __html: c.plate }} />
                       </div>
                       <div className="card-body">
+                        {isPaid(a) && <span className="paid-badge">Paid · ${(a.price_cents / 100).toFixed(2)}</span>}
                         <h4>{a.name}</h4>
                         <p className="tag">{c.tag}</p>
                         <p className="desc">{c.desc}</p>
                       </div>
                       <div className="card-foot">
                         <span className="foot-min">{a.estimated_minutes} min</span>
-                        <span className="link-go">Take it →</span>
+                        <span className="link-go">{isPaid(a) ? "Unlock →" : "Take it →"}</span>
                       </div>
                     </Link>
                   );
@@ -285,6 +298,9 @@ const CSS = `
 .card h4{font-family:var(--display,'Fraunces');font-weight:500;font-size:23px;color:var(--ink);margin:0 0 6px;letter-spacing:-.3px;}
 .card .tag{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:0 0 16px;}
 .card p.desc{font-size:14.5px;color:var(--ink-soft);margin:0;}
+.paid-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#B07C2E;background:#F5EFE6;border:1px solid #EADFC9;padding:3px 9px;border-radius:999px;margin-bottom:10px;}
+.filter-cost{margin-top:-10px;margin-bottom:10px;}
+.filter-cost .filter-btn{font-size:13px;padding:7px 16px;}
 .card-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 26px 24px;margin-top:14px;border-top:1px solid var(--line);}
 .foot-min{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);}
 .link-go{font-size:14px;font-weight:700;color:var(--teal-deep);display:inline-flex;align-items:center;gap:6px;}

@@ -24,6 +24,15 @@ function Login() {
     setState("sending");
     setMsg("");
     try {
+      // Prefer our own branded email (better deliverability). Falls back to
+      // Supabase's built-in email when branded sending isn't configured.
+      const r = await fetch("/api/auth/magiclink", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, next }),
+      });
+      const out = await r.json().catch(() => ({}));
+      if (out?.ok) { setState("sent"); return; }
+
       const supabase = getSupabase();
       const redirect = `${APP_URL}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error } = await supabase.auth.signInWithOtp({

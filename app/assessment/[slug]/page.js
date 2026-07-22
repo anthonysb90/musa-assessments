@@ -16,7 +16,7 @@ export default async function AssessmentLanding({ params, searchParams }) {
   const supabase = getServerSupabase();
   const { data: a } = await supabase
     .from("assessments")
-    .select("id,slug,name,subtitle,category,estimated_minutes,sensitivity,is_multi_rater")
+    .select("id,slug,name,subtitle,category,estimated_minutes,sensitivity,is_multi_rater,is_paid,price_cents")
     .eq("slug", slug)
     .eq("is_published", true)
     .maybeSingle();
@@ -45,12 +45,18 @@ export default async function AssessmentLanding({ params, searchParams }) {
     if (v) qp.set(k, Array.isArray(v) ? v[0] : v);
   }
   const isCouple = slug === "called-together";
-  const startHref = a.is_multi_rater
+  const paid = a.is_paid && a.price_cents > 0;
+  const priceLabel = paid ? `$${(a.price_cents / 100).toFixed(2)}` : null;
+  const startHref = paid
+    ? `/assessment/${slug}/buy`
+    : a.is_multi_rater
     ? `/assessment/${slug}/team`
     : isCouple
     ? `/assessment/${slug}/couple`
     : `/assessment/${slug}/start${qp.toString() ? `?${qp}` : ""}`;
-  const startLabel = a.is_multi_rater
+  const startLabel = paid
+    ? `Unlock for ${priceLabel} →`
+    : a.is_multi_rater
     ? "Start as a leadership team →"
     : isCouple
     ? "Start as a couple →"
@@ -79,7 +85,9 @@ export default async function AssessmentLanding({ params, searchParams }) {
           <div style={chips}>
             <span style={chip}>About {a.estimated_minutes} min</span>
             {count ? <span style={chip}>{count} questions</span> : null}
-            <span style={chip}>Free</span>
+            {paid
+              ? <span style={{ ...chip, ...chipGold }}>Paid · {priceLabel}</span>
+              : <span style={chip}>Free</span>}
             {a.sensitivity === "sensitive" && <span style={{ ...chip, ...chipGold }}>Private · sign-in required</span>}
           </div>
           <div style={{ marginTop: 26, display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
