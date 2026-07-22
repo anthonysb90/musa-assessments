@@ -16,9 +16,13 @@ export default function AdminPricing() {
       if (!admin) { setState("denied"); return; }
       const { data } = await supabase
         .from("assessments")
-        .select("slug,name,category,is_paid,price_cents,is_published")
+        .select("slug,name,category,is_paid,price_cents,is_published,seat_tiers")
         .order("category").order("name");
-      setRows((data || []).map((r) => ({ ...r, dollars: (r.price_cents / 100).toFixed(2) })));
+      setRows((data || []).map((r) => ({
+        ...r,
+        dollars: (r.price_cents / 100).toFixed(2),
+        tiers: (Array.isArray(r.seat_tiers) ? r.seat_tiers : []).map((t) => ({ qty: String(t.qty), dollars: (Number(t.price_cents) / 100).toFixed(2) })),
+      })));
       setState("ready");
     })();
   }, [supabase]);
@@ -31,9 +35,18 @@ export default function AdminPricing() {
     setSavingSlug(r.slug); setSavedSlug("");
     const cents = Math.round(Number(r.dollars || 0) * 100);
     await supabase.rpc("admin_set_pricing", { p_slug: r.slug, p_is_paid: !!r.is_paid, p_price: cents });
+    const tiers = (r.tiers || [])
+      .filter((t) => Number(t.qty) > 1 && Number(t.dollars) > 0)
+      .map((t) => ({ qty: Number(t.qty), price_cents: Math.round(Number(t.dollars) * 100) }))
+      .sort((a, b) => a.qty - b.qty);
+    await supabase.rpc("admin_set_tiers", { p_slug: r.slug, p_tiers: tiers });
     setSavingSlug(""); setSavedSlug(r.slug);
     setTimeout(() => setSavedSlug(""), 1800);
   }
+
+  const addTier = (slug) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: [...(r.tiers || []), { qty: "", dollars: "" }] } : r));
+  const editTier = (slug, i, patch) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: r.tiers.map((t, j) => j === i ? { ...t, ...patch } : t) } : r));
+  const removeTier = (slug, i) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: r.tiers.filter((_, j) => j !== i) } : r));
 
   if (state === "loading") return <Center>Loading…</Center>;
   if (state === "denied") return <Center>This area is limited to Mission USA staff. <Link href="/dashboard" style={link}>My dashboard</Link></Center>;
@@ -46,23 +59,43 @@ export default function AdminPricing() {
 
       <div style={card}>
         {rows.map((r) => (
-          <div key={r.slug} style={row}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, color: "var(--ink)" }}>{r.name}{!r.is_published && <span style={draft}>unpublished</span>}</div>
-              <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{r.category}</div>
+          <div key={r.slug} style={{ borderBottom: "1px solid var(--line)", padding: "14px 0" }}>
+            <div style={{ ...row, borderBottom: "none", padding: 0 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, color: "var(--ink)" }}>{r.name}{!r.is_published && <span style={draft}>unpublished</span>}</div>
+                <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{r.category}</div>
+              </div>
+              <label style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 14, color: "var(--ink)" }}>
+                <input type="checkbox" checked={!!r.is_paid} onChange={(e) => edit(r.slug, { is_paid: e.target.checked })} />
+                Paid
+              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ color: "var(--ink-soft)" }}>$</span>
+                <input style={priceInp} type="number" min="0" step="0.01" disabled={!r.is_paid}
+                  value={r.dollars} onChange={(e) => edit(r.slug, { dollars: e.target.value })} />
+              </div>
+              <button className="btn btn-primary" style={{ padding: "8px 16px" }} disabled={savingSlug === r.slug} onClick={() => save(r)}>
+                {savingSlug === r.slug ? "Saving…" : savedSlug === r.slug ? "Saved ✓" : "Save"}
+              </button>
             </div>
-            <label style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 14, color: "var(--ink)" }}>
-              <input type="checkbox" checked={!!r.is_paid} onChange={(e) => edit(r.slug, { is_paid: e.target.checked })} />
-              Paid
-            </label>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ color: "var(--ink-soft)" }}>$</span>
-              <input style={priceInp} type="number" min="0" step="0.01" disabled={!r.is_paid}
-                value={r.dollars} onChange={(e) => edit(r.slug, { dollars: e.target.value })} />
-            </div>
-            <button className="btn btn-primary" style={{ padding: "8px 16px" }} disabled={savingSlug === r.slug} onClick={() => save(r)}>
-              {savingSlug === r.slug ? "Saving…" : savedSlug === r.slug ? "Saved ✓" : "Save"}
-            </button>
+
+            {r.is_paid && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 8 }}>
+                  Volume discounts (optional) — e.g. 5 seats for $99, 20 for $299, 100 for $999
+                </div>
+                {(r.tiers || []).map((t, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                    <input style={{ ...priceInp, width: 72 }} type="number" min="2" placeholder="Qty" value={t.qty} onChange={(e) => editTier(r.slug, i, { qty: e.target.value })} />
+                    <span style={{ color: "var(--ink-soft)", fontSize: 13 }}>seats for $</span>
+                    <input style={{ ...priceInp, width: 96 }} type="number" min="0" step="0.01" placeholder="Total" value={t.dollars} onChange={(e) => editTier(r.slug, i, { dollars: e.target.value })} />
+                    <button onClick={() => removeTier(r.slug, i)} style={linkBtn}>Remove</button>
+                  </div>
+                ))}
+                <button onClick={() => addTier(r.slug)} style={linkBtn}>+ Add a tier</button>
+                <span style={{ fontSize: 12, color: "#8CA0B3", marginLeft: 10 }}>Remember to Save.</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -80,3 +113,4 @@ const card = { background: "var(--paper)", border: "1px solid var(--line)", bord
 const row = { display: "grid", gridTemplateColumns: "1fr auto auto auto", alignItems: "center", gap: 16, padding: "14px 0", borderBottom: "1px solid var(--line)" };
 const priceInp = { width: 90, padding: "8px 10px", fontSize: 14, borderRadius: 8, border: "1.5px solid var(--line)", fontFamily: "inherit" };
 const draft = { fontSize: 11, fontWeight: 700, color: "#8CA0B3", marginLeft: 8, textTransform: "uppercase", letterSpacing: ".04em" };
+const linkBtn = { background: "transparent", border: "none", color: "var(--teal-deep)", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline" };

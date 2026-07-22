@@ -12,24 +12,29 @@ const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || "";
 export async function POST(req) {
   if (!STRIPE_SECRET) return NextResponse.json({ error: "Checkout is not configured yet." }, { status: 503 });
   try {
-    const { kind, slug, email, name, seats } = await req.json();
-    const nSeats = Math.max(1, Math.min(1000, Number(seats) || 1));
+    const { kind, slug, email, name, seats, tier_qty } = await req.json();
+    let nSeats = Math.max(1, Math.min(1000, Number(seats) || 1));
     const supabase = getServerSupabase();
 
-    let cents = 0, slugs = [], desc = "", bundle = "";
+    let amount = 0, slugs = [], desc = "", bundle = "";
     if (kind === "bundle") {
       const { data: b } = await supabase
         .from("bundles").select("slug,name,price_cents,assessment_slugs,is_active").eq("slug", slug).maybeSingle();
       if (!b || !b.is_active) return NextResponse.json({ error: "That bundle isn't available." }, { status: 404 });
-      cents = b.price_cents; slugs = b.assessment_slugs || []; desc = `Bundle: ${b.name}`; bundle = b.slug;
+      slugs = b.assessment_slugs || []; desc = `Bundle: ${b.name}`; bundle = b.slug;
+      amount = b.price_cents * nSeats;
     } else {
       const { data: a } = await supabase
-        .from("assessments").select("slug,name,is_paid,price_cents").eq("slug", slug).eq("is_published", true).maybeSingle();
+        .from("assessments").select("slug,name,is_paid,price_cents,seat_tiers").eq("slug", slug).eq("is_published", true).maybeSingle();
       if (!a || !a.is_paid || a.price_cents <= 0) return NextResponse.json({ error: "This assessment isn't for sale." }, { status: 400 });
-      cents = a.price_cents; slugs = [a.slug]; desc = a.name;
+      slugs = [a.slug]; desc = a.name;
+      // Volume tier: price is read from the assessment's stored tiers, never the client.
+      const tiers = Array.isArray(a.seat_tiers) ? a.seat_tiers : [];
+      const tier = tier_qty ? tiers.find((t) => Number(t.qty) === Number(tier_qty)) : null;
+      if (tier) { nSeats = Number(tier.qty); amount = Number(tier.price_cents); }
+      else { amount = a.price_cents * nSeats; }
     }
 
-    const amount = cents * nSeats;
     if (amount < 50) return NextResponse.json({ error: "Amount too low." }, { status: 400 });
 
     const form = new URLSearchParams();

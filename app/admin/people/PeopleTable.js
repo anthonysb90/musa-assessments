@@ -66,7 +66,11 @@ export default function PeopleTable({ rows, assessments }) {
           <tbody>
             {filtered.slice(0, 1000).map((r, i) => (
               <tr key={i} style={{ borderTop: "1px solid #F0F2F4" }}>
-                <td style={td}><strong style={{ color: "#1C2B3A" }}>{r.name}</strong></td>
+                <td style={td}>
+                  {r.email
+                    ? <a href={`/admin/person?e=${encodeURIComponent(r.email)}`} style={{ color: "#1B3A57", fontWeight: 700, textDecoration: "none" }}>{r.name}</a>
+                    : <strong style={{ color: "#1C2B3A" }}>{r.name}</strong>}
+                </td>
                 <td style={td}>
                   <div>{r.email}</div>
                   {r.phone && <div style={{ color: "#8CA0B3" }}>{r.phone}</div>}

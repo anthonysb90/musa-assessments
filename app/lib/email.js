@@ -64,8 +64,8 @@ function shell(inner) {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FA;padding:24px 0;">
    <tr><td align="center">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #E7E9EC;border-radius:14px;overflow:hidden;">
-      <tr><td style="background:${NAVY};padding:22px 28px;">
-        <span style="color:#E4CE8C;font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:bold;">Mission USA · Ministry Assessments</span>
+      <tr><td align="center" style="background:${NAVY};padding:20px 28px;">
+        <img src="${APP_URL}/musa-logo-white.png" alt="Mission USA" height="52" style="height:52px;width:auto;display:inline-block;border:0;" />
       </td></tr>
       <tr><td style="padding:28px;">${inner}</td></tr>
       <tr><td style="padding:18px 28px;border-top:1px solid #EEF1F4;color:#7C8A9C;font-size:12px;">

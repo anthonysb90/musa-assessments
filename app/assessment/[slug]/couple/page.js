@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabase } from "../../../lib/supabase";
 import { APP_URL } from "../../../lib/config";
+import InviteSender from "../../../components/InviteSender";
 
 export default function CoupleSetup() {
   const { slug } = useParams();
@@ -80,6 +81,10 @@ export default function CoupleSetup() {
           </p>
           <div style={card}>
             <Copyable label="Both of you take it here" value={takeLink} />
+            <div style={{ marginBottom: 16 }}>
+              <div style={fl}>Or send your spouse their link</div>
+              <InviteSender link={takeLink} context="the Called Together assessment" fromName={name} />
+            </div>
             <Copyable label="Your couple report (bookmark this)" value={reportLink} />
             <div style={note}>
               Take your part now, then send the same link to your spouse. Your report opens the moment you

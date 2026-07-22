@@ -64,7 +64,7 @@ export default function Home() {
 
       <header className="topbar">
         <div className="hwrap topbar-in">
-          <span className="brand">Mission USA · Assessments</span>
+          <img src="/musa-logo.png" alt="Mission USA" className="brand-logo" />
           <Link href="/dashboard" className="topbar-link">Sign in / My results →</Link>
         </div>
       </header>
@@ -298,6 +298,7 @@ const CSS = `
 .card h4{font-family:var(--display,'Fraunces');font-weight:500;font-size:23px;color:var(--ink);margin:0 0 6px;letter-spacing:-.3px;}
 .card .tag{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:0 0 16px;}
 .card p.desc{font-size:14.5px;color:var(--ink-soft);margin:0;}
+.brand-logo{height:30px;width:auto;display:block;}
 .paid-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#B07C2E;background:#F5EFE6;border:1px solid #EADFC9;padding:3px 9px;border-radius:999px;margin-bottom:10px;}
 .filter-cost{margin-top:-10px;margin-bottom:10px;}
 .filter-cost .filter-btn{font-size:13px;padding:7px 16px;}

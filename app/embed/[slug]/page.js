@@ -50,8 +50,11 @@ export default async function EmbedCard({ params }) {
           <a href={href} target="_blank" rel="noopener noreferrer" style={cta}>{label} →</a>
         </div>
       </div>
-      <div style={{ textAlign: "center", marginTop: 10, fontSize: 11.5, color: "#8CA0B3" }}>
-        Powered by <Link href="/" target="_blank" style={{ color: "#2E7D8A", textDecoration: "none" }}>Mission USA Assessments</Link>
+      <div style={{ textAlign: "center", marginTop: 12 }}>
+        <img src="/musa-logo.png" alt="Mission USA" style={{ height: 24, width: "auto", display: "inline-block", opacity: 0.85 }} />
+        <div style={{ marginTop: 4, fontSize: 11, color: "#8CA0B3" }}>
+          Powered by <Link href="/" target="_blank" style={{ color: "#2E7D8A", textDecoration: "none" }}>Mission USA Assessments</Link>
+        </div>
       </div>
     </main>
   );

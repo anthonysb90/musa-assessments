@@ -20,7 +20,7 @@ function loadStripe(pk) {
   });
 }
 
-export default function Checkout({ kind = "assessment", slug, name, priceCents, allowSeats = true, onDone }) {
+export default function Checkout({ kind = "assessment", slug, name, priceCents, allowSeats = true, tiers = [], onDone }) {
   const [phase, setPhase] = useState("form"); // form | pay | working | error
   const [email, setEmail] = useState("");
   const [buyer, setBuyer] = useState("");
@@ -31,9 +31,21 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
   const stripeRef = useRef(null);
   const elementsRef = useRef(null);
 
+  // Volume options: "just me" (1 seat, base price) plus each admin-defined tier.
+  const options = (Array.isArray(tiers) && tiers.length)
+    ? [{ qty: 1, cents: priceCents || 0, label: "Just me" },
+       ...tiers.map((t) => ({ qty: Number(t.qty), cents: Number(t.price_cents), label: `${t.qty} seats` }))]
+    : null;
+  const [tierQty, setTierQty] = useState(1);
+
   useEffect(() => {
-    setAmount((priceCents || 0) * Math.max(1, group ? Number(seats) || 1 : 1));
-  }, [priceCents, seats, group]);
+    if (options) {
+      const o = options.find((x) => x.qty === tierQty) || options[0];
+      setAmount(o.cents);
+    } else {
+      setAmount((priceCents || 0) * Math.max(1, group ? Number(seats) || 1 : 1));
+    }
+  }, [priceCents, seats, group, tierQty, tiers]);
 
   // Return path for redirect-based payment methods.
   useEffect(() => {
@@ -47,9 +59,12 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
     if (!PUBK) { setErr("Payments aren't set up yet. Please check back soon."); setPhase("error"); return; }
     setErr("");
     try {
+      const payload = options
+        ? { kind, slug, email, name: buyer, tier_qty: tierQty > 1 ? tierQty : undefined, seats: 1 }
+        : { kind, slug, email, name: buyer, seats: group ? Number(seats) || 1 : 1 };
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, slug, email, name: buyer, seats: group ? Number(seats) || 1 : 1 }),
+        body: JSON.stringify(payload),
       });
       const out = await res.json();
       if (!res.ok) throw new Error(out.error || "Could not start checkout.");
@@ -112,17 +127,39 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
           <label style={fw}><span style={fl}>Email (for your receipt and access code)</span>
             <input style={inp} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
-          {allowSeats && (
-            <label style={{ ...fw, display: "flex", gap: 9, alignItems: "center" }}>
-              <input type="checkbox" checked={group} onChange={(e) => setGroup(e.target.checked)} />
-              <span style={{ fontSize: 14, color: "var(--ink-soft)" }}>Buying for a group or church (multiple seats)</span>
-            </label>
-          )}
-          {group && (
-            <label style={fw}><span style={fl}>How many seats?</span>
-              <input style={inp} type="number" min="1" max="1000" value={seats} onChange={(e) => setSeats(e.target.value)} />
-            </label>
-          )}
+          {options ? (
+            <div style={fw}>
+              <div style={fl}>How many seats?</div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {options.map((o) => {
+                  const active = o.qty === tierQty;
+                  const per = o.qty > 1 ? ` · $${(o.cents / o.qty / 100).toFixed(2)}/seat` : "";
+                  const save = o.qty > 1 && priceCents ? o.qty * priceCents - o.cents : 0;
+                  return (
+                    <button key={o.qty} type="button" onClick={() => setTierQty(o.qty)}
+                      style={{ ...tierBtn, ...(active ? tierBtnActive : {}) }}>
+                      <span>{o.label}{o.qty > 1 ? ` (${o.qty} seats)` : ""}
+                        {save > 0 && <span style={{ color: active ? "#E4CE8C" : "#2E7D8A", fontWeight: 700, marginLeft: 8, fontSize: 12 }}>save ${(save / 100).toFixed(0)}</span>}
+                      </span>
+                      <span style={{ fontWeight: 700 }}>{dollars(o.cents)}<span style={{ fontWeight: 400, fontSize: 11.5, opacity: 0.7 }}>{per}</span></span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : allowSeats ? (
+            <>
+              <label style={{ ...fw, display: "flex", gap: 9, alignItems: "center" }}>
+                <input type="checkbox" checked={group} onChange={(e) => setGroup(e.target.checked)} />
+                <span style={{ fontSize: 14, color: "var(--ink-soft)" }}>Buying for a group or church (multiple seats)</span>
+              </label>
+              {group && (
+                <label style={fw}><span style={fl}>How many seats?</span>
+                  <input style={inp} type="number" min="1" max="1000" value={seats} onChange={(e) => setSeats(e.target.value)} />
+                </label>
+              )}
+            </>
+          ) : null}
           <div style={totalRow}><span>Total</span><strong>{dollars(amount)}</strong></div>
           <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
             Continue to payment →
@@ -151,3 +188,5 @@ const totalRow = { display: "flex", justifyContent: "space-between", alignItems:
 const fw = { display: "block", marginBottom: 16 };
 const fl = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 6 };
 const inp = { width: "100%", padding: "12px 14px", fontSize: 15, borderRadius: 10, border: "1.5px solid var(--line)", fontFamily: "inherit" };
+const tierBtn = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, width: "100%", padding: "13px 16px", borderRadius: 12, border: "1.5px solid var(--line)", background: "#fff", color: "var(--ink)", cursor: "pointer", fontFamily: "inherit", fontSize: 14.5, textAlign: "left" };
+const tierBtnActive = { background: "var(--navy)", borderColor: "var(--navy)", color: "#fff" };

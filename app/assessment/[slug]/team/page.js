@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabase } from "../../../lib/supabase";
 import { APP_URL } from "../../../lib/config";
+import InviteSender from "../../../components/InviteSender";
 
 export default function TeamSetup() {
   const { slug } = useParams();
@@ -84,6 +85,10 @@ export default function TeamSetup() {
           <p style={sub}>Share this link with your leadership team. Bookmark the results link for yourself.</p>
           <div style={card}>
             <Copyable label="Share with your team" value={raterLink} />
+            <div style={{ marginBottom: 16 }}>
+              <div style={fl}>Or text/email each leader their link</div>
+              <InviteSender link={raterLink} context={`the ${assessment.name} team review`} fromName={church} />
+            </div>
             <Copyable label="Team code" value={group.team_code} />
             <Copyable label="Your results page (bookmark this)" value={resultsLink} />
             <div style={note}>

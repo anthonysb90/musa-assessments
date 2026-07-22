@@ -27,6 +27,7 @@ import {
   PLANTER_SCRIPTURES,
 } from "../../lib/content";
 import DonationCard from "../../components/DonationCard";
+import CircleInvite from "../../components/CircleInvite";
 
 export default function ResultsPage() {
   const { token } = useParams();
@@ -104,6 +105,7 @@ export default function ResultsPage() {
       <div ref={reportRef} id="report-capture">
         <header style={hd}>
           <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px" }}>
+            <img src="/musa-logo-white.png" alt="Mission USA" style={{ height: 40, width: "auto", display: "block", marginBottom: 18 }} />
             <div style={hdRow}>
               <div>
                 <div style={kicker}>{meta?.name}</div>
@@ -155,8 +157,15 @@ export default function ResultsPage() {
 
             {wb && <WellbeingCard wb={wb} />}
 
-            <div className="report-credit">{REPORT_CREDIT}</div>
+            <div className="report-credit">
+              <img src="/musa-logo.png" alt="Mission USA" style={{ height: 34, width: "auto", display: "block", margin: "0 auto 10px" }} />
+              {REPORT_CREDIT}
+            </div>
           </div>
+
+          {(scored.slug === "leadership-health" || scored.type === "planter") && (
+            <CircleInvite token={token} kind={scored.type === "planter" ? "planter" : "leader"} />
+          )}
 
           <DonationCard suppressed={suppressDonation} />
           <footer className="no-print no-pdf" style={ft}>A ministry resource of Mission USA · gomissionusa.com</footer>

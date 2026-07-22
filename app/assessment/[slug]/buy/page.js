@@ -16,7 +16,7 @@ export default function BuyPage() {
   useEffect(() => {
     (async () => {
       const { data } = await supabase
-        .from("assessments").select("slug,name,subtitle,is_paid,price_cents,estimated_minutes")
+        .from("assessments").select("slug,name,subtitle,is_paid,price_cents,estimated_minutes,seat_tiers")
         .eq("slug", slug).eq("is_published", true).maybeSingle();
       if (!data) { setState("error"); return; }
       if (!data.is_paid || data.price_cents <= 0) { router.replace(`/assessment/${slug}/start`); return; }
@@ -43,6 +43,7 @@ export default function BuyPage() {
         slug={slug}
         name={a.name}
         priceCents={a.price_cents}
+        tiers={a.seat_tiers || []}
         onDone={(code, seats) => {
           if (seats > 1) router.push(`/access/${code}`);
           else if (slug === "called-together") router.push(`/assessment/${slug}/couple?code=${code}`);

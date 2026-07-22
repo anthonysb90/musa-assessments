@@ -27,6 +27,11 @@ export const EMAILIT_REPLY_TO = process.env.EMAILIT_REPLY_TO || "";
 // Designated care contact for quarantined safety/wellbeing routing.
 export const CARE_CONTACT_EMAIL = process.env.CARE_CONTACT_EMAIL || "";
 
+// Church Planter assessor. Mission USA always provides the assessor, so when a
+// candidate opens their co-rater circle, this address is notified with the
+// assessor link (the candidate never invites an assessor themselves).
+export const ASSESSOR_EMAIL = process.env.ASSESSOR_EMAIL || "anthony@chchurch.com";
+
 // Cloudflare Turnstile (spam prevention). When unset, verification is skipped.
 export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 export const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || "";
@@ -41,5 +46,10 @@ export const DONATE_URL =
 // Credit line printed on every PDF / printed report.
 export const REPORT_CREDIT =
   "Assessment by Mission USA of the Congregational Holiness Church. Get yours at assessments.chchurch.com.";
+
+// Clearstream (SMS invites for multi-person assessments). Server-only. When
+// CLEARSTREAM_API_KEY is unset, texting is skipped and invites fall back to email.
+export const CLEARSTREAM_API_KEY = process.env.CLEARSTREAM_API_KEY || "";
+export const CLEARSTREAM_HEADER = process.env.CLEARSTREAM_HEADER || "Mission USA";
 
 export const CONSENT_VERSION = "2026-07-v1";
