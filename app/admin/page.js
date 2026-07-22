@@ -38,6 +38,17 @@ export default async function AdminPage() {
   }
   const scoredBy = Object.fromEntries(results.map((r) => [r.session_id, r]));
 
+  // Pastor wellbeing — Mission USA cares for its pastors, so admins can see who
+  // is carrying a heavy load and reach out. Church leaders never see this.
+  const { data: wbRows } = await supabase
+    .from("wellbeing_results")
+    .select("session_id,total,max_total,band,elevated,created_at")
+    .order("created_at", { ascending: false });
+  const careList = (wbRows || [])
+    .filter((w) => w.band === "significant" || w.band === "strain")
+    .map((w) => ({ ...w, contact: scoredBy[w.session_id]?.scored_json?.contact || {}, token: (sessions || []).find((s) => s.id === w.session_id)?.result_token }))
+    .sort((a, b) => (a.band === "significant" ? -1 : 1) - (b.band === "significant" ? -1 : 1));
+
   const completed = (sessions || []).filter((s) => s.status === "completed");
   const byAssessment = tally(completed.map((s) => s.assessments?.name || "—"));
   const roles = completed.map((s) => scoredBy[s.id]?.scored_json?.contact?.ministry_role || "Unspecified");
@@ -74,6 +85,34 @@ export default async function AdminPage() {
           <a className="btn btn-ghost" href="/api/admin/export?type=contacts">Export contacts (CSV)</a>
           <a className="btn btn-ghost" href="/api/admin/export?type=scores">Export scores (CSV)</a>
         </div>
+
+        {careList.length > 0 && (
+          <section style={{ ...panel, borderLeft: "5px solid #C4923E", background: "#FBF6EC" }}>
+            <div style={{ ...panelH, color: "#B07C2E" }}>Pastor wellbeing — reach out</div>
+            <p style={{ fontSize: 13, color: "#4A5B6D", margin: "0 0 12px" }}>
+              These pastors signaled strain on their confidential wellbeing check. Reach out personally,
+              gently, and soon. Handle with care and confidentiality — this is pastoral support, not a record.
+            </p>
+            <div style={{ display: "grid", gap: 8 }}>
+              {careList.map((w) => (
+                <div key={w.session_id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr auto", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 10, background: "#fff", border: "1px solid #EADFC9" }}>
+                  <span style={{ fontWeight: 600, color: "var(--ink)" }}>
+                    {w.contact.first_name} {w.contact.last_name}
+                    <span style={{ display: "block", fontSize: 12.5, color: "var(--ink-soft)", fontWeight: 400 }}>
+                      {w.contact.email} {w.contact.phone ? `· ${w.contact.phone}` : ""}
+                    </span>
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: w.band === "significant" ? "#B0442E" : "#B07C2E" }}>
+                    {w.band === "significant" ? "Heavy load" : "Some strain"}
+                  </span>
+                  <span style={{ fontSize: 12.5, color: "var(--ink-soft)", textAlign: "right" }}>
+                    {new Date(w.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <Panel title="By assessment"><Bars data={byAssessment} /></Panel>
         <Panel title="By ministry role"><Bars data={byRole} /></Panel>

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSupabase } from "../../lib/supabaseServer";
-import { scoreAssessment } from "../../lib/scoring";
+import { scoreAssessment, scoreWellbeing } from "../../lib/scoring";
 import { buildResultEmail, sendEmail } from "../../lib/email";
 import { verifyTurnstile } from "../../lib/turnstile";
-import { CONSENT_VERSION } from "../../lib/config";
+import { CONSENT_VERSION, CARE_CONTACT_EMAIL, APP_URL } from "../../lib/config";
 
 export const runtime = "nodejs";
 
@@ -47,9 +47,18 @@ export async function POST(req) {
 
     const { data: items } = await supabase
       .from("items")
-      .select("id,gift_letter,domain,is_reverse_scored,is_scored")
+      .select("id,text,gift_letter,domain,is_reverse_scored,is_scored")
       .eq("assessment_id", assessment.id);
     const itemMap = Object.fromEntries((items || []).map((it) => [it.id, it]));
+
+    // Wellbeing answers are quarantined: split them out so they never enter the
+    // shared responses/results tables. They go only to wellbeing_results (owner-only).
+    const wellbeingAnswers = {};
+    const scoredAnswers = {};
+    for (const [itemId, value] of Object.entries(answers)) {
+      if (itemMap[itemId]?.domain === "Wellbeing") wellbeingAnswers[itemId] = value;
+      else scoredAnswers[itemId] = value;
+    }
 
     // If logged in, ensure a profile row exists and stamp this session to it.
     if (user) {
@@ -93,17 +102,19 @@ export async function POST(req) {
       return NextResponse.json({ error: "Could not start session" }, { status: 500 });
     }
 
-    // 3. Save responses
-    const rows = Object.entries(answers).map(([item_id, value]) => ({
+    // 3. Save responses (wellbeing answers deliberately excluded)
+    const rows = Object.entries(scoredAnswers).map(([item_id, value]) => ({
       session_id: session.id,
       item_id,
       value: Number(value),
     }));
-    const { error: re } = await supabase.from("responses").insert(rows);
-    if (re) return NextResponse.json({ error: "Could not save answers" }, { status: 500 });
+    if (rows.length) {
+      const { error: re } = await supabase.from("responses").insert(rows);
+      if (re) return NextResponse.json({ error: "Could not save answers" }, { status: 500 });
+    }
 
-    // 4. Score
-    const scored = scoreAssessment(assessment, itemMap, answers, profile);
+    // 4. Score (domains only; wellbeing is never in scored_json)
+    const scored = scoreAssessment(assessment, itemMap, scoredAnswers, profile);
 
     // 5. Store results
     const { error: rse } = await supabase.from("results").insert({
@@ -111,6 +122,37 @@ export async function POST(req) {
       scored_json: scored,
     });
     if (rse) return NextResponse.json({ error: "Could not save results" }, { status: 500 });
+
+    // 5b. Wellbeing module — computed and stored apart, owner-only. Requires a
+    // logged-in user (sensitive assessment). Never emailed, never in exports.
+    if (user && Object.keys(wellbeingAnswers).length) {
+      const wb = scoreWellbeing(itemMap, wellbeingAnswers);
+      await supabase.from("wellbeing_results").insert({
+        session_id: session.id,
+        profile_id: user.id,
+        total: wb.total,
+        max_total: wb.maxTotal,
+        band: wb.band,
+        elevated: wb.elevated,
+      });
+      // Proactive care: when a pastor signals significant strain, alert the
+      // designated Mission USA care contact so someone can reach out. Internal
+      // only, never sent to the pastor.
+      if (wb.band === "significant" && CARE_CONTACT_EMAIL) {
+        const c = profile || {};
+        try {
+          await sendEmail({
+            to: CARE_CONTACT_EMAIL,
+            subject: "Pastor Profile — please reach out to a pastor",
+            html: `<p>A pastor just completed the Pastor Profile and their confidential wellbeing check came back in the heaviest range. This is a prompt to reach out personally and check on them, gently and soon.</p>
+              <p><strong>${c.first_name || ""} ${c.last_name || ""}</strong><br>
+              ${c.email || user.email || ""}<br>
+              ${c.phone || ""}</p>
+              <p>Please handle this with care and confidentiality. This note is for pastoral support, not a diagnosis.</p>`,
+          });
+        } catch { /* never block completion on the alert */ }
+      }
+    }
 
     // 6. Log completion event
     await supabase.from("events").insert({

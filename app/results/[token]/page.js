@@ -6,12 +6,16 @@ import { GIFTS } from "../../lib/gifts";
 import {
   ordinal,
   GROWTH_LEVELS,
-  ROOTED_MARKERS,
   rootedBand,
   FIVEFOLD,
   DISC_BLENDS,
   DISC_DIMS,
   domainBand,
+  DOMAIN_META,
+  DOMAIN_REPORT_COPY,
+  PASTOR_PILLARS,
+  PASTOR_DOMAINS,
+  WELLBEING_CARE,
 } from "../../lib/content";
 import DonationCard from "../../components/DonationCard";
 
@@ -19,6 +23,7 @@ export default function ResultsPage() {
   const { token } = useParams();
   const [scored, setScored] = useState(null);
   const [meta, setMeta] = useState(null);
+  const [wb, setWb] = useState(null);
   const [state, setState] = useState("loading");
 
   useEffect(() => {
@@ -32,8 +37,16 @@ export default function ResultsPage() {
       const { data: assessment } = await supabase
         .from("assessments").select("name,subtitle").eq("id", session.assessment_id).single();
       if (!result) { setState("notfound"); return; }
+      // Wellbeing (owner or Mission USA care/admin only, by RLS). Returns
+      // nothing for anyone else, so the card simply doesn't render for them.
+      const { data: wbRow } = await supabase
+        .from("wellbeing_results")
+        .select("total,max_total,band,elevated")
+        .eq("session_id", session.id)
+        .maybeSingle();
       setScored(result.scored_json);
       setMeta({ ...assessment, created_at: result.created_at });
+      setWb(wbRow || null);
       setState("ready");
     })();
   }, [token]);
@@ -76,10 +89,13 @@ export default function ResultsPage() {
 
         {scored.type === "gift-rank" && <GiftRank scored={scored} />}
         {scored.type === "ranked-sum" && <RankedSum scored={scored} />}
-        {scored.type === "domain-bands" && <RootedReport scored={scored} />}
+        {scored.type === "domain-bands" && <DomainBandsReport scored={scored} />}
         {scored.type === "level-matrix" && <GrowthReport scored={scored} />}
         {scored.type === "disc-blend" && <DiscReport scored={scored} />}
+        {scored.type === "pillar" && <PastorReport scored={scored} />}
         {scored.type === "domain-average" && <DomainReport scored={scored} />}
+
+        {wb && <WellbeingCard wb={wb} />}
 
         <DonationCard suppressed={suppressDonation} />
         <footer style={ft}>A ministry resource of Mission USA · gomissionusa.com</footer>
@@ -219,24 +235,32 @@ function RankedSum({ scored }) {
   );
 }
 
-/* ---------------- Rooted (domain bands) ---------------- */
-function RootedReport({ scored }) {
+/* ---------------- Rooted / Leadership Health (domain bands) ---------------- */
+function DomainBandsReport({ scored }) {
   const per = scored.scale_max || 5;
   const domains = scored.domains;
   const top2 = domains.slice(0, 2);
   const bottom2 = [...domains].slice(-2).reverse();
+  const bandFn = scored.slug === "rooted" ? rootedBand : domainBand;
+  const meta = DOMAIN_META[scored.slug] || {};
+  const copy = DOMAIN_REPORT_COPY[scored.slug] || {
+    snapshot: "Your results, domain by domain",
+    strong: "Your strengths",
+    grow: "Where to grow",
+    helper: "These are simply where the next season of growth is, not a verdict.",
+  };
   return (
     <>
       <section style={{ padding: "8px 0" }}>
-        <div style={sectionLabel}>Your roots, marker by marker</div>
+        <div style={sectionLabel}>{copy.snapshot}</div>
         <div style={chart}>
           {domains.map((d) => {
-            const band = rootedBand(d.average);
+            const band = bandFn(d.average);
             return (
               <div key={d.domain} style={rowGrid}>
                 <span style={rName}>{d.domain}</span>
                 <span style={track}><span style={fill(d.average / per, band.color)} /></span>
-                <span style={{ ...rScore, color: band.color, minWidth: 118, textAlign: "right" }}>
+                <span style={{ ...rScore, color: band.color, minWidth: 128, textAlign: "right" }}>
                   {d.average.toFixed(1)} · {band.label}
                 </span>
               </div>
@@ -245,40 +269,37 @@ function RootedReport({ scored }) {
         </div>
       </section>
       <section style={{ padding: "20px 0 4px" }}>
-        <div style={sectionLabel}>Where you're deeply rooted</div>
+        <div style={sectionLabel}>{copy.strong}</div>
         <div style={topGrid}>
           {top2.map((d) => (
             <div key={d.domain} style={topCard}>
               <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
               <div style={{ ...scoreRow, marginTop: 4 }}>
                 <span style={{ ...topScore, fontSize: 26 }}>{d.average.toFixed(1)}</span>
-                <span style={{ fontSize: 13, color: "#8CA0B3" }}>{rootedBand(d.average).label}</span>
+                <span style={{ fontSize: 13, color: "#8CA0B3" }}>{bandFn(d.average).label}</span>
               </div>
             </div>
           ))}
         </div>
       </section>
       <section style={{ padding: "20px 0 8px" }}>
-        <div style={sectionLabel}>Where to grow</div>
+        <div style={sectionLabel}>{copy.grow}</div>
         {bottom2.map((d) => {
-          const m = ROOTED_MARKERS[d.domain] || {};
+          const m = meta[d.domain] || {};
           return (
             <div key={d.domain} style={growCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: rootedBand(d.average).color }}>
-                  {d.average.toFixed(1)} · {rootedBand(d.average).label}
+                <div style={{ fontSize: 14, fontWeight: 700, color: bandFn(d.average).color }}>
+                  {d.average.toFixed(1)} · {bandFn(d.average).label}
                 </div>
               </div>
               <Block h="A next step" t={m.step} />
-              <div style={refLine}>{m.ref}</div>
+              {m.ref && <div style={refLine}>{m.ref}</div>}
             </div>
           );
         })}
-        <p style={helper}>
-          Every grower has roots still going down somewhere. These are simply where the next season of
-          growth is waiting, not a verdict on your walk.
-        </p>
+        <p style={helper}>{copy.helper}</p>
       </section>
     </>
   );
@@ -399,6 +420,132 @@ function DiscReport({ scored }) {
         </p>
       </section>
     </>
+  );
+}
+
+/* ---------------- Pastor Profile (3 pillars, 14 domains) ---------------- */
+function PastorReport({ scored }) {
+  const per = scored.scale_max || 5;
+  const domains = scored.domains;
+  const top2 = domains.slice(0, 2);
+  const bottom2 = [...domains].slice(-2).reverse();
+  return (
+    <>
+      <section style={{ padding: "8px 0" }}>
+        <div style={sectionLabel}>Your three pillars</div>
+        <div style={topGrid}>
+          {scored.pillars.map((p) => {
+            const band = domainBand(p.average);
+            return (
+              <div key={p.pillar} style={topCard}>
+                <div className="serif" style={{ ...topName, fontSize: 19 }}>{p.pillar}</div>
+                <div style={{ ...scoreRow, marginTop: 4 }}>
+                  <span style={{ ...topScore, fontSize: 26 }}>{p.average.toFixed(1)}</span>
+                  <span style={{ fontSize: 13, color: band.color }}>{band.label}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>
+          Character, Competence, and Contribution are meant to grow together. When one pillar runs far
+          ahead of another, that gap is worth as much attention as any single low score.
+        </p>
+      </section>
+
+      <section style={{ padding: "22px 0 4px" }}>
+        <div style={sectionLabel}>Every domain</div>
+        {PASTOR_PILLARS.map((pillar) => {
+          const ds = domains.filter((d) => (PASTOR_DOMAINS[d.domain]?.pillar) === pillar);
+          if (!ds.length) return null;
+          return (
+            <div key={pillar} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1B3A57", margin: "0 0 8px" }}>{pillar}</div>
+              <div style={chart}>
+                {ds.map((d) => {
+                  const band = domainBand(d.average);
+                  return (
+                    <div key={d.domain} style={rowGrid}>
+                      <span style={rName}>{d.domain}</span>
+                      <span style={track}><span style={fill(d.average / per, band.color)} /></span>
+                      <span style={{ ...rScore, color: band.color, minWidth: 128, textAlign: "right" }}>
+                        {d.average.toFixed(1)} · {band.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      <section style={{ padding: "8px 0 4px" }}>
+        <div style={sectionLabel}>Where you're strong</div>
+        <div style={topGrid}>
+          {top2.map((d) => (
+            <div key={d.domain} style={topCard}>
+              <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
+              <div style={{ ...scoreRow, marginTop: 4 }}>
+                <span style={{ ...topScore, fontSize: 26 }}>{d.average.toFixed(1)}</span>
+                <span style={{ fontSize: 13, color: "#8CA0B3" }}>{domainBand(d.average).label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ padding: "20px 0 8px" }}>
+        <div style={sectionLabel}>Where to focus</div>
+        {bottom2.map((d) => {
+          const m = PASTOR_DOMAINS[d.domain] || {};
+          return (
+            <div key={d.domain} style={growCard}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: domainBand(d.average).color }}>
+                  {d.average.toFixed(1)} · {domainBand(d.average).label}
+                </div>
+              </div>
+              <Block h="A next step" t={m.step} />
+            </div>
+          );
+        })}
+        <p style={helper}>
+          This is developmental, never a verdict on your calling. No score here confirms or denies that
+          God has called you. It simply shows where the next bit of growth is.
+        </p>
+      </section>
+    </>
+  );
+}
+
+/* ---------------- Private wellbeing card (Pastor Profile) ---------------- */
+function WellbeingCard({ wb }) {
+  const care = WELLBEING_CARE[wb.band] || WELLBEING_CARE.ok;
+  const isSignificant = wb.band === "significant";
+  const border = isSignificant ? "#C4923E" : "#E7E9EC";
+  return (
+    <section
+      style={{
+        marginTop: 28,
+        background: isSignificant ? "#FBF6EC" : "#fff",
+        border: `1px solid ${border}`,
+        borderLeft: `5px solid ${isSignificant ? "#C4923E" : "#2E7D8A"}`,
+        borderRadius: 16,
+        padding: "22px 24px",
+      }}
+    >
+      <div style={{ fontSize: 12, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, marginBottom: 8 }}>
+        Private · How you're doing
+      </div>
+      <div className="serif" style={{ fontSize: 21, color: "#1C2B3A", marginBottom: 8 }}>{care.title}</div>
+      <p style={{ fontSize: 15, color: "#3A4A5A", lineHeight: 1.65, margin: 0 }}>{care.body}</p>
+      <p style={{ fontSize: 12.5, color: "#8CA0B3", marginTop: 14, marginBottom: 0 }}>
+        This section is held in confidence by the Mission USA care team and is never shown to your local
+        church or in any shared report.
+      </p>
+    </section>
   );
 }
 

@@ -14,10 +14,15 @@ export const SCORING_TYPE = {
   rooted: "domain-bands",
   "fivefold-calling": "ranked-sum",
   "wired-to-lead": "disc-blend",
+  // Leadership Health ships as a self-assessment now (domain bands); the
+  // optional peer 360 comparison layer is added later.
+  "leadership-health": "domain-bands",
+  // Pastor Profile: 3-pillar / 14-domain self-assessment with a separate,
+  // quarantined wellbeing module (scored + stored apart, never emailed).
+  "pastor-profile": "pillar",
   // seeded but unpublished (dedicated flows pending)
   "called-together": "couple-lower",
   "church-health": "multi-rater",
-  "leadership-health": "self-peer",
 };
 
 // Answer scale options per slug (value stored + label shown).
@@ -37,6 +42,9 @@ export const SCALE_OPTIONS = {
   ],
   "wired-to-lead": [
     [1, "Not me at all"], [2, "A little"], [3, "Somewhat"], [4, "Mostly me"], [5, "Completely me"],
+  ],
+  "pastor-profile": [
+    [1, "Strongly Disagree"], [2, "Disagree"], [3, "Neutral"], [4, "Agree"], [5, "Strongly Agree"],
   ],
   "called-together": [
     [1, "Strongly Disagree"], [2, "Disagree"], [3, "Neutral"], [4, "Agree"], [5, "Strongly Agree"],
@@ -166,6 +174,127 @@ export const ROOTED_BANDS = [
 export function rootedBand(avg) {
   return ROOTED_BANDS.find((b) => avg >= b.min) || ROOTED_BANDS[ROOTED_BANDS.length - 1];
 }
+
+/* Leadership Health — 8 domains, each with a practical next step.
+   Ships as a self-assessment; optional peer 360 comparison comes later. */
+export const LEADERSHIP_DOMAINS = {
+  "Vision & Direction": {
+    step: "Write your leadership vision in two sentences, then say it out loud to your team this week and ask them to repeat it back in their own words.",
+  },
+  "Decision-Making": {
+    step: "Pick one decision you've been sitting on, set a deadline this week, and make the call once you have the input that actually matters, not all the input you could gather.",
+  },
+  Communication: {
+    step: "After your next important ask, check for understanding by having the person tell you back what they heard before they walk away.",
+  },
+  "Delegation & Team Building": {
+    step: "Hand one meaningful responsibility, not just a task, to someone this month, and resist the urge to step back in and take it over.",
+  },
+  "Emotional & Spiritual Resilience": {
+    step: "Name your two earliest 'running on empty' warning signs and decide now what you'll do the moment you notice them.",
+  },
+  "Integrity & Accountability": {
+    step: "Give one trusted person standing permission to question your decisions, and actually invite it at your next conversation with them.",
+  },
+  "Conflict Navigation": {
+    step: "Name one tension you've been avoiding and schedule the direct conversation within the week, before it grows.",
+  },
+  "Growth & Adaptability": {
+    step: "Choose one specific weakness and one concrete action you'll take on it this month, then tell someone so it's not just a private intention.",
+    ref: "Proverbs 12:15",
+  },
+};
+
+// Which metadata + report copy a domain-bands assessment uses, keyed by slug.
+export const DOMAIN_META = {
+  rooted: ROOTED_MARKERS,
+  "leadership-health": LEADERSHIP_DOMAINS,
+};
+
+export const DOMAIN_REPORT_COPY = {
+  rooted: {
+    snapshot: "Your roots, marker by marker",
+    strong: "Where you're deeply rooted",
+    grow: "Where to grow",
+    helper:
+      "Every grower has roots still going down somewhere. These are simply where the next season of growth is waiting, not a verdict on your walk.",
+  },
+  "leadership-health": {
+    snapshot: "Your leadership, domain by domain",
+    strong: "Your strengths",
+    grow: "Where to grow",
+    helper:
+      "Self-assessment is a start, not the whole picture. These are where the next season of growth is, not a verdict on your leadership. Adding trusted voices later will sharpen it further.",
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Pastor Profile — 3 pillars, 14 domains, + a quarantined wellbeing   */
+/* module. Wellbeing is scored and stored separately (owner-only) and  */
+/* never appears in any shared report, export, or email.               */
+/* ------------------------------------------------------------------ */
+export const PASTOR_PILLARS = [
+  "Character & Inner Life",
+  "Competence",
+  "Contribution & Support",
+];
+
+export const PASTOR_DOMAINS = {
+  "Calling & Conviction": { pillar: "Character & Inner Life", step: "Write down the two or three moments God most clearly confirmed your call, and keep them where you'll see them in the hard weeks." },
+  "Character & Integrity": { pillar: "Character & Inner Life", step: "Name one area you'd rather the congregation not see, and bring it into the light with one trusted person this month." },
+  "Spiritual Vitality": { pillar: "Character & Inner Life", step: "Set aside time with God this week that has nothing to do with sermon prep, purely to be with Him." },
+  "Emotional Health": { pillar: "Character & Inner Life", step: "Tell one safe person how you're actually doing this week, the unedited version, not the platform version." },
+  "Rest, Rhythm & Health": { pillar: "Character & Inner Life", step: "Protect one full day off on the calendar this week, and let one person hold you to it." },
+  "Marriage & Family": { pillar: "Character & Inner Life", step: "Put one unhurried, ministry-free evening with your family on the calendar this week and guard it like a meeting." },
+  "Preaching & Teaching": { pillar: "Competence", step: "Ask two people you trust for honest feedback on your last message, then pick one thing to sharpen." },
+  "Pastoral Care & Shepherding": { pillar: "Competence", step: "Name the person whose burden you're carrying hardest, and decide who can help you carry that weight." },
+  "Leadership & Vision": { pillar: "Competence", step: "Write your church's direction in one sentence, then say it out loud to your team this week." },
+  "Conflict Resolution": { pillar: "Competence", step: "Name one conversation you've been avoiding and schedule it within the week, before it grows." },
+  "Communication & Relationships": { pillar: "Competence", step: "Pick one relationship that needs repair and make the first move this week." },
+  "Disciple-Making & Multiplication": { pillar: "Contribution & Support", step: "Choose one person to intentionally disciple this season, and take the first concrete step with them." },
+  "Mentoring & Accountability": { pillar: "Contribution & Support", step: "If you don't have a mentor or real accountability, ask one person this month to speak into your ministry. Isolation is the quiet risk in ministry." },
+  "Mission & Evangelism": { pillar: "Contribution & Support", step: "Build one genuine friendship with someone far from God, starting this month." },
+};
+
+// Wellbeing module — 0 to 3 per item, last two weeks.
+export const WELLBEING_OPTIONS = [
+  [0, "Not at all"], [1, "Several days"], [2, "More than half the days"], [3, "Nearly every day"],
+];
+
+// The two items that force the "significant strain" band when elevated.
+export const WELLBEING_FLAG_TEXTS = [
+  "I've felt down, discouraged, or hopeless.",
+  "I've wondered whether I can keep going.",
+];
+
+export const WELLBEING_NOTICE =
+  "This next short section is a private check on how you're really doing. It is not shared with your local church or congregation, and never appears in any report they could see. It is held in confidence by the Mission USA care team, so that if you're carrying a heavy load, someone can reach out and walk with you. Please answer honestly, thinking about the last two weeks.";
+
+// Non-diagnostic bands. Care copy is fixed wording — do not soften the
+// significant-strain resource message without review.
+export function wellbeingBand(total, elevated) {
+  if (elevated || total >= 15) return { key: "significant", label: "Carrying a heavy load" };
+  if (total >= 7) return { key: "strain", label: "Some strain" };
+  return { key: "ok", label: "Doing okay" };
+}
+
+export const WELLBEING_CARE = {
+  ok: {
+    title: "You're doing okay",
+    body:
+      "This is good to see. Keep tending your own soul the way you tend everyone else's. Rest, honest friendship, and unhurried time with God are not luxuries for you, they're how you last.",
+  },
+  strain: {
+    title: "This season sounds heavy",
+    body:
+      "What you named is worth paying attention to, not pushing through. Consider protecting real rest this week, telling a trusted friend how you're actually doing, and letting someone pastor you for a change. You don't have to carry this at full strength alone.",
+  },
+  significant: {
+    title: "How you're feeling matters, and you don't have to carry it alone",
+    body:
+      "Please reach out to someone you trust, a doctor, a counselor, or a friend who will stay close. If you are struggling, the 988 Suicide and Crisis Lifeline is available 24/7: call or text 988 in the US. Reaching out is not weakness. You are worth caring for, and this weight is not yours to carry by yourself.",
+  },
+};
 
 /* ------------------------------------------------------------------ */
 /* Fivefold Calling — 5 callings                                       */
@@ -332,3 +461,200 @@ export function ordinal(n) {
   const s = ["th", "st", "nd", "rd"], v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
+
+/* ------------------------------------------------------------------ */
+/* Per-assessment landing content: imagery, copy, and a demo report.   */
+/* Photos: Pexels (free license). id → images.pexels.com CDN.          */
+/* ------------------------------------------------------------------ */
+const pexels = (id) =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600&h=1000&fit=crop`;
+
+export const ASSESSMENT_IMAGE = {
+  "spiritual-gifts": pexels(2019333),
+  rooted: pexels(8552609),
+  "fivefold-calling": pexels(7459355),
+  "wired-to-lead": pexels(3183183),
+  "church-growth": pexels(7816621),
+  "leadership-health": pexels(11633988),
+  "called-together": pexels(33521772),
+  "church-health": pexels(7691722),
+  "church-planter": pexels(30867724),
+  "pastor-profile": pexels(18999688),
+};
+
+export function assessmentImage(slug) {
+  return ASSESSMENT_IMAGE[slug] || pexels(1370295);
+}
+
+export const ASSESSMENT_LANDING = {
+  "spiritual-gifts": {
+    tagline: "Discover how God has gifted you to serve.",
+    about:
+      "Spiritual Gifts looks at 25 gift areas drawn from Romans 12, 1 Corinthians 12, and Ephesians 4. You'll answer 125 short statements, and your report ranks every gift from strongest to least, so you can see clearly where you're wired to serve.",
+    measures: [
+      "25 gifts across Romans 12, 1 Corinthians 12, and Ephesians 4",
+      "Your dominant and supporting gifts",
+      "A full ranked profile, not just a single label",
+    ],
+    youGet: [
+      "Your top gifts revealed first",
+      "Every gift ranked with a score",
+      "A definition, Scripture, and ministry-fit for each",
+    ],
+    demo: { headline: "Top gift: Teaching", sub: "Your 3 strongest of 25 gifts",
+      bars: [["Teaching", 14, 15], ["Leadership", 13, 15], ["Exhortation", 12, 15]] },
+  },
+  rooted: {
+    tagline: "How deep do your roots go?",
+    about:
+      "Rooted is a mirror, not a test. Over 40 statements you'll reflect on eight biblical markers of spiritual maturity, and see where you're deeply planted and where your roots still need to go down.",
+    measures: [
+      "8 biblical markers of maturity",
+      "From Abiding in Christ to Perseverance in Trials",
+      "Per-marker bands, no single grade",
+    ],
+    youGet: [
+      "A radar across all 8 markers",
+      "Your two strongest markers, affirmed",
+      "Your two growth markers, each with a Scripture and a next step",
+    ],
+    demo: { headline: "Deeply Rooted: Abiding in Christ", sub: "8 markers of maturity",
+      bars: [["Abiding in Christ", 4.4, 5], ["Word & Prayer", 4.0, 5], ["Serving & Gifts", 3.2, 5], ["Stewardship", 2.6, 5]] },
+  },
+  "fivefold-calling": {
+    tagline: "Find your primary ministry calling.",
+    about:
+      "Ephesians 4 names five ways God equips His church. Over 25 short statements, Fivefold Calling shows your primary and secondary calling, with a plain description of how you're most useful in the body.",
+    measures: [
+      "5 callings: Pioneering, Prophetic, Evangelistic, Shepherding, Teaching",
+      "Your primary and secondary lane",
+      "All five scored, none ranked above another",
+    ],
+    youGet: [
+      "Your primary and secondary calling, described",
+      "All five shown on a radar",
+      "Where each calling can go wrong, and how to use it well",
+    ],
+    demo: { headline: "Primary calling: Shepherding", sub: "Your Ephesians 4 wiring",
+      bars: [["Shepherding", 13, 15], ["Teaching", 11, 15], ["Prophetic", 7, 15]] },
+  },
+  "wired-to-lead": {
+    tagline: "How has God wired you to lead?",
+    about:
+      "A simple lens on how you naturally move through decisions, people, and pressure. Over 28 statements, Wired to Lead shows your DISC blend, paired with a biblical leader who shares it.",
+    measures: [
+      "Four dimensions: Drive, Influence, Steadiness, Conscientiousness",
+      "One of 12 blends, each with a biblical parallel",
+      "Your full wiring, not a flattened label",
+    ],
+    youGet: [
+      "Your blend and its biblical parallel",
+      "Strengths and watch-outs, both",
+      "Where you're best used, and one growth challenge",
+    ],
+    demo: { headline: "Your blend: DC — Nehemiah, the Builder", sub: "Drive + Conscientiousness",
+      bars: [["Drive", 30, 35], ["Conscientiousness", 28, 35], ["Influence", 20, 35], ["Steadiness", 18, 35]] },
+  },
+  "church-growth": {
+    tagline: "Where is your church actually headed?",
+    about:
+      "Not where you hope it's headed, where the evidence says it's headed. 50 statements, mixed so no stage is identifiable while you answer, give an honest read on your church's current stage, from decline to multiplication.",
+    measures: [
+      "5 stages: Decline, Plateaued, Adding, Reproducing, Multiplying",
+      "Each stage scored independently",
+      "A transition flag when you're between stages",
+    ],
+    youGet: [
+      "Your current stage and its message",
+      "All five stages side by side",
+      "Where to focus to reach the next stage",
+    ],
+    demo: { headline: "A Church Adding — Please Come", sub: "Your stage, of five",
+      bars: [["Adding", 24, 30], ["Reproducing", 18, 30], ["Plateaued", 15, 30]] },
+  },
+  "leadership-health": {
+    tagline: "How healthy is your leadership, really?",
+    about:
+      "An honest self-assessment across eight areas every leader needs. Over 40 statements you'll reflect on how you actually lead, not how you wish you led, and see where you're strong and where to grow.",
+    measures: [
+      "8 leadership domains, from Vision to Adaptability",
+      "An honest self-read",
+      "Optional peer input for blind spots (coming soon)",
+    ],
+    youGet: [
+      "A radar across all 8 domains",
+      "Your two strongest domains",
+      "Your two growth domains, each with a next step",
+    ],
+    demo: { headline: "Strength: Vision & Direction", sub: "8 leadership domains",
+      bars: [["Vision & Direction", 4.4, 5], ["Integrity", 4.2, 5], ["Delegation", 3.0, 5], ["Conflict", 2.6, 5]] },
+  },
+  "called-together": {
+    tagline: "Your marriage carries more than most.",
+    about:
+      "Ministry puts a weight on a marriage most never carry. Called Together is an honest look at how yours is holding up, taken privately by each spouse, then shown side by side.",
+    measures: [
+      "8 domains, from Shared Calling to Support & Community",
+      "Taken separately by each spouse",
+      "A confidential safety check, never shared",
+    ],
+    youGet: [
+      "A couple report, both scores side by side",
+      "Your strengths and growth domains",
+      "The single biggest gap between you, named gently",
+    ],
+    demo: { headline: "Strongest: Shared Calling", sub: "8 domains, both spouses",
+      bars: [["Shared Calling", 4.6, 5], ["Support & Community", 4.0, 5], ["Margin & Rest", 2.8, 5]] },
+  },
+  "church-health": {
+    tagline: "How healthy is your church, really?",
+    about:
+      "Not how it feels from the platform, how it actually is, according to the people leading alongside you. Your whole leadership team answers privately, and the results combine into one honest picture.",
+    measures: [
+      "8 qualities of a healthy church",
+      "Taken by your whole leadership team",
+      "A 3-rater minimum protects anonymity",
+    ],
+    youGet: [
+      "A radar of all 8 qualities",
+      "Your weakest area, called out first",
+      "Where your team sees things differently",
+    ],
+    demo: { headline: "Weakest area: Outward Focus", sub: "8 qualities, whole team",
+      bars: [["Worship That Connects", 4.2, 5], ["Leadership Development", 3.6, 5], ["Outward Focus", 2.5, 5]] },
+  },
+  "church-planter": {
+    tagline: "Are you ready to plant?",
+    about:
+      "A clear, honest look at your readiness to plant a church, across thirteen characteristics that consistently mark effective planters, through your answers, your spouse's perspective, and a trained assessor.",
+    measures: [
+      "13 planter characteristics, primary five weighted",
+      "Candidate, spouse, and assessor together",
+      "A validity layer that rewards honesty",
+    ],
+    youGet: [
+      "Where you'll excel and what to watch for",
+      "A readiness picture, never a verdict",
+      "Where you and your spouse align, and where to talk",
+    ],
+    demo: { headline: "Readiness: Develop First", sub: "13 planter characteristics",
+      bars: [["Visioning Capacity", 4.2, 5], ["Resilience", 3.8, 5], ["Reaches the Unchurched", 2.9, 5]] },
+  },
+  "pastor-profile": {
+    tagline: "An honest look at your life and ministry.",
+    about:
+      "Pastoring asks everything of a person. Pastor Profile looks at all of it, honestly and without judgment, across three pillars and fourteen domains, plus a private, confidential read on how you're really doing.",
+    measures: [
+      "14 domains across Character, Competence, and Contribution",
+      "A three-pillar balance view",
+      "A confidential wellbeing check, private to you",
+    ],
+    youGet: [
+      "A three-pillar snapshot of all 14 domains",
+      "Your strengths and focus areas",
+      "A private read on your own wellbeing and rest",
+    ],
+    demo: { headline: "Balanced across three pillars", sub: "Character · Competence · Contribution",
+      bars: [["Character & Inner Life", 4.3, 5], ["Competence", 4.0, 5], ["Contribution & Support", 3.4, 5]] },
+  },
+};

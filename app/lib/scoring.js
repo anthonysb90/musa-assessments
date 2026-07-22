@@ -12,6 +12,10 @@ import {
   DISC_PRIORITY,
   rootedBand,
   domainBand,
+  PASTOR_PILLARS,
+  PASTOR_DOMAINS,
+  WELLBEING_FLAG_TEXTS,
+  wellbeingBand,
 } from "./content";
 import { CONSENT_VERSION } from "./config";
 
@@ -78,11 +82,14 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
   }
 
   if (type === "domain-bands") {
+    // Rooted uses the Deeply Rooted / Growing / Needs Watering band labels;
+    // every other domain-bands assessment uses Strength / Steady / Needs Attention.
+    const bandFn = assessment.slug === "rooted" ? rootedBand : domainBand;
     const groups = groupBy(itemMap, answers, (it) => it.domain, smin, smax);
     const domains = Object.entries(groups)
       .map(([domain, vals]) => {
         const average = +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
-        return { domain, average, count: vals.length, band: rootedBand(average).label };
+        return { domain, average, count: vals.length, band: bandFn(average).label };
       })
       .sort((a, b) => b.average - a.average || a.domain.localeCompare(b.domain));
     return { ...base, type: "domain-bands", scale_max: smax, domains };
@@ -141,6 +148,32 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     };
   }
 
+  if (type === "pillar") {
+    // Domain averages grouped into pillar composites. The Wellbeing module is
+    // never scored here — it is computed and stored separately (scoreWellbeing).
+    const groups = groupBy(itemMap, answers, (it) => it.domain, smin, smax);
+    delete groups["Wellbeing"];
+    const domains = Object.entries(groups)
+      .map(([domain, vals]) => {
+        const average = +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
+        return {
+          domain,
+          average,
+          band: domainBand(average).label,
+          pillar: PASTOR_DOMAINS[domain]?.pillar || null,
+        };
+      })
+      .sort((a, b) => b.average - a.average || a.domain.localeCompare(b.domain));
+    const pillars = PASTOR_PILLARS.map((p) => {
+      const ds = domains.filter((d) => d.pillar === p);
+      const average = ds.length
+        ? +(ds.reduce((a, d) => a + d.average, 0) / ds.length).toFixed(2)
+        : 0;
+      return { pillar: p, average, count: ds.length };
+    });
+    return { ...base, type: "pillar", scale_max: smax, domains, pillars };
+  }
+
   // Generic domain-average fallback (used only if an unexpected slug submits)
   const groups = groupBy(itemMap, answers, (it) => it.domain || "General", smin, smax);
   const domains = Object.entries(groups)
@@ -151,3 +184,23 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     .sort((a, b) => b.average - a.average);
   return { ...base, type: "domain-average", scale_max: smax, domains };
 }
+
+// Wellbeing module — scored on its own (0-3 per item), returned to the caller
+// so it can be stored in the owner-only wellbeing_results table. This output
+// must never be written into results.scored_json or emailed.
+export function scoreWellbeing(itemMap, answers) {
+  let total = 0;
+  let maxTotal = 0;
+  let elevated = false;
+  for (const [itemId, value] of Object.entries(answers)) {
+    const it = itemMap[itemId];
+    if (!it || it.domain !== "Wellbeing") continue;
+    const v = Number(value);
+    total += v;
+    maxTotal += 3;
+    if (WELLBEING_FLAG_TEXTS.includes(it.text) && v >= 2) elevated = true;
+  }
+  const band = wellbeingBand(total, elevated);
+  return { total, maxTotal, elevated, band: band.key, band_label: band.label };
+}
+
