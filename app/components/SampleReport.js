@@ -15,6 +15,9 @@ import {
   SPIRITUAL_GROWTH_DOMAINS,
   SPIRITUAL_GROWTH_ORDER,
   ENNEAGRAM_TYPES,
+  PLANTER_PRIMARY,
+  PLANTER_CHARACTERISTICS,
+  PLANTER_TIERS,
   rootedBand,
   domainBand,
   WELLBEING_CARE,
@@ -65,6 +68,10 @@ const SAMPLE = {
   enneagram: {
     type: "enneagram", primary: "2",
     ranked: [["2", 7], ["9", 6], ["6", 5], ["1", 4], ["4", 3], ["3", 3], ["5", 3], ["7", 3], ["8", 2]],
+  },
+  "church-planter": {
+    type: "planter", tier: "develop", composite: 3.8,
+    domains: [["Exercises Faith", 4.6], ["Visioning Capacity", 4.4], ["Intrinsically Motivated", 4.2], ["Resilience", 4.0], ["Effectively Builds Relationships", 3.9], ["Committed to Church Growth", 3.8], ["Flexible and Adaptable", 3.7], ["Creates Ownership of Ministry", 3.5], ["Utilizes the Giftedness of Others", 3.4], ["Builds Group Cohesiveness", 3.2], ["Responsive to the Community", 3.0], ["Spousal Cooperation", 3.4], ["Reaches the Unchurched", 2.8]],
   },
 };
 
@@ -120,8 +127,59 @@ function Report({ sample }) {
     case "team": return <Team s={sample} />;
     case "sg-wheel": return <SgWheel s={sample} />;
     case "enneagram": return <Enneagram s={sample} />;
+    case "planter": return <Planter s={sample} />;
     default: return null;
   }
+}
+
+function Planter({ s }) {
+  const per = 5;
+  const tier = PLANTER_TIERS[s.tier];
+  const domains = s.domains.map(([domain, average]) => ({ domain, average, primary: PLANTER_PRIMARY.includes(domain) }));
+  const top3 = [...domains].sort((a, b) => b.average - a.average).slice(0, 3);
+  const watch = [...domains].sort((a, b) => a.average - b.average).slice(0, 2);
+  return (
+    <>
+      <Section label="Your readiness">
+        <div style={{ ...card, borderLeft: `5px solid ${tier.color}` }}>
+          <div style={{ ...rankKick, color: tier.color }}>Developmental, never a verdict</div>
+          <div className="serif" style={{ fontSize: 24, color: "#1C2B3A", marginTop: 4 }}>{tier.label}</div>
+          <p style={{ ...defP, marginTop: 8 }}>{tier.body}</p>
+          <div style={{ marginTop: 10, fontSize: 13, color: "#4A5B6D" }}>Weighted readiness score: <strong style={{ color: NAVY }}>{s.composite.toFixed(1)}</strong> / {per}</div>
+        </div>
+      </Section>
+      <Section label="All 13 characteristics" style={{ padding: "16px 0 4px" }}>
+        <div style={chart}>
+          {[...domains].sort((a, b) => b.average - a.average).map((d) => {
+            const b = domainBand(d.average);
+            return (
+              <div key={d.domain} style={{ ...rowGrid, gridTemplateColumns: "1fr 2fr 118px" }}>
+                <span style={rName}>{d.domain}{d.primary && <span style={{ fontSize: 10, fontWeight: 700, color: "#B07C2E", marginLeft: 6 }}>◆</span>}</span>
+                <Bar frac={d.average / per} color={b.color} />
+                <span style={{ ...rScore, color: b.color, minWidth: 118 }}>{d.average.toFixed(1)} · {b.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+      <Section label="Where you'll excel" style={{ padding: "16px 0 4px" }}>
+        {top3.map((d) => (
+          <div key={d.domain} style={{ ...card, marginBottom: 12 }}>
+            <div className="serif" style={{ fontSize: 18, color: "#1C2B3A" }}>{d.domain}</div>
+            <Block h="Lean into it" t={PLANTER_CHARACTERISTICS[d.domain]?.leanIn} />
+          </div>
+        ))}
+      </Section>
+      <Section label="What to watch for" style={{ padding: "16px 0 4px" }}>
+        {watch.map((d) => (
+          <div key={d.domain} style={{ ...card, marginBottom: 12 }}>
+            <div className="serif" style={{ fontSize: 18, color: "#1C2B3A" }}>{d.domain}</div>
+            <Block h="A next step" t={PLANTER_CHARACTERISTICS[d.domain]?.step} />
+          </div>
+        ))}
+      </Section>
+    </>
+  );
 }
 
 function SgWheel({ s }) {

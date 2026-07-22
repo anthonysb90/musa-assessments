@@ -26,6 +26,10 @@ export const SCORING_TYPE = {
   // Enneagram: 36 forced-choice pairs, each statement keyed to a type; the
   // taker picks one per pair and the type counts rank 1-9 (top three matter).
   enneagram: "type-pick",
+  // Church Planter: candidate self-assessment across 13 characteristics
+  // (primary five weighted 2x), with a validity layer. Spouse/assessor layers
+  // are a later phase; this scores and reports the candidate self-assessment.
+  "church-planter": "planter",
   // seeded but unpublished (dedicated flows pending)
   "called-together": "couple-lower",
   "church-health": "multi-rater",
@@ -400,6 +404,138 @@ export const ENNEAGRAM_TYPES = {
       "Peacemaking is not the same as peacekeeping. Peacekeeping avoids, but peacemaking engages, the way Jesus did. You matter enough to have an opinion and to take up space. This week, name one thing you actually want or think, and say it out loud instead of going along.",
   },
 };
+
+/* ------------------------------------------------------------------ */
+/* Church Planter — 13 characteristics (primary five weighted 2x).      */
+/* Candidate self-assessment. Each characteristic has a plain descriptor,*/
+/* a way to lean into it in a plant, and a growth step. Original wording.*/
+/* ------------------------------------------------------------------ */
+export const PLANTER_PRIMARY = [
+  "Visioning Capacity",
+  "Intrinsically Motivated",
+  "Creates Ownership of Ministry",
+  "Reaches the Unchurched",
+  "Spousal Cooperation",
+];
+
+export const PLANTER_CHARACTERISTICS = {
+  "Visioning Capacity": {
+    primary: true,
+    blurb: "Seeing a future that doesn't exist yet and making others want to build it with you.",
+    leanIn: "Put your vision in words people can repeat. A plant lives or dies on whether others can see what you see.",
+    step: "Write the future of your plant in three sentences, then say it out loud to five people this month and watch which parts land.",
+  },
+  "Intrinsically Motivated": {
+    primary: true,
+    blurb: "Driving toward the goal when no one is watching and no one is making you.",
+    leanIn: "Planting has long unseen stretches. Your inner engine has to run without applause.",
+    step: "Name the deeper why behind your call and write it where you'll see it, so the empty weeks meet a settled reason.",
+  },
+  "Creates Ownership of Ministry": {
+    primary: true,
+    blurb: "Handing real responsibility to others so the work becomes theirs, not just yours.",
+    leanIn: "You cannot plant alone. The plants that last are the ones where other people own the mission early.",
+    step: "Give one meaningful responsibility away this month, and resist the urge to take it back when it's done differently than you'd do it.",
+  },
+  "Reaches the Unchurched": {
+    primary: true,
+    blurb: "Building real friendships with people far from God, not just gathering churchgoers.",
+    leanIn: "A plant that only draws existing Christians isn't a plant, it's a transfer. Your reach outward is the whole point.",
+    step: "Name two people far from God in your life. If you can't, that's the finding. Start one genuine friendship this month.",
+  },
+  "Spousal Cooperation": {
+    primary: true,
+    blurb: "You and your spouse united in the call, with eyes open to what it will cost.",
+    leanIn: "Planting is a family calling. A divided or exhausted marriage is the most common reason plants fail.",
+    step: "Have one honest conversation this week about what planting will actually cost your family, and don't rush past the hesitations.",
+  },
+  "Effectively Builds Relationships": {
+    primary: false,
+    blurb: "People find you easy to approach, and you build trust across different kinds of people.",
+    leanIn: "A plant grows at the speed of trust. Your ability to connect widely is fuel.",
+    step: "This week, start one conversation with someone very different from you, and stay curious longer than is comfortable.",
+  },
+  "Committed to Church Growth": {
+    primary: false,
+    blurb: "You want the ministry to reach more people, and you'll change methods to do it.",
+    leanIn: "Hold the mission tightly and the methods loosely. Growth asks you to keep adjusting.",
+    step: "Name one thing you do out of habit rather than fruitfulness, and change it this month.",
+  },
+  "Responsive to the Community": {
+    primary: false,
+    blurb: "You shape ministry around a real community's actual needs, not a generic template.",
+    leanIn: "Learn your community before you build for it. The plant that fits its place takes root.",
+    step: "Spend one afternoon this month simply listening to your community, and let one real need shape a next step.",
+  },
+  "Utilizes the Giftedness of Others": {
+    primary: false,
+    blurb: "You help people find what they're good at and place them there.",
+    leanIn: "Your job isn't to do everything, it's to see the gift in others and unlock it.",
+    step: "Name one person's gift they haven't fully used, and give them a real place to use it this month.",
+  },
+  "Flexible and Adaptable": {
+    primary: false,
+    blurb: "When the plan changes, you adapt without losing the mission.",
+    leanIn: "Almost nothing in a plant goes to plan. Steady hands on the mission, open hands on the method.",
+    step: "Recall the last time a plan fell apart. Name what you learned, so the next surprise meets a wiser you.",
+  },
+  "Builds Group Cohesiveness": {
+    primary: false,
+    blurb: "You move a group from strangers to a team that genuinely bonds.",
+    leanIn: "A plant is built on a core team that loves each other. You knit people together.",
+    step: "Create one unhurried moment for your core people to connect as friends, not just co-workers, this month.",
+  },
+  Resilience: {
+    primary: false,
+    blurb: "You recover from setbacks and criticism and keep moving.",
+    leanIn: "Planting will knock you down. Getting back up, again and again, is the skill that outlasts talent.",
+    step: "Name one person who can help you carry the hard days, and tell them that's the role you need from them.",
+  },
+  "Exercises Faith": {
+    primary: false,
+    blurb: "Your walk with God is the real engine, and you've taken steps only He could carry.",
+    leanIn: "A plant is a step off the edge. Faith isn't a slogan here, it's the ground you stand on.",
+    step: "Name one thing you're trusting God for that you can't manufacture, and pray it by name daily this month.",
+  },
+};
+
+export const PLANTER_TIERS = {
+  ready: {
+    key: "ready",
+    label: "Ready to Plant",
+    color: "#2E7D8A",
+    body:
+      "You show real strength across the characteristics that matter most for planting, with no major gaps. This is an encouraging picture. Use the assessor conversation to confirm it and to sharpen a few edges, then plant with confidence and a strong team around you.",
+  },
+  develop: {
+    key: "develop",
+    label: "Develop First",
+    color: "#C4923E",
+    body:
+      "There is real promise here, with one or two specific areas to grow before you plant. This is not a no, it's a wise not-yet in a few places. Name those areas plainly, build a short development plan, and revisit. Many strong planters started exactly here.",
+  },
+  elsewhere: {
+    key: "elsewhere",
+    label: "Better Suited Elsewhere For Now",
+    color: "#8CA0B3",
+    body:
+      "Right now, the pattern points away from lead planting as the best fit for this season. That is about fit, not failure. Many people here thrive on a planting team or in an existing-church role that uses their real strengths. Talk this through honestly with your assessor and sending leaders.",
+  },
+};
+
+export const PLANTER_PRAY = [
+  "Where is my sense of calling to plant clearest, and where is it still unsettled?",
+  "What would it cost the people I love most if I plant, and have we counted that cost together?",
+  "Where am I trusting my own ability more than God's provision?",
+  "Who has God already put around me to build with, and who is still missing?",
+];
+
+export const PLANTER_SCRIPTURES = [
+  ["Matthew 28:18-20", "The commission that sends every plant."],
+  ["Acts 13:1-3", "The church sends its best, with prayer and fasting."],
+  ["1 Corinthians 3:6-9", "You plant, another waters, God gives the growth."],
+  ["Nehemiah 2", "Vision, honest assessment, and a plan before the building starts."],
+];
 
 // Which metadata + report copy a domain-bands assessment uses, keyed by slug.
 export const DOMAIN_META = {

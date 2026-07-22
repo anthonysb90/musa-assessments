@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { DONATE_URL } from "../lib/config";
 
 // Post-report donation card (Mission USA). Grace-filled partnership, shown
 // after the report is delivered. Fully env-gated: renders only when a Stripe
@@ -27,10 +28,35 @@ export default function DonationCard({ suppressed }) {
   const [state, setState] = useState("idle"); // idle | working | thanks | error
   const [msg, setMsg] = useState("");
 
-  if (!PUBK || suppressed || dismissed) return null;
+  if (suppressed || dismissed) return null;
+
+  // When Stripe isn't configured, still invite a gift on the web report by
+  // linking to Mission USA's giving page. The ask appears on every report.
+  if (!PUBK)
+    return (
+      <div style={wrap} className="no-print no-pdf">
+        <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 20, color: "#1C2B3A", marginBottom: 6 }}>
+          This one's on us. If it helped, help us keep it going.
+        </div>
+        <p style={{ fontSize: 14, color: "#4A5B6D", marginTop: 0 }}>
+          Mission USA offers these assessments free so anyone can use them. If your report was worth
+          something to you, a gift of any size helps us keep it free for the next person.
+        </p>
+        <div style={{ display: "flex", gap: 12, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
+          <a className="btn btn-primary" href={DONATE_URL} target="_blank" rel="noopener noreferrer">
+            Give to Mission USA →
+          </a>
+          <button onClick={() => setDismissed(true)} style={dismiss}>No thanks, maybe later</button>
+        </div>
+        <p style={{ fontSize: 12, color: "#8CA0B3", margin: "12px 0 0" }}>
+          Reports like this often cost $10 or more elsewhere. Yours is free.
+        </p>
+      </div>
+    );
+
   if (state === "thanks")
     return (
-      <div style={wrap} className="no-print">
+      <div style={wrap} className="no-print no-pdf">
         <p style={{ margin: 0, fontSize: 16, color: "#1C2B3A" }}>
           Thank you for partnering with Mission USA. A receipt is on its way to your inbox.
         </p>
@@ -65,7 +91,7 @@ export default function DonationCard({ suppressed }) {
   }
 
   return (
-    <div style={wrap} className="no-print">
+    <div style={wrap} className="no-print no-pdf">
       <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 20, color: "#1C2B3A", marginBottom: 6 }}>
         This one's on us. If it helped, help us keep it going.
       </div>

@@ -16,6 +16,9 @@ import {
   PASTOR_DOMAINS,
   WELLBEING_FLAG_TEXTS,
   wellbeingBand,
+  PLANTER_PRIMARY,
+  PLANTER_CHARACTERISTICS,
+  PLANTER_TIERS,
 } from "./content";
 import { CONSENT_VERSION } from "./config";
 
@@ -140,6 +143,63 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
       .map((t) => ({ type: t, score: counts[t] || 0 }))
       .sort((a, b) => b.score - a.score || Number(a.type) - Number(b.type));
     return { ...base, type: "type-pick", total, ranked, primary: ranked[0]?.type };
+  }
+
+  if (type === "planter") {
+    // Candidate self-assessment. Trait items are scored (is_scored=true);
+    // candor + attention-check items are is_scored=false, so groupBy skips them.
+    const married = (profile?.marital_status || "").toLowerCase() !== "single";
+    const groups = groupBy(itemMap, answers, (it) => it.domain, smin, smax);
+    if (!married) delete groups["Spousal Cooperation"];
+
+    const domains = Object.entries(groups)
+      .map(([domain, vals]) => {
+        const average = +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
+        const primary = PLANTER_PRIMARY.includes(domain);
+        return { domain, average, primary, band: domainBand(average).label };
+      })
+      .sort((a, b) => b.average - a.average || a.domain.localeCompare(b.domain));
+
+    // Weighted composite: primaries 2x, secondaries 1x.
+    let wSum = 0, w = 0;
+    for (const d of domains) { const wt = d.primary ? 2 : 1; wSum += d.average * wt; w += wt; }
+    const composite = w ? +(wSum / w).toFixed(2) : 0;
+
+    const primaries = domains.filter((d) => d.primary);
+    const minPrimary = primaries.length ? Math.min(...primaries.map((d) => d.average)) : 0;
+    const weakPrimaries = primaries.filter((d) => d.average < 3.0).length;
+
+    // Readiness tier (developmental, never a verdict). Ready = strong across all
+    // primaries; Develop = real promise with at most one primary to grow;
+    // Elsewhere = multiple primary gaps or a low overall picture.
+    let tier;
+    if (composite >= 4.0 && minPrimary >= 3.75 && weakPrimaries === 0) tier = "ready";
+    else if (composite >= 3.25 && weakPrimaries <= 1) tier = "develop";
+    else tier = "elsewhere";
+
+    // Validity layer (assessor-only; computed here, not shown to the candidate).
+    let candor = 0, attentionFail = 0, infrequency = false;
+    for (const [itemId, value] of Object.entries(answers)) {
+      const it = itemMap[itemId];
+      if (!it) continue;
+      const v = Number(value);
+      if (it.domain === "Candor" && v >= 4) candor += 1;
+      if (it.domain === "Attention") {
+        if (/select disagree/i.test(it.text || "")) { if (v !== 2) attentionFail += 1; }
+        else if (/succeeded at everything/i.test(it.text || "")) { if (v >= 4) infrequency = true; }
+      }
+    }
+    const validity = {
+      candor,
+      candor_flag: candor >= 4 ? "high" : candor >= 2 ? "moderate" : "low",
+      attention_fail: attentionFail,
+      infrequency,
+    };
+
+    return {
+      ...base, type: "planter", scale_max: smax, married,
+      domains, composite, tier, tier_label: PLANTER_TIERS[tier].label, validity,
+    };
   }
 
   if (type === "disc-blend") {

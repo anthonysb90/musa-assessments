@@ -31,4 +31,13 @@ export const CARE_CONTACT_EMAIL = process.env.CARE_CONTACT_EMAIL || "";
 export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 export const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || "";
 
+// Donation. On the web report we always invite a gift. When a Stripe key is
+// present, the inline give form shows; otherwise the button links here.
+export const DONATE_URL =
+  process.env.NEXT_PUBLIC_DONATE_URL || "https://gomissionusa.com/give";
+
+// Credit line printed on every PDF / printed report.
+export const REPORT_CREDIT =
+  "Assessment by Mission USA of the Congregational Holiness Church. Get yours at assessments.chchurch.com.";
+
 export const CONSENT_VERSION = "2026-07-v1";

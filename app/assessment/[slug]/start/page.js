@@ -151,12 +151,16 @@ function AssessmentFlow() {
   }, [phase]);
 
   const isPastor = slug === "pastor-profile";
-  // Marriage & Family only applies to married pastors.
+  const isPlanter = slug === "church-planter";
+  const needsMarital = isPastor || isPlanter;
+  // Marriage-linked domains only apply to married takers.
   const activeItems = useMemo(() => {
     if (isPastor && marital === "single")
       return items.filter((it) => it.domain !== "Marriage & Family");
+    if (isPlanter && marital === "single")
+      return items.filter((it) => it.domain !== "Spousal Cooperation");
     return items;
-  }, [items, isPastor, marital]);
+  }, [items, isPastor, isPlanter, marital]);
 
   const perPage = assessment?.questions_per_page || 25;
   const pageCount = Math.ceil(activeItems.length / perPage);
@@ -184,7 +188,7 @@ function AssessmentFlow() {
   const canStart =
     form.first_name && form.last_name && emailOk(form.email) && form.phone &&
     form.age_band && (!form.church_id || churchAck) &&
-    (!isPastor || marital) &&
+    (!needsMarital || marital) &&
     (!TURNSTILE_SITE_KEY || tsToken);
 
   async function submit() {
@@ -288,7 +292,7 @@ function AssessmentFlow() {
               </p>
             )}
 
-            {isPastor && (
+            {needsMarital && (
               <Select label="Marital status" v={marital} on={setMarital} opts={[["married", "Married"], ["single", "Single"]]} />
             )}
 
@@ -302,7 +306,7 @@ function AssessmentFlow() {
               </div>
             )}
 
-            <button className="btn btn-primary" disabled={isPastor && !marital} onClick={startQuestions}
+            <button className="btn btn-primary" disabled={needsMarital && !marital} onClick={startQuestions}
               style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
               {isRater ? "Begin" : "Start the assessment"}
             </button>

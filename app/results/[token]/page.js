@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getSupabase } from "../../lib/supabase";
+import { REPORT_CREDIT } from "../../lib/config";
 import { GIFTS } from "../../lib/gifts";
 import {
   ordinal,
@@ -19,6 +20,11 @@ import {
   SPIRITUAL_GROWTH_DOMAINS,
   SPIRITUAL_GROWTH_ORDER,
   ENNEAGRAM_TYPES,
+  PLANTER_PRIMARY,
+  PLANTER_CHARACTERISTICS,
+  PLANTER_TIERS,
+  PLANTER_PRAY,
+  PLANTER_SCRIPTURES,
 } from "../../lib/content";
 import DonationCard from "../../components/DonationCard";
 
@@ -28,6 +34,37 @@ export default function ResultsPage() {
   const [meta, setMeta] = useState(null);
   const [wb, setWb] = useState(null);
   const [state, setState] = useState("loading");
+  const [dl, setDl] = useState(false);
+  const reportRef = useRef(null);
+
+  // Save as PDF: capture the report region and auto-download. Loads html2pdf
+  // from CDN on demand (no npm dependency). Colors are captured as rendered.
+  async function downloadPdf() {
+    if (!reportRef.current) return;
+    setDl(true);
+    try {
+      const lib = await loadHtml2pdf();
+      const contact = scored?.contact || {};
+      const who = `${contact.first_name || ""}-${contact.last_name || ""}`.trim().replace(/\s+/g, "-") || "report";
+      const what = (meta?.name || "assessment").replace(/[^\w]+/g, "-");
+      await lib()
+        .set({
+          margin: [8, 8, 12, 8],
+          filename: `${who}-${what}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", ignoreElements: (el) => el.classList?.contains?.("no-pdf") },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["avoid-all", "css"] },
+        })
+        .from(reportRef.current)
+        .save();
+    } catch (e) {
+      // Fall back to the print dialog if the PDF library can't load.
+      window.print();
+    } finally {
+      setDl(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -64,51 +101,81 @@ export default function ResultsPage() {
   return (
     <main style={{ background: "var(--mist)", minHeight: "100vh" }}>
       <style>{PRINT_CSS}</style>
-      <header style={hd}>
-        <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px" }}>
-          <div style={hdRow}>
-            <div>
-              <div style={kicker}>{meta?.name}</div>
-              <h1 className="serif" style={hName}>
-                {contact.first_name} {contact.last_name}
-              </h1>
-            </div>
-            <div style={hMeta}>
-              {meta?.created_at &&
-                new Date(meta.created_at).toLocaleDateString(undefined, {
-                  year: "numeric", month: "long", day: "numeric",
-                })}
-              {contact.email && <div style={{ opacity: 0.75 }}>{contact.email}</div>}
+      <div ref={reportRef} id="report-capture">
+        <header style={hd}>
+          <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px" }}>
+            <div style={hdRow}>
+              <div>
+                <div style={kicker}>{meta?.name}</div>
+                <h1 className="serif" style={hName}>
+                  {contact.first_name} {contact.last_name}
+                </h1>
+              </div>
+              <div style={hMeta}>
+                {meta?.created_at &&
+                  new Date(meta.created_at).toLocaleDateString(undefined, {
+                    year: "numeric", month: "long", day: "numeric",
+                  })}
+                {contact.email && <div style={{ opacity: 0.75 }}>{contact.email}</div>}
+              </div>
             </div>
           </div>
+        </header>
+
+        <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px 60px" }}>
+          <div className="no-print no-pdf" style={actions}>
+            <button className="btn btn-primary" onClick={downloadPdf} disabled={dl}>
+              {dl ? "Preparing PDF…" : "⬇ Save as PDF"}
+            </button>
+            <button className="btn btn-ghost" onClick={() => window.print()}>🖨 Print</button>
+            <a className="btn btn-ghost" href="/">Take another →</a>
+          </div>
+
+          <div className="no-print no-pdf" style={savedNote}>
+            <span style={{ fontSize: 16 }}>✓</span>
+            <span>
+              This report is saved to your profile. You can come back to it anytime with the link we
+              emailed to {contact.email || "you"}.
+            </span>
+          </div>
+
+          <div className="sheet">
+            {scored.type === "gift-rank" && <GiftRank scored={scored} />}
+            {scored.type === "ranked-sum" && <RankedSum scored={scored} />}
+            {scored.type === "domain-bands" &&
+              (scored.slug === "spiritual-growth"
+                ? <SpiritualGrowthReport scored={scored} />
+                : <DomainBandsReport scored={scored} />)}
+            {scored.type === "type-pick" && <EnneagramReport scored={scored} />}
+            {scored.type === "planter" && <PlanterReport scored={scored} />}
+            {scored.type === "level-matrix" && <GrowthReport scored={scored} />}
+            {scored.type === "disc-blend" && <DiscReport scored={scored} />}
+            {scored.type === "pillar" && <PastorReport scored={scored} />}
+            {scored.type === "domain-average" && <DomainReport scored={scored} />}
+
+            {wb && <WellbeingCard wb={wb} />}
+
+            <div className="report-credit">{REPORT_CREDIT}</div>
+          </div>
+
+          <DonationCard suppressed={suppressDonation} />
+          <footer className="no-print no-pdf" style={ft}>A ministry resource of Mission USA · gomissionusa.com</footer>
         </div>
-      </header>
-
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px 60px" }}>
-        <div className="no-print" style={actions}>
-          <button className="btn btn-primary" onClick={() => window.print()}>Download PDF / Print</button>
-          <a className="btn btn-ghost" href="/">Take another →</a>
-        </div>
-
-        {scored.type === "gift-rank" && <GiftRank scored={scored} />}
-        {scored.type === "ranked-sum" && <RankedSum scored={scored} />}
-        {scored.type === "domain-bands" &&
-          (scored.slug === "spiritual-growth"
-            ? <SpiritualGrowthReport scored={scored} />
-            : <DomainBandsReport scored={scored} />)}
-        {scored.type === "type-pick" && <EnneagramReport scored={scored} />}
-        {scored.type === "level-matrix" && <GrowthReport scored={scored} />}
-        {scored.type === "disc-blend" && <DiscReport scored={scored} />}
-        {scored.type === "pillar" && <PastorReport scored={scored} />}
-        {scored.type === "domain-average" && <DomainReport scored={scored} />}
-
-        {wb && <WellbeingCard wb={wb} />}
-
-        <DonationCard suppressed={suppressDonation} />
-        <footer style={ft}>A ministry resource of Mission USA · gomissionusa.com</footer>
       </div>
     </main>
   );
+}
+
+// html2pdf loader (CDN, bundle includes html2canvas + jsPDF). Cached on window.
+function loadHtml2pdf() {
+  return new Promise((resolve, reject) => {
+    if (typeof window !== "undefined" && window.html2pdf) return resolve(window.html2pdf);
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js";
+    s.onload = () => resolve(window.html2pdf);
+    s.onerror = () => reject(new Error("Could not load the PDF library."));
+    document.body.appendChild(s);
+  });
 }
 
 /* ---------------- Spiritual Gifts (ranked A–Y) ---------------- */
@@ -537,6 +604,154 @@ function EnneagramReport({ scored }) {
   );
 }
 
+/* ---------------- Church Planter (candidate self-assessment) ---------------- */
+function PlanterReport({ scored }) {
+  const per = scored.scale_max || 5;
+  const tier = PLANTER_TIERS[scored.tier] || PLANTER_TIERS.develop;
+  const domains = scored.domains; // sorted by average desc
+  const byName = Object.fromEntries(domains.map((d) => [d.domain, d]));
+  const order = Object.keys(PLANTER_CHARACTERISTICS).filter((n) => byName[n]);
+  const top3 = domains.slice(0, 3);
+  const weakPrimaries = domains.filter((d) => d.primary && d.average < 3.5);
+  const watch = (weakPrimaries.length ? weakPrimaries : [...domains].slice(-3).reverse()).slice(0, 3);
+
+  // Radar geometry (13 spokes)
+  const R = 108, cx = 175, cy = 172, N = order.length || 13;
+  const ang = (i) => (-90 + i * (360 / N)) * (Math.PI / 180);
+  const pt = (i, v) => [cx + (v / per) * R * Math.cos(ang(i)), cy + (v / per) * R * Math.sin(ang(i))];
+  const ringPoly = (v) => order.map((_, i) => pt(i, v).map((n) => n.toFixed(1)).join(",")).join(" ");
+  const dataPoly = order.map((n, i) => pt(i, byName[n]?.average || 0).map((x) => x.toFixed(1)).join(",")).join(" ");
+
+  return (
+    <>
+      <section style={{ padding: "8px 0" }}>
+        <div style={sectionLabel}>Your readiness</div>
+        <div style={{ ...topCard, borderLeft: `5px solid ${tier.color}` }}>
+          <div style={{ ...topRank, color: tier.color }}>Readiness · developmental, never a verdict</div>
+          <div className="serif" style={{ fontSize: 28, color: "#1C2B3A", marginTop: 4 }}>{tier.label}</div>
+          <p style={{ ...topDef, fontSize: 15, marginTop: 10 }}>{tier.body}</p>
+          <div style={{ marginTop: 12, fontSize: 13.5, color: "#4A5B6D" }}>
+            Weighted readiness score: <strong style={{ color: "#1B3A57" }}>{scored.composite?.toFixed(1)}</strong> / {per}
+            <span style={{ color: "#8CA0B3" }}> · the five primary characteristics count double.</span>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>All 13 characteristics</div>
+        <div style={{ ...chart, padding: "18px 12px", display: "flex", justifyContent: "center" }}>
+          <svg viewBox="0 0 350 344" width="100%" style={{ maxWidth: 460 }} role="img" aria-label="Readiness radar">
+            {[1, 2, 3, 4, 5].map((v) => <polygon key={v} points={ringPoly(v)} fill="none" stroke="#E7E9EC" strokeWidth="1" />)}
+            {order.map((_, i) => { const [x, y] = pt(i, per); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#E7E9EC" strokeWidth="1" />; })}
+            <polygon points={dataPoly} fill="rgba(46,125,138,.20)" stroke="#2E7D8A" strokeWidth="2" strokeLinejoin="round" />
+            {order.map((n, i) => {
+              const [px, py] = pt(i, byName[n]?.average || 0);
+              const isP = PLANTER_PRIMARY.includes(n);
+              return <circle key={n} cx={px} cy={py} r={isP ? 4.5 : 3.2} fill={isP ? "#C4923E" : "#1F5E68"} />;
+            })}
+          </svg>
+        </div>
+        <div style={chart}>
+          {domains.map((d) => {
+            const band = domainBand(d.average);
+            return (
+              <div key={d.domain} style={rowGrid}>
+                <span style={rName}>
+                  {d.domain}
+                  {d.primary && <span style={primaryTag}>Primary</span>}
+                </span>
+                <span style={track}><span style={fill(d.average / per, band.color)} /></span>
+                <span style={{ ...rScore, color: band.color, minWidth: 128, textAlign: "right" }}>
+                  {d.average.toFixed(1)} · {band.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>
+          The five gold points are the primary characteristics that carry the readiness decision. A strong
+          plant leans hardest on those.
+        </p>
+      </section>
+
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>Where you'll excel</div>
+        {top3.map((d) => {
+          const m = PLANTER_CHARACTERISTICS[d.domain] || {};
+          return (
+            <div key={d.domain} style={growCard}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: domainBand(d.average).color }}>
+                  {d.average.toFixed(1)} · {domainBand(d.average).label}
+                </div>
+              </div>
+              <p style={{ ...detailP, margin: "8px 0 0" }}>{m.blurb}</p>
+              <Block h="Lean into it" t={m.leanIn} />
+            </div>
+          );
+        })}
+      </section>
+
+      <section style={{ padding: "16px 0 4px" }}>
+        <div style={sectionLabel}>What to watch for</div>
+        {watch.map((d) => {
+          const m = PLANTER_CHARACTERISTICS[d.domain] || {};
+          return (
+            <div key={d.domain} style={growCard}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>
+                  {d.domain}{d.primary && <span style={primaryTag}>Primary</span>}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: domainBand(d.average).color }}>
+                  {d.average.toFixed(1)} · {domainBand(d.average).label}
+                </div>
+              </div>
+              <Block h="A next step" t={m.step} />
+            </div>
+          );
+        })}
+        <p style={helper}>These are areas to steward and grow, not marks against you. Growth here is exactly what the assessor conversation is for.</p>
+      </section>
+
+      <section style={{ padding: "16px 0 4px" }}>
+        <div style={sectionLabel}>Things to think and pray on</div>
+        <div style={chart}>
+          {PLANTER_PRAY.map((q, i) => (
+            <div key={i} style={{ padding: "13px 14px", borderBottom: i < PLANTER_PRAY.length - 1 ? "1px solid #F0F2F4" : "none", fontSize: 14.5, color: "#2B3A4A", lineHeight: 1.5 }}>
+              {q}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ padding: "16px 0 8px" }}>
+        <div style={sectionLabel}>Scripture anchors</div>
+        <div style={chart}>
+          {PLANTER_SCRIPTURES.map(([ref, note]) => (
+            <div key={ref} style={rowGrid}>
+              <span style={{ ...rName, fontStyle: "italic" }}>{ref}</span>
+              <span style={{ gridColumn: "span 2", fontSize: 13.5, color: "#4A5B6D" }}>{note}</span>
+            </div>
+          ))}
+        </div>
+        {scored.married ? (
+          <p style={helper}>
+            Your report includes the primary characteristics for a married planter. The spouse and assessor
+            portions add the fullest picture. When your spouse completes their part, the marriage-alignment
+            section will be added here.
+          </p>
+        ) : (
+          <p style={helper}>
+            This report reflects your self-assessment. A trained assessor conversation adds the outside
+            perspective that makes this picture complete.
+          </p>
+        )}
+      </section>
+    </>
+  );
+}
+
 /* ---------------- Church Growth (level matrix) ---------------- */
 function GrowthReport({ scored }) {
   const winner = GROWTH_LEVELS[scored.winnerLevel];
@@ -829,7 +1044,8 @@ const hdRow = { display: "flex", justifyContent: "space-between", alignItems: "f
 const kicker = { fontSize: 12.5, letterSpacing: ".16em", textTransform: "uppercase", color: "#E4CE8C", fontWeight: 600, marginBottom: 10 };
 const hName = { fontWeight: 500, fontSize: 38, margin: 0 };
 const hMeta = { fontSize: 13.5, textAlign: "right", lineHeight: 1.5 };
-const actions = { display: "flex", gap: 12, padding: "24px 0", flexWrap: "wrap" };
+const actions = { display: "flex", gap: 12, padding: "24px 0 6px", flexWrap: "wrap" };
+const savedNote = { display: "flex", gap: 10, alignItems: "center", background: "#EAF3F4", border: "1px solid #CFE3E5", color: "#1F5E68", borderRadius: 12, padding: "12px 16px", fontSize: 14, lineHeight: 1.5, margin: "6px 0 22px" };
 const sectionLabel = { fontSize: 12.5, letterSpacing: ".14em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, marginBottom: 18 };
 const topGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 16 };
 const topCard = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 16, padding: "22px 22px 24px" };
@@ -851,15 +1067,21 @@ const detailP = { fontSize: 14.5, color: "#2B3A4A", margin: "0 0 14px", lineHeig
 const blockH = { fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, marginBottom: 5 };
 const refLine = { fontSize: 12, color: "#8CA0B3", fontStyle: "italic", marginTop: 12 };
 const devotionBox = { background: "#FBF6EC", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", marginTop: 8 };
+const primaryTag = { fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#B07C2E", background: "#F5EFE6", border: "1px solid #EADFC9", padding: "2px 7px", borderRadius: 999, marginLeft: 8, verticalAlign: "middle" };
 const growCard = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 14, padding: "18px 20px", marginBottom: 14 };
 const transitionBox = { background: "var(--blush,#F5EFE6)", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", marginTop: 14, fontSize: 14, color: "#4A5B6D", lineHeight: 1.55 };
 const ft = { textAlign: "center", padding: "34px 0 0", fontSize: 12.5, color: "#7C8A9C" };
 
 const PRINT_CSS = `
-@media print {
-  .no-print { display:none !important; }
-  body { background:#fff !important; }
-  .bar { break-inside: avoid; }
-}
+.report-credit{ text-align:center; font-size:12px; color:#7C8A9C; margin-top:30px; padding-top:16px; border-top:1px solid #E7E9EC; line-height:1.5; }
 .bar:hover { background:#F8FAFB; }
+#report-capture, #report-capture * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+@media print {
+  @page { margin: 12mm; }
+  .no-print, .no-pdf { display:none !important; }
+  html, body { background:#fff !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .sheet section { break-inside: avoid; page-break-inside: avoid; }
+  .report-credit{ display:block !important; }
+}
 `;
