@@ -16,6 +16,9 @@ import {
   PASTOR_PILLARS,
   PASTOR_DOMAINS,
   WELLBEING_CARE,
+  SPIRITUAL_GROWTH_DOMAINS,
+  SPIRITUAL_GROWTH_ORDER,
+  ENNEAGRAM_TYPES,
 } from "../../lib/content";
 import DonationCard from "../../components/DonationCard";
 
@@ -89,7 +92,11 @@ export default function ResultsPage() {
 
         {scored.type === "gift-rank" && <GiftRank scored={scored} />}
         {scored.type === "ranked-sum" && <RankedSum scored={scored} />}
-        {scored.type === "domain-bands" && <DomainBandsReport scored={scored} />}
+        {scored.type === "domain-bands" &&
+          (scored.slug === "spiritual-growth"
+            ? <SpiritualGrowthReport scored={scored} />
+            : <DomainBandsReport scored={scored} />)}
+        {scored.type === "type-pick" && <EnneagramReport scored={scored} />}
         {scored.type === "level-matrix" && <GrowthReport scored={scored} />}
         {scored.type === "disc-blend" && <DiscReport scored={scored} />}
         {scored.type === "pillar" && <PastorReport scored={scored} />}
@@ -300,6 +307,231 @@ function DomainBandsReport({ scored }) {
           );
         })}
         <p style={helper}>{copy.helper}</p>
+      </section>
+    </>
+  );
+}
+
+/* ---------------- Spiritual Growth (Discipleship Wheel) ---------------- */
+function SpiritualGrowthReport({ scored }) {
+  const per = scored.scale_max || 5;
+  const domains = scored.domains; // sorted by average desc
+  const byName = Object.fromEntries(domains.map((d) => [d.domain, d]));
+  const order = SPIRITUAL_GROWTH_ORDER.filter((n) => byName[n]);
+  const top2 = domains.slice(0, 2);
+  const bottom2 = [...domains].slice(-2).reverse();
+  const meta = SPIRITUAL_GROWTH_DOMAINS;
+
+  // Discipleship Wheel geometry
+  const R = 108, cx = 170, cy = 168, N = order.length || 6;
+  const ang = (i) => (-90 + i * (360 / N)) * (Math.PI / 180);
+  const pt = (i, val) => [cx + (val / per) * R * Math.cos(ang(i)), cy + (val / per) * R * Math.sin(ang(i))];
+  const ringPoly = (v) => order.map((_, i) => pt(i, v).map((n) => n.toFixed(1)).join(",")).join(" ");
+  const dataPoly = order.map((name, i) => pt(i, byName[name]?.average || 0).map((n) => n.toFixed(1)).join(",")).join(" ");
+  const labelPos = (i) => pt(i, per * 1.34);
+
+  return (
+    <>
+      <section style={{ padding: "8px 0" }}>
+        <div style={sectionLabel}>Your Discipleship Wheel</div>
+        <div style={{ ...chart, padding: "18px 12px", display: "flex", justifyContent: "center" }}>
+          <svg viewBox="0 0 340 336" width="100%" style={{ maxWidth: 420 }} role="img" aria-label="Discipleship Wheel">
+            {[1, 2, 3, 4, 5].map((v) => (
+              <polygon key={v} points={ringPoly(v)} fill="none" stroke="#E7E9EC" strokeWidth="1" />
+            ))}
+            {order.map((_, i) => {
+              const [x, y] = pt(i, per);
+              return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#E7E9EC" strokeWidth="1" />;
+            })}
+            <polygon points={dataPoly} fill="rgba(46,125,138,.22)" stroke="#2E7D8A" strokeWidth="2" strokeLinejoin="round" />
+            {order.map((name, i) => {
+              const d = byName[name];
+              const [px, py] = pt(i, d?.average || 0);
+              return <circle key={name} cx={px} cy={py} r="4" fill="#1F5E68" />;
+            })}
+            {order.map((name, i) => {
+              const [lx, ly] = labelPos(i);
+              const anchor = Math.abs(lx - cx) < 8 ? "middle" : lx > cx ? "start" : "end";
+              const d = byName[name];
+              const total = d ? Math.round(d.average * (d.count || 10)) : 0;
+              const maxTotal = (d?.count || 10) * per;
+              return (
+                <g key={name}>
+                  <text x={lx} y={ly - 4} textAnchor={anchor} fontSize="10.5" fontWeight="700" fill="#1C2B3A"
+                    style={{ fontFamily: "Inter,system-ui,sans-serif" }}>
+                    {shortDisc(name)}
+                  </text>
+                  <text x={lx} y={ly + 9} textAnchor={anchor} fontSize="10" fill="#2E7D8A"
+                    style={{ fontFamily: "Inter,system-ui,sans-serif" }}>
+                    {total}/{maxTotal}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <p style={helper}>
+          The more a discipline is shaded toward the edge, the stronger it is in this season. The shape of
+          your wheel shows the whole picture at once, where your walk with God rolls smoothly, and where
+          it's still filling in.
+        </p>
+      </section>
+
+      <section style={{ padding: "16px 0 4px" }}>
+        <div style={sectionLabel}>Every discipline</div>
+        <div style={chart}>
+          {domains.map((d) => {
+            const band = domainBand(d.average);
+            const total = Math.round(d.average * (d.count || 10));
+            return (
+              <div key={d.domain} style={rowGrid}>
+                <span style={rName}>{d.domain}</span>
+                <span style={track}><span style={fill(d.average / per, band.color)} /></span>
+                <span style={{ ...rScore, color: band.color, minWidth: 150, textAlign: "right" }}>
+                  {total}/{(d.count || 10) * per} · {band.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>Where you're strongest</div>
+        <div style={topGrid}>
+          {top2.map((d) => (
+            <div key={d.domain} style={topCard}>
+              <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
+              <div style={{ ...scoreRow, marginTop: 4 }}>
+                <span style={{ ...topScore, fontSize: 26 }}>{Math.round(d.average * (d.count || 10))}</span>
+                <span style={{ fontSize: 13, color: "#8CA0B3" }}>/ {(d.count || 10) * per} · {domainBand(d.average).label}</span>
+              </div>
+              <p style={topDef}>{meta[d.domain]?.blurb}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ padding: "20px 0 8px" }}>
+        <div style={sectionLabel}>Where to grow next</div>
+        {bottom2.map((d) => {
+          const m = meta[d.domain] || {};
+          return (
+            <div key={d.domain} style={growCard}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: domainBand(d.average).color }}>
+                  {Math.round(d.average * (d.count || 10))}/{(d.count || 10) * per} · {domainBand(d.average).label}
+                </div>
+              </div>
+              <Block h="A next step" t={m.step} />
+              {m.ref && <div style={refLine}>{m.ref}</div>}
+            </div>
+          );
+        })}
+        <p style={helper}>
+          This is a mirror for one moment, not a grade on your walk with God. Pick one discipline to focus
+          on this season. Growth comes from tending one root at a time, not all at once.
+        </p>
+      </section>
+    </>
+  );
+}
+function shortDisc(name) {
+  return { "Fellowship with Believers": "Fellowship", "Witness to the World": "Witness", "Minister to Others": "Ministry", "Abide in Christ": "Abide", "Live in the Word": "The Word", "Pray in Faith": "Prayer" }[name] || name;
+}
+
+/* ---------------- Enneagram (forced-choice type pick) ---------------- */
+function EnneagramReport({ scored }) {
+  const [open, setOpen] = useState(scored.primary);
+  const ranked = scored.ranked; // [{type, score}] sorted desc
+  const total = scored.total || 36;
+  const per = 8; // each type appears in 8 pairs
+  const top3 = ranked.slice(0, 3);
+  const primaryType = ENNEAGRAM_TYPES[scored.primary] || {};
+  const close = ranked[1] && ranked[0] && ranked[0].score - ranked[1].score <= 1;
+  return (
+    <>
+      <section style={{ padding: "8px 0" }}>
+        <div style={sectionLabel}>Your core type</div>
+        <div style={{ ...topCard, borderLeft: "5px solid #C4923E" }}>
+          <div style={topRank}>Type {scored.primary} · {primaryType.tagline}</div>
+          <div className="serif" style={{ fontSize: 28, color: "#1C2B3A", marginTop: 4 }}>
+            {primaryType.name}
+          </div>
+          <p style={{ ...topDef, fontSize: 15, marginTop: 10 }}>{primaryType.essence}</p>
+        </div>
+        {close && (
+          <div style={transitionBox}>
+            Your top scores are close, so read your top two or three profiles below. The Enneagram is a tool
+            for reflection, not a box. The type that rings truest as you read is usually yours.
+          </div>
+        )}
+      </section>
+
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>Your top three</div>
+        <div style={topGrid}>
+          {top3.map((r, i) => {
+            const t = ENNEAGRAM_TYPES[r.type] || {};
+            return (
+              <div key={r.type} style={topCard}>
+                <div style={topRank}>{i === 0 ? "Core" : ordinal(i + 1)}</div>
+                <div className="serif" style={{ ...topName, fontSize: 20 }}>{r.type} · {t.name}</div>
+                <div style={{ ...scoreRow, marginTop: 4 }}>
+                  <span style={{ ...topScore, fontSize: 26 }}>{r.score}</span>
+                  <span style={{ fontSize: 13, color: "#8CA0B3" }}>/ {per}</span>
+                </div>
+                <p style={topDef}>{t.tagline}</p>
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>
+          A type is a starting point for growth, not a label to live inside. Every type reflects part of
+          God's image and every type has a way it gets pulled off center. Tap any type below to read its
+          profile, Scripture, and a short devotion.
+        </p>
+      </section>
+
+      <section style={{ padding: "20px 0 8px" }}>
+        <div style={sectionLabel}>All nine types</div>
+        <div style={chart}>
+          {ranked.map((r) => {
+            const t = ENNEAGRAM_TYPES[r.type] || {};
+            const isTop = r.type === scored.primary;
+            const color = isTop ? "#C4923E" : r.score >= (ranked[2]?.score || 0) ? "#2E7D8A" : "#8CA0B3";
+            const isOpen = open === r.type;
+            return (
+              <div key={r.type} style={{ borderBottom: "1px solid #F0F2F4" }}>
+                <button onClick={() => setOpen(isOpen ? null : r.type)} style={barBtn} className="bar">
+                  <span style={rRank}>{r.type}</span>
+                  <span style={rName}>{t.name}</span>
+                  <span style={track}><span style={fill(r.score / per, color)} /></span>
+                  <span style={{ ...rScore, color }}>{r.score}</span>
+                  <span className="no-print" style={chevron(isOpen)}>›</span>
+                </button>
+                {isOpen && (
+                  <div style={detail}>
+                    <p style={detailP}>{t.essence}</p>
+                    <Block h="Your gift to the body" t={t.gift} />
+                    <Block h="Watch for" t={t.watch} />
+                    <Block h="Where you grow" t={t.grows} />
+                    <div style={devotionBox}>
+                      <div style={{ ...blockH, color: "#B07C2E", marginBottom: 6 }}>A devotion · {t.verse}</div>
+                      <p style={{ fontSize: 14, color: "#3A4A5A", lineHeight: 1.65, margin: 0 }}>{t.devotion}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>
+          Based on {total} choices. The Enneagram is a mirror to help you see yourself and grow toward
+          Christ, never the final word on who you are. In Him your truest identity is settled: loved,
+          chosen, and being made new.
+        </p>
       </section>
     </>
   );
@@ -618,6 +850,7 @@ const detail = { padding: "4px 16px 22px 52px" };
 const detailP = { fontSize: 14.5, color: "#2B3A4A", margin: "0 0 14px", lineHeight: 1.55 };
 const blockH = { fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, marginBottom: 5 };
 const refLine = { fontSize: 12, color: "#8CA0B3", fontStyle: "italic", marginTop: 12 };
+const devotionBox = { background: "#FBF6EC", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", marginTop: 8 };
 const growCard = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 14, padding: "18px 20px", marginBottom: 14 };
 const transitionBox = { background: "var(--blush,#F5EFE6)", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", marginTop: 14, fontSize: 14, color: "#4A5B6D", lineHeight: 1.55 };
 const ft = { textAlign: "center", padding: "34px 0 0", fontSize: 12.5, color: "#7C8A9C" };
