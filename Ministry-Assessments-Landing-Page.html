@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ministry Assessments — Mission USA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1C2B3A;
+    --ink-soft:#4A5B6D;
+    --line:#E7E9EC;
+    --paper:#FFFFFF;
+    --mist:#F6F8FA;
+    --mist2:#EEF3F6;
+    --navy:#1B3A57;
+    --teal:#2E7D8A;
+    --teal-deep:#1F5E68;
+    --gold:#C4923E;
+    --gold-soft:#F0E4CB;
+    --blush:#F5EFE6;
+    --green:#3E7C63;
+    --plum:#6B4E7A;
+    --display:'Fraunces', Georgia, serif;
+    --sans:'Inter', system-ui, -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--sans);
+    color:var(--ink);
+    background:var(--paper);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    font-size:16px;
+  }
+  img,svg{display:block;max-width:100%;}
+  a{color:inherit;}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 28px;}
+  .eyebrow{
+    font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--teal);margin:0 0 16px;
+  }
+
+  /* ---------------- HERO ---------------- */
+  .hero{position:relative;background:var(--paper);overflow:hidden;}
+  .hero-inner{
+    display:grid;grid-template-columns:1.05fr 0.95fr;align-items:stretch;min-height:600px;
+  }
+  .hero-copy{
+    padding:96px 64px 96px 28px;
+    display:flex;flex-direction:column;justify-content:center;
+    max-width:640px;margin-left:auto;
+  }
+  .hero-free{
+    display:inline-flex;align-items:center;gap:9px;align-self:flex-start;
+    background:var(--gold-soft);color:#8A6420;
+    font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    padding:8px 15px;border-radius:999px;margin-bottom:28px;
+  }
+  .hero-free .spark{width:7px;height:7px;border-radius:50%;background:var(--gold);}
+  .hero h1{
+    font-family:var(--display);font-weight:400;
+    font-size:clamp(40px,5vw,60px);line-height:1.04;letter-spacing:-0.5px;
+    margin:0 0 22px;color:var(--ink);
+  }
+  .hero h1 .accent{font-style:italic;color:var(--teal-deep);}
+  .hero p{font-size:19px;color:var(--ink-soft);margin:0 0 34px;max-width:480px;}
+  .hero-actions{display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
+  .btn{
+    font-family:var(--sans);font-weight:600;font-size:15px;
+    border-radius:10px;padding:15px 28px;text-decoration:none;
+    display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:1.5px solid transparent;
+    transition:transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease;
+  }
+  .btn-primary{background:var(--navy);color:#fff;box-shadow:0 6px 18px rgba(27,58,87,0.18);}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(27,58,87,0.26);}
+  .btn-ghost{color:var(--navy);border-color:var(--line);background:var(--paper);}
+  .btn-ghost:hover{border-color:var(--navy);transform:translateY(-2px);}
+  .btn-arrow{transition:transform .16s ease;}
+  .btn-primary:hover .btn-arrow{transform:translateX(3px);}
+
+  .hero-media{position:relative;background:linear-gradient(135deg,var(--mist2),var(--blush));overflow:hidden;}
+  .hero-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .hero-media::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg, rgba(27,58,87,0.16), transparent 55%);}
+  .float-card{
+    position:absolute;left:-34px;bottom:52px;z-index:3;
+    background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:20px 24px;
+    box-shadow:0 20px 50px rgba(27,58,87,0.16);
+    display:flex;align-items:center;gap:16px;max-width:300px;
+  }
+  .float-card .fig-ico{flex:0 0 auto;width:46px;height:46px;border-radius:12px;background:var(--mist2);display:flex;align-items:center;justify-content:center;}
+  .float-card .lbl{font-size:13.5px;color:var(--ink-soft);line-height:1.4;}
+
+  /* ---------------- TRUST BAR ---------------- */
+  .trust{background:var(--mist);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .trust-grid{display:grid;grid-template-columns:repeat(4,1fr);}
+  .trust-item{padding:30px 26px;display:flex;gap:14px;align-items:flex-start;border-right:1px solid var(--line);}
+  .trust-item:last-child{border-right:none;}
+  .trust-item .ti-ico{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
+  .trust-item h4{margin:0 0 3px;font-size:15px;font-weight:700;color:var(--ink);}
+  .trust-item p{margin:0;font-size:13.5px;color:var(--ink-soft);line-height:1.4;}
+
+  /* ---------------- HOW IT WORKS ---------------- */
+  .how{padding:88px 0 40px;}
+  .how-head{max-width:620px;margin-bottom:52px;}
+  .how h2,.section-head h2{
+    font-family:var(--display);font-weight:400;font-size:clamp(30px,3.6vw,42px);
+    line-height:1.1;letter-spacing:-0.5px;color:var(--ink);margin:0 0 14px;
+  }
+  .how-head p{font-size:17px;color:var(--ink-soft);margin:0;}
+  .how-rail{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;}
+  .how-card{
+    background:var(--paper);border:1px solid var(--line);border-radius:18px;
+    padding:32px 28px;position:relative;overflow:hidden;
+    transition:transform .2s ease, box-shadow .2s ease;
+  }
+  .how-card:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(27,58,87,0.09);}
+  .how-card .step-ico{width:52px;height:52px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;}
+  .how-card:nth-child(1) .step-ico{background:var(--mist2);}
+  .how-card:nth-child(2) .step-ico{background:var(--blush);}
+  .how-card:nth-child(3) .step-ico{background:var(--gold-soft);}
+  .how-card .kicker{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin:0 0 8px;}
+  .how-card h3{font-family:var(--display);font-weight:500;font-size:21px;color:var(--ink);margin:0 0 8px;}
+  .how-card p{font-size:14.5px;color:var(--ink-soft);margin:0;}
+
+  /* ---------------- ASSESSMENTS ---------------- */
+  .catalog{padding:64px 0 96px;}
+  .section-head{max-width:640px;margin:0 auto 56px;text-align:center;}
+  .section-head p{font-size:17px;color:var(--ink-soft);margin:0;}
+
+  .filter-bar{
+    display:flex;flex-wrap:wrap;justify-content:center;gap:10px;
+    margin:0 auto 56px;max-width:820px;
+  }
+  .filter-btn{
+    font-family:var(--sans);font-size:14px;font-weight:600;
+    color:var(--ink-soft);background:var(--paper);
+    border:1.5px solid var(--line);border-radius:999px;
+    padding:10px 20px;cursor:pointer;
+    transition:color .18s ease, background .18s ease, border-color .18s ease, transform .12s ease;
+  }
+  .filter-btn:hover{border-color:var(--teal);color:var(--teal-deep);transform:translateY(-1px);}
+  .filter-btn.is-active{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .filter-btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+
+  .group{margin-bottom:72px;}
+  .group[hidden]{display:none;}
+  .group-head{display:flex;align-items:center;gap:18px;margin-bottom:30px;}
+  .group-head .gh-line{height:1px;background:var(--line);flex:1;}
+  .group-head h3{font-family:var(--display);font-weight:500;font-size:24px;color:var(--ink);margin:0;white-space:nowrap;}
+  .group-head .gh-sub{font-size:14px;color:var(--ink-soft);font-style:italic;white-space:nowrap;}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:24px;}
+  .card{
+    background:var(--paper);border:1px solid var(--line);border-radius:20px;
+    overflow:hidden;display:flex;flex-direction:column;
+    opacity:0;transform:translateY(20px);
+    transition:opacity .55s ease, transform .55s ease, box-shadow .25s ease, border-color .25s ease;
+  }
+  .card.in{opacity:1;transform:translateY(0);}
+  .card:hover{box-shadow:0 22px 50px rgba(27,58,87,0.12);border-color:transparent;transform:translateY(-5px);}
+  .card-top{padding:28px 26px 0;display:flex;align-items:flex-start;}
+  .logo-plate{width:76px;height:76px;border-radius:18px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);}
+  .card-body{padding:20px 26px 8px;flex-grow:1;}
+  .card h4{font-family:var(--display);font-weight:500;font-size:23px;color:var(--ink);margin:0 0 6px;letter-spacing:-0.3px;}
+  .card .tag{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:0 0 16px;}
+  .card p.desc{font-size:14.5px;color:var(--ink-soft);margin:0;}
+  .card-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 26px 24px;margin-top:14px;border-top:1px solid var(--line);}
+  .pill-soon{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#93764A;background:var(--gold-soft);padding:6px 12px;border-radius:999px;}
+  .link-soon{font-size:14px;font-weight:600;color:#AFB8C2;display:inline-flex;align-items:center;gap:6px;cursor:default;}
+
+  .g-personal .tag{color:var(--teal-deep);}
+  .g-personal .logo-plate{background:#EAF3F4;}
+  .g-ministry .tag{color:var(--gold);}
+  .g-ministry .logo-plate{background:var(--blush);}
+  .g-church .tag{color:var(--navy);}
+  .g-church .logo-plate{background:var(--mist2);}
+
+  /* ---------------- VERSE BAND ---------------- */
+  .verse-band{position:relative;overflow:hidden;background:var(--navy);color:#fff;}
+  .verse-band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.28;}
+  .verse-band::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(27,58,87,0.65),rgba(20,42,63,0.9));}
+  .verse-inner{position:relative;z-index:2;text-align:center;padding:88px 28px;max-width:760px;margin:0 auto;}
+  .verse-inner .mark{font-family:var(--display);font-size:60px;line-height:0;color:var(--gold);opacity:.7;}
+  .verse-inner blockquote{font-family:var(--display);font-weight:400;font-style:italic;font-size:clamp(24px,3vw,34px);line-height:1.3;margin:18px 0 20px;color:#fff;letter-spacing:-0.3px;}
+  .verse-inner cite{font-style:normal;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-soft);}
+
+  /* ---------------- FINAL CTA ---------------- */
+  .final{padding:90px 0;text-align:center;background:var(--mist);}
+  .final h2{font-family:var(--display);font-weight:400;font-size:clamp(30px,3.6vw,42px);color:var(--ink);margin:0 0 16px;letter-spacing:-0.5px;}
+  .final p{font-size:17px;color:var(--ink-soft);max-width:540px;margin:0 auto 32px;}
+  .final .foot-meta{margin-top:40px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#93A0AD;}
+
+  /* ---------------- RESPONSIVE ---------------- */
+  @media (max-width:960px){
+    .hero-inner{grid-template-columns:1fr;}
+    .hero-copy{padding:72px 28px 56px;max-width:none;margin:0;}
+    .hero-media{min-height:340px;}
+    .float-card{left:20px;bottom:20px;}
+    .trust-grid{grid-template-columns:1fr 1fr;}
+    .trust-item:nth-child(2){border-right:none;}
+    .trust-item{border-bottom:1px solid var(--line);}
+    .how-rail{grid-template-columns:1fr;}
+  }
+  @media (max-width:560px){
+    .trust-grid{grid-template-columns:1fr;}
+    .trust-item{border-right:none;}
+    .group-head .gh-sub{display:none;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .card{opacity:1;transform:none;transition:none;}
+    *{animation:none!important;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <span class="hero-free"><span class="spark"></span>Free &mdash; A Ministry Resource of Mission USA</span>
+      <h1>Know where you stand.<br><span class="accent">Grow where it counts.</span></h1>
+      <p>Honest, Scripture-grounded assessments for pastors, leaders, spouses, and everyday believers across the CHC family. Each one hands you a clear picture and a real next step.</p>
+      <div class="hero-actions">
+        <a href="#assessments" class="btn btn-primary">Browse assessments <span class="btn-arrow">&rarr;</span></a>
+        <a href="#how" class="btn btn-ghost">How it works</a>
+      </div>
+    </div>
+    <div class="hero-media">
+      <img src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1100&q=70&auto=format&fit=crop" alt="People together in community" loading="eager">
+      <div class="float-card">
+        <div class="fig-ico">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5.5c0 4.6-3.1 7.5-7 8.5-3.9-1-7-3.9-7-8.5V6l7-3z" stroke="#1F5E68" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12l2 2 4-4.2" stroke="#C4923E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="lbl">Assessments for calling, marriage, leadership, and church health &mdash; with more added over time.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRUST BAR ================= -->
+<section class="trust">
+  <div class="wrap">
+    <div class="trust-grid">
+      <div class="trust-item">
+        <div class="ti-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5.5c0 4.6-3.1 7.5-7 8.5-3.9-1-7-3.9-7-8.5V6l7-3z" stroke="#2E7D8A" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12l2 2 4-4.2" stroke="#2E7D8A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><h4>Private &amp; secure</h4><p>Your answers stay yours. Results are sent only to you.</p></div>
+      </div>
+      <div class="trust-item">
+        <div class="ti-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#C4923E" stroke-width="1.6"/><path d="M12 8v4l3 2" stroke="#C4923E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><h4>10&ndash;20 minutes</h4><p>Short, honest, and built to respect your time.</p></div>
+      </div>
+      <div class="trust-item">
+        <div class="ti-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 21C7 17.5 4 14 4 9.8 4 7 6 5 8.5 5c1.6 0 2.8.9 3.5 2 .7-1.1 1.9-2 3.5-2C20 5 22 7 22 9.8" stroke="#6B4E7A" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+        <div><h4>Pastoral, not clinical</h4><p>Made to encourage and develop, never to grade or gate.</p></div>
+      </div>
+      <div class="trust-item">
+        <div class="ti-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="#3E7C63" stroke-width="1.6"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="#3E7C63" stroke-width="1.6" stroke-linecap="round"/><path d="M16 5.2A3 3 0 0 1 16 11M18.5 19c0-2.4-1.3-4.2-3.3-4.7" stroke="#3E7C63" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+        <div><h4>For the whole family</h4><p>Something here for leaders, couples, and lay people alike.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOW IT WORKS ================= -->
+<section class="how" id="how">
+  <div class="wrap">
+    <div class="how-head">
+      <p class="eyebrow">Simple by design</p>
+      <h2>Three steps to a clearer picture</h2>
+      <p>No guesswork and no jargon. Choose, answer honestly, and unlock a report made for where you actually are.</p>
+    </div>
+    <div class="how-rail">
+      <div class="how-card">
+        <div class="step-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="7" height="7" rx="2" stroke="#2E7D8A" stroke-width="1.7"/><rect x="13" y="4" width="7" height="7" rx="2" stroke="#2E7D8A" stroke-width="1.7"/><rect x="4" y="13" width="7" height="7" rx="2" stroke="#2E7D8A" stroke-width="1.7"/><path d="M13.5 16.5h6M16.5 13.5v6" stroke="#2E7D8A" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+        <p class="kicker">Step one</p>
+        <h3>Choose your assessment</h3>
+        <p>Ten instruments across calling, marriage, leadership, and church health. Start wherever fits your season.</p>
+      </div>
+      <div class="how-card">
+        <div class="step-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v13H8l-3 3z" stroke="#C4923E" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 9h6M9 12.5h4" stroke="#C4923E" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+        <p class="kicker">Step two</p>
+        <h3>Answer honestly</h3>
+        <p>Ten to twenty private minutes. There's no score to pass or fail here, only an honest mirror.</p>
+      </div>
+      <div class="how-card">
+        <div class="step-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" stroke="#93764A" stroke-width="1.7"/><path d="M4.5 7.5l7.5 5 7.5-5" stroke="#93764A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <p class="kicker">Step three</p>
+        <h3>Unlock your report</h3>
+        <p>Add your name, phone, and email, and your full personal report comes straight to you, strengths, growth areas, and a next step.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CATALOG ================= -->
+<section class="catalog" id="assessments">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">The collection</p>
+      <h2>Find your starting point</h2>
+      <p>Browse them all, or filter by who they're for.</p>
+    </div>
+
+    <div class="filter-bar" role="tablist" aria-label="Filter assessments by category">
+      <button class="filter-btn is-active" data-filter="all" role="tab" aria-selected="true">All Assessments</button>
+      <button class="filter-btn" data-filter="personal" role="tab" aria-selected="false">Personal Growth &amp; Calling</button>
+      <button class="filter-btn" data-filter="ministry" role="tab" aria-selected="false">Marriage &amp; Ministry</button>
+      <button class="filter-btn" data-filter="church" role="tab" aria-selected="false">Church &amp; Leadership</button>
+    </div>
+
+    <!-- PERSONAL -->
+    <div class="group g-personal" data-group="personal">
+      <div class="group-head"><h3>Personal Growth &amp; Calling</h3><span class="gh-sub">for anyone wanting to know themselves better</span><span class="gh-line"></span></div>
+      <div class="cards">
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <path d="M24 8c3.4 3.8 5.6 7 5.6 10.8a5.6 5.6 0 0 1-11.2 0C18.4 15 20.6 11.8 24 8z" fill="#C4923E"/>
+            <path d="M24 12.5c1.7 2.2 2.8 3.9 2.8 5.9a2.8 2.8 0 0 1-5.6 0c0-2 1.1-3.7 2.8-5.9z" fill="#F0E4CB"/>
+            <path d="M13 27c1.8 0 2.6 1.4 4.2 2.3 1.9 1.1 3.2-.3 6.8-.3s4.9 1.4 6.8.3c1.6-.9 2.4-2.3 4.2-2.3" stroke="#1F5E68" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 33c2.4 0 3.4 1.8 5.6 3 2.5 1.4 4.2-.4 6.4-.4s3.9 1.8 6.4.4c2.2-1.2 3.2-3 5.6-3" stroke="#2E7D8A" stroke-width="2" stroke-linecap="round"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Spiritual Gifts</h4><p class="tag">Discover how God has gifted you</p>
+            <p class="desc">Every believer is gifted for a purpose. In about 20 minutes, uncover your strongest spiritual gifts from Scripture's full list, and see exactly where you're built to serve.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="16" r="9" fill="#3E7C63"/><circle cx="16.5" cy="19" r="5.5" fill="#3E7C63" opacity=".8"/><circle cx="31.5" cy="19" r="5.5" fill="#3E7C63" opacity=".8"/>
+            <path d="M24 21v13" stroke="#1F5E68" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M24 34c-1.5 2-4 2.5-5.5 5M24 34c1.5 2 4 2.5 5.5 5M24 30c-1.2 1.5-3 1.8-4.5 3.5M24 30c1.2 1.5 3 1.8 4.5 3.5" stroke="#C4923E" stroke-width="1.8" stroke-linecap="round"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Rooted</h4><p class="tag">A spiritual maturity assessment</p>
+            <p class="desc">Growth isn't about looking mature, it's about being rooted so you don't move when the wind comes. See where you're deeply planted, and where your roots still need to go down.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="4.4" fill="#2E7D8A"/>
+            <g stroke="#1F5E68" stroke-width="2.2" stroke-linecap="round"><path d="M24 19.6V9"/><path d="M28.2 22.4l8.4-6.1"/><path d="M27.6 28l6.8 8"/><path d="M20.4 28l-6.8 8"/><path d="M19.8 22.4l-8.4-6.1"/></g>
+            <g fill="#C4923E"><circle cx="24" cy="8" r="2.2"/><circle cx="37.5" cy="15.5" r="2.2"/><circle cx="35" cy="37" r="2.2"/><circle cx="13" cy="37" r="2.2"/><circle cx="10.5" cy="15.5" r="2.2"/></g>
+          </svg></div></div>
+          <div class="card-body"><h4>Fivefold Calling</h4><p class="tag">Find your ministry lane</p>
+            <p class="desc">Apostle, prophet, evangelist, shepherd, teacher. Ephesians 4 names five ways God equips His church. Discover your primary calling, and the one right behind it.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <path d="M24 10l3.6 8.8L36 22l-8.4 3.2L24 34l-3.6-8.8L12 22l8.4-3.2z" fill="#6B4E7A" opacity=".9"/>
+            <circle cx="24" cy="22" r="3.4" fill="#F5EFE6"/>
+            <g stroke="#C4923E" stroke-width="1.8" stroke-linecap="round"><path d="M24 34v4"/><path d="M12 22H8"/><path d="M40 22h-4"/></g>
+            <circle cx="24" cy="39" r="1.8" fill="#C4923E"/><circle cx="7" cy="22" r="1.8" fill="#C4923E"/><circle cx="41" cy="22" r="1.8" fill="#C4923E"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Wired to Lead</h4><p class="tag">How God wired you to lead</p>
+            <p class="desc">Every leader moves differently through people, pressure, and decisions. Discover your leadership wiring, paired with a biblical leader whose story matches your blend.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- MINISTRY -->
+    <div class="group g-ministry" data-group="ministry">
+      <div class="group-head"><h3>Marriage &amp; Ministry Readiness</h3><span class="gh-sub">for candidates, couples, and current pastors</span><span class="gh-line"></span></div>
+      <div class="cards">
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <circle cx="19" cy="24" r="10" stroke="#C4923E" stroke-width="2.4"/><circle cx="29" cy="24" r="10" stroke="#1F5E68" stroke-width="2.4"/>
+            <path d="M24 15.5a10 10 0 0 1 0 17" stroke="#6B4E7A" stroke-width="2.4" stroke-linecap="round"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Called Together</h4><p class="tag">A marriage &amp; ministry assessment</p>
+            <p class="desc">Ministry puts a weight on a marriage most never carry. Take it together and get an honest read on how your marriage is really holding up, and where it needs attention next.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <path d="M10 34h28" stroke="#1F5E68" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M24 34V18" stroke="#3E7C63" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M24 22c-1.5-3-4.5-4-8-4 0 4.5 3 6.5 8 6z" fill="#3E7C63"/>
+            <path d="M24 19c1.3-2.6 4-3.6 7-3.6 0 4-2.6 5.8-7 5.4z" fill="#C4923E"/>
+            <path d="M24 8l2.4 3.4h-4.8z" fill="#C4923E"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Church Planter</h4><p class="tag">Are you ready to plant?</p>
+            <p class="desc">Most struggling plants show warning signs beforehand. Get an honest, research-backed read on your calling, character, and capacity to launch, spouse included.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <path d="M24 8l12 4v9c0 8-5.4 13-12 15.5C17.4 34 12 29 12 21v-9z" stroke="#1B3A57" stroke-width="2.2" stroke-linejoin="round"/>
+            <path d="M24 30V19c0-2.6-1.9-4.4-4.2-4.4S15.6 16.4 15.6 19" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Pastor Profile</h4><p class="tag">Character. Competence. Contribution.</p>
+            <p class="desc">Whether you're discerning a call to pastor or already leading, see where you're strong and where to grow across the three pillars every effective pastor needs.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- CHURCH -->
+    <div class="group g-church" data-group="church">
+      <div class="group-head"><h3>Church &amp; Leadership Health</h3><span class="gh-sub">for pastors, boards, and leadership teams</span><span class="gh-line"></span></div>
+      <div class="cards">
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <path d="M9 36h6v-6h6v-6h6v-6h6V12" stroke="#1B3A57" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+            <path d="M30 12h9v9" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M39 12l-9 9" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Church Growth</h4><p class="tag">Where is your church headed?</p>
+            <p class="desc">Not where you hope, where the evidence says. Find out which of five growth stages your church is really in, from decline to multiplication, and what comes next.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <path d="M24 37C14 31 8 25.5 8 18.5 8 13.8 11.6 10 16.4 10c3 0 5.5 1.6 7.6 4 2.1-2.4 4.6-4 7.6-4C36.4 10 40 13.8 40 18.5" stroke="#1B3A57" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M9 24h6l3-6 4 12 3-8 2 2h11" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Church Health</h4><p class="tag">A leadership team assessment</p>
+            <p class="desc">How healthy is your church, really? Gather your whole leadership team's honest read across eight vital areas, including where you agree, and where you don't.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-top"><div class="logo-plate"><svg width="46" height="46" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="15" stroke="#1B3A57" stroke-width="2.2"/>
+            <path d="M30 18l-4.5 8.5L17 30l4.5-8.5z" fill="#C4923E"/>
+            <circle cx="24" cy="24" r="2" fill="#1B3A57"/>
+          </svg></div></div>
+          <div class="card-body"><h4>Leadership Health</h4><p class="tag">A self &amp; team assessment</p>
+            <p class="desc">Self-awareness is where strong leadership starts. Read yourself across eight essential areas, then invite trusted voices to show you what you can't see about yourself.</p></div>
+          <div class="card-foot"><span class="pill-soon">Coming Soon</span><span class="link-soon">Take it &rarr;</span></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= VERSE BAND ================= -->
+<section class="verse-band">
+  <img src="https://images.unsplash.com/photo-1519834785169-98be25ec3f84?w=1400&q=70&auto=format&fit=crop" alt="Open hands lifted" loading="lazy">
+  <div class="verse-inner">
+    <div class="mark">&ldquo;</div>
+    <blockquote>Anyone who listens to the word but does not do what it says is like a person who looks at his face in a mirror and, after looking at himself, goes away and forgets what he looks like.</blockquote>
+    <cite>James 1:23&ndash;24</cite>
+  </div>
+</section>
+
+<!-- ================= FINAL CTA ================= -->
+<section class="final">
+  <div class="wrap">
+    <p class="eyebrow" style="color:var(--teal);">Mission USA</p>
+    <h2>A free gift to the whole CHC family</h2>
+    <p>These assessments exist so every pastor, leader, spouse, and layperson in our movement has a clear, honest tool for growth. At no cost, always.</p>
+    <a href="#assessments" class="btn btn-primary">Browse assessments <span class="btn-arrow">&rarr;</span></a>
+    <p class="foot-meta">Ministry Assessments &middot; A Free Resource of Mission USA &middot; Congregational Holiness Church</p>
+  </div>
+</section>
+
+<script>
+  (function(){
+    var cards = document.querySelectorAll('.card');
+    if(!('IntersectionObserver' in window)){cards.forEach(function(c){c.classList.add('in');});return;}
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          var el=e.target, i=+el.dataset.i||0;
+          setTimeout(function(){el.classList.add('in');},(i%4)*80);
+          io.unobserve(el);
+        }
+      });
+    },{threshold:.1,rootMargin:'0px 0px -30px 0px'});
+    cards.forEach(function(c,i){c.dataset.i=i;io.observe(c);});
+    document.querySelectorAll('.hero-media img, .verse-band img').forEach(function(img){
+      img.addEventListener('error',function(){img.style.display='none';});
+    });
+
+    // Category filtering. Default shows all groups; buttons toggle visibility.
+    var buttons = document.querySelectorAll('.filter-btn');
+    var groups = document.querySelectorAll('.group[data-group]');
+    buttons.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var filter = btn.dataset.filter;
+        buttons.forEach(function(b){
+          var active = (b === btn);
+          b.classList.toggle('is-active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        groups.forEach(function(g){
+          var show = (filter === 'all' || g.dataset.group === filter);
+          g.hidden = !show;
+          if(show){
+            // replay the reveal animation for freshly shown cards
+            g.querySelectorAll('.card').forEach(function(card, i){
+              card.classList.remove('in');
+              setTimeout(function(){card.classList.add('in');}, (i % 4) * 70);
+            });
+          }
+        });
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>
