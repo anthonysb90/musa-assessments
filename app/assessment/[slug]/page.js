@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getServerSupabase } from "../../lib/supabaseServer";
 import { assessmentImage, ASSESSMENT_LANDING } from "../../lib/content";
+import SampleReportButton from "../../components/SampleReport";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function AssessmentLanding({ params, searchParams }) {
   const supabase = getServerSupabase();
   const { data: a } = await supabase
     .from("assessments")
-    .select("id,slug,name,subtitle,category,estimated_minutes,sensitivity")
+    .select("id,slug,name,subtitle,category,estimated_minutes,sensitivity,is_multi_rater")
     .eq("slug", slug)
     .eq("is_published", true)
     .maybeSingle();
@@ -43,10 +44,22 @@ export default async function AssessmentLanding({ params, searchParams }) {
     const v = searchParams?.[k];
     if (v) qp.set(k, Array.isArray(v) ? v[0] : v);
   }
-  const startHref = `/assessment/${slug}/start${qp.toString() ? `?${qp}` : ""}`;
+  const startHref = a.is_multi_rater
+    ? `/assessment/${slug}/team`
+    : `/assessment/${slug}/start${qp.toString() ? `?${qp}` : ""}`;
+  const startLabel = a.is_multi_rater ? "Start as a leadership team →" : "Start the assessment →";
 
   return (
     <main style={{ background: "var(--mist)" }}>
+      <style>{`
+        @keyframes ctaGlow {
+          0%,100% { box-shadow: 0 8px 22px rgba(196,146,62,.38); transform: translateY(0); }
+          50% { box-shadow: 0 14px 38px rgba(196,146,62,.62); transform: translateY(-3px); }
+        }
+        .cta-start { animation: ctaGlow 2.2s ease-in-out infinite; }
+        .cta-start:hover { animation: none; transform: translateY(-3px) scale(1.02); box-shadow: 0 18px 44px rgba(196,146,62,.6); }
+        @media (prefers-reduced-motion: reduce){ .cta-start{ animation:none; } }
+      `}</style>
       {/* Hero */}
       <section style={hero}>
         <div style={{ ...heroImg, backgroundImage: `url("${image}")` }} />
@@ -62,8 +75,9 @@ export default async function AssessmentLanding({ params, searchParams }) {
             <span style={chip}>Free</span>
             {a.sensitivity === "sensitive" && <span style={{ ...chip, ...chipGold }}>Private · sign-in required</span>}
           </div>
-          <div style={{ marginTop: 26, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link href={startHref} style={ctaPrimary}>Start the assessment →</Link>
+          <div style={{ marginTop: 26, display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+            <Link href={startHref} className="cta-start" style={ctaStart}>{startLabel}</Link>
+            <SampleReportButton slug={slug} name={a.name} variant="light" />
           </div>
         </div>
       </section>
@@ -91,40 +105,11 @@ export default async function AssessmentLanding({ params, searchParams }) {
           </div>
         </section>
 
-        {/* Demo report */}
-        {land.demo && (
-          <section style={{ padding: "36px 0 8px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <div style={eyebrow}>A peek at your report</div>
-              <span style={sampleTag}>Sample</span>
-            </div>
-            <div style={demoWrap}>
-              <div style={demoHead}>
-                <div>
-                  <div style={demoHeadKicker}>{a.name}</div>
-                  <div className="serif" style={demoHeadTitle}>{land.demo.headline}</div>
-                  <div style={demoHeadSub}>{land.demo.sub}</div>
-                </div>
-              </div>
-              <div style={{ padding: "6px 20px 18px" }}>
-                {land.demo.bars.map(([label, val, max], i) => {
-                  const color = i === 0 ? "#C4923E" : i === 1 ? "#2E7D8A" : "#8CA0B3";
-                  const isInt = Number.isInteger(val) && Number.isInteger(max) && max > 5;
-                  return (
-                    <div key={label} style={demoRow}>
-                      <span style={demoLabel}>{label}</span>
-                      <span style={demoTrack}>
-                        <span style={{ display: "block", height: "100%", borderRadius: 999, width: `${(val / max) * 100}%`, background: color }} />
-                      </span>
-                      <span style={{ ...demoVal, color }}>{isInt ? val : val.toFixed(1)}<span style={{ color: "#B4BEC9", fontWeight: 400 }}>/{max}</span></span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={demoFoot}>Your real report is fully interactive, with Scripture, next steps, and a downloadable PDF.</div>
-            </div>
-          </section>
-        )}
+        {/* Sample report — full preview via the hero button and here */}
+        <section style={{ padding: "30px 0 4px", textAlign: "center" }}>
+          <div style={{ ...eyebrow, marginBottom: 14 }}>See it before you start</div>
+          <SampleReportButton slug={slug} name={a.name} />
+        </section>
 
         {/* Bottom CTA */}
         <section style={ctaBand}>
@@ -135,7 +120,7 @@ export default async function AssessmentLanding({ params, searchParams }) {
             </div>
           </div>
           <Link href={startHref} style={{ ...ctaPrimary, background: "#C4923E", boxShadow: "0 8px 22px rgba(196,146,62,.35)" }}>
-            Start the assessment →
+            {startLabel}
           </Link>
         </section>
 
@@ -160,6 +145,7 @@ const chips = { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 22 };
 const chip = { fontSize: 13, fontWeight: 600, color: "#fff", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.22)", padding: "7px 14px", borderRadius: 999 };
 const chipGold = { background: "rgba(196,146,62,.2)", borderColor: "rgba(196,146,62,.5)", color: "#F0E4CB" };
 const ctaPrimary = { display: "inline-flex", alignItems: "center", background: "#1B3A57", color: "#fff", fontWeight: 700, fontSize: 16, padding: "15px 30px", borderRadius: 12, textDecoration: "none", boxShadow: "0 10px 26px rgba(27,58,87,.35)" };
+const ctaStart = { display: "inline-flex", alignItems: "center", background: "#C4923E", color: "#fff", fontWeight: 800, fontSize: 17, letterSpacing: ".01em", padding: "17px 36px", borderRadius: 12, textDecoration: "none" };
 const eyebrow = { fontSize: 12.5, letterSpacing: ".14em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 };
 const aboutP = { fontSize: "clamp(18px,2.2vw,22px)", lineHeight: 1.55, color: "var(--ink)", margin: "14px 0 0", fontWeight: 400 };
 const twoCol = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 18, padding: "34px 0 8px" };

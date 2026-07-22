@@ -19,6 +19,36 @@ export async function POST(req) {
       return NextResponse.json({ error: "Missing data" }, { status: 400 });
     }
 
+    // Multi-rater (anonymous team) submission: no auth, no email, no individual
+    // result row. Answers land in responses (which anon can't read back), and
+    // the aggregate is recomputed by a SECURITY DEFINER function.
+    if (body.team_code) {
+      const supabase = getServerSupabase();
+      const { data: group } = await supabase
+        .from("rater_groups").select("id,assessment_id,team_code").eq("team_code", body.team_code).maybeSingle();
+      if (!group) return NextResponse.json({ error: "Invalid team link." }, { status: 400 });
+      const { data: session, error: se } = await supabase
+        .from("sessions")
+        .insert({
+          assessment_id: group.assessment_id,
+          mode: "rater",
+          cohort: group.team_code,
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          source_tag: "team",
+        })
+        .select("id")
+        .single();
+      if (se || !session) return NextResponse.json({ error: "Could not record your response." }, { status: 500 });
+      const rrows = Object.entries(answers).map(([item_id, value]) => ({
+        session_id: session.id, item_id, value: Number(value),
+      }));
+      const { error: rre } = await supabase.from("responses").insert(rrows);
+      if (rre) return NextResponse.json({ error: "Could not save answers." }, { status: 500 });
+      await supabase.rpc("recompute_rater_group", { p_code: group.team_code });
+      return NextResponse.json({ ok: true, team_code: group.team_code });
+    }
+
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
     const ts = await verifyTurnstile(turnstileToken, ip);
     if (!ts.ok) {
@@ -47,7 +77,7 @@ export async function POST(req) {
 
     const { data: items } = await supabase
       .from("items")
-      .select("id,text,gift_letter,domain,is_reverse_scored,is_scored")
+      .select("id,text,gift_letter,option_b_letter,domain,is_reverse_scored,is_scored")
       .eq("assessment_id", assessment.id);
     const itemMap = Object.fromEntries((items || []).map((it) => [it.id, it]));
 

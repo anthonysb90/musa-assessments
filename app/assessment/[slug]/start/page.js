@@ -37,6 +37,7 @@ function AssessmentFlow() {
   const [marital, setMarital] = useState("");
   const [honeypot, setHoneypot] = useState("");
   const [tsToken, setTsToken] = useState("");
+  const [teamName, setTeamName] = useState("");
 
   const [answers, setAnswers] = useState({}); // item_id -> value
   const [page, setPage] = useState(0);
@@ -45,12 +46,27 @@ function AssessmentFlow() {
   const assignmentToken = params.get("a") || null;
   const sourceTag = params.get("source") || null;
   const cohort = params.get("cohort") || null;
+  const teamCode = params.get("team") || null;
+  const isRater = !!(assessment?.is_multi_rater && teamCode);
 
   useEffect(() => {
     (async () => {
       const { data: a, error: ae } = await supabase
         .from("assessments").select("*").eq("slug", slug).eq("is_published", true).single();
       if (ae || !a) { setErr("This assessment isn't available."); setPhase("error"); return; }
+
+      // Multi-rater: a rater joins with a team code; a lead without one is sent
+      // to team setup. Rater sessions are anonymous, no login or intake.
+      if (a.is_multi_rater) {
+        if (!teamCode) { setAssessment(a); setPhase("teamredirect"); return; }
+        const { data: g } = await supabase
+          .from("rater_groups").select("team_code,church_name").eq("team_code", teamCode).maybeSingle();
+        if (!g) { setErr("That team link isn't valid. Ask your leader for the correct link."); setPhase("error"); return; }
+        const { data: its } = await supabase
+          .from("items").select("id,text,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
+        setAssessment(a); setItems(its || []); setTeamName(g.church_name || ""); setPhase("intro");
+        return;
+      }
 
       const { data: udata } = await supabase.auth.getUser();
       const u = udata?.user || null;
@@ -64,7 +80,7 @@ function AssessmentFlow() {
       }
 
       const { data: its, error: ie } = await supabase
-        .from("items").select("id,text,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
+        .from("items").select("id,text,option_b_text,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
       if (ie) { setErr("Couldn't load the questions."); setPhase("error"); return; }
 
       const { data: ch } = await supabase
@@ -150,6 +166,7 @@ function AssessmentFlow() {
   const allAnswered = answeredCount === activeItems.length;
   const pageComplete = pageItems.every((it) => answers[it.id] !== undefined);
   const optsFor = (it) => (it.domain === "Wellbeing" ? WELLBEING_OPTIONS : scaleOptions(assessment));
+  const isForced = slug === "enneagram";
 
   function startQuestions() {
     startedAt.current = Date.now();
@@ -160,7 +177,7 @@ function AssessmentFlow() {
   // After the questions: logged-in users go straight to results; everyone else
   // provides their details first (the info gate that unlocks the report).
   function proceedFromQuestions() {
-    if (user) submit();
+    if (user || isRater) submit();
     else { setPhase("details"); window.scrollTo(0, 0); }
   }
 
@@ -173,6 +190,18 @@ function AssessmentFlow() {
   async function submit() {
     setPhase("submitting");
     try {
+      if (isRater) {
+        const res = await fetch("/api/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug, team_code: teamCode, answers, honeypot }),
+        });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out.error || "Submission failed");
+        setPhase("thanks");
+        window.scrollTo(0, 0);
+        return;
+      }
       const res = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -242,13 +271,22 @@ function AssessmentFlow() {
           <h1 className="serif" style={h1}>{assessment.name}</h1>
           <p style={introSub}>{assessment.subtitle}</p>
           <div style={card}>
-            <p style={{ marginTop: 0, color: "var(--ink-soft)" }}>
-              {activeItems.length} short statements, about {assessment.estimated_minutes} minutes.
-              Answer honestly, there's no score to pass or fail.
-              {user
-                ? " Your results are ready the moment you finish."
-                : " When you finish, add your details and your personal results are ready right away."}
-            </p>
+            {isRater ? (
+              <p style={{ marginTop: 0, color: "var(--ink-soft)" }}>
+                You've been invited to the {teamName || "leadership"} team review. {activeItems.length} short
+                statements, about {assessment.estimated_minutes} minutes. Your answers are private and
+                anonymous, no one, including your pastor, ever sees your individual responses. Only the
+                combined team picture is shared, once at least three leaders have finished.
+              </p>
+            ) : (
+              <p style={{ marginTop: 0, color: "var(--ink-soft)" }}>
+                {activeItems.length} short statements, about {assessment.estimated_minutes} minutes.
+                Answer honestly, there's no score to pass or fail.
+                {user
+                  ? " Your results are ready the moment you finish."
+                  : " When you finish, add your details and your personal results are ready right away."}
+              </p>
+            )}
 
             {isPastor && (
               <Select label="Marital status" v={marital} on={setMarital} opts={[["married", "Married"], ["single", "Single"]]} />
@@ -266,10 +304,41 @@ function AssessmentFlow() {
 
             <button className="btn btn-primary" disabled={isPastor && !marital} onClick={startQuestions}
               style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
-              Start the assessment
+              {isRater ? "Begin" : "Start the assessment"}
             </button>
           </div>
         </>
+      )}
+
+      {phase === "teamredirect" && (
+        <Centered>
+          <div style={{ textAlign: "center", maxWidth: 460 }}>
+            <h1 className="serif" style={{ ...h1, marginTop: 0 }}>{assessment.name}</h1>
+            <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.6 }}>
+              This one is taken as a leadership team. If your leader gave you a link, open that link to
+              join. To start a new team review, set one up below.
+            </p>
+            <a className="btn btn-primary" href={`/assessment/${slug}/team`} style={{ marginTop: 12 }}>
+              Set up a team review →
+            </a>
+            <div style={{ marginTop: 14 }}><a href="/" style={back}>← All assessments</a></div>
+          </div>
+        </Centered>
+      )}
+
+      {phase === "thanks" && (
+        <Centered>
+          <div style={{ textAlign: "center", maxWidth: 480 }}>
+            <h1 className="serif" style={{ ...h1, marginTop: 0 }}>Thank you.</h1>
+            <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.6 }}>
+              Your response is recorded, privately and anonymously. The combined report unlocks once at
+              least three leaders have finished. Your team lead has the results link.
+            </p>
+            <a className="btn btn-ghost" href={`/team/${teamCode}`} style={{ marginTop: 12 }}>
+              See team progress →
+            </a>
+          </div>
+        </Centered>
       )}
 
       {phase === "questions" && (
@@ -281,15 +350,47 @@ function AssessmentFlow() {
             Page {page + 1} of {pageCount} · {answeredCount} of {activeItems.length} answered
           </p>
 
+          {isForced && (
+            <p style={{ ...progressLabel, marginTop: -8 }}>
+              For each pair, choose the statement that has been more true of you, most of your life. Don't overthink it, go with your first instinct.
+            </p>
+          )}
+
           {pageItems.map((it, i) => {
             const isWell = it.domain === "Wellbeing";
             const firstWell = isWell && !pageItems.slice(0, i).some((p) => p.domain === "Wellbeing");
+            const num = page * perPage + i + 1;
+
+            if (isForced) {
+              const chosen = answers[it.id];
+              const pair = [[0, it.text], [1, it.option_b_text]];
+              return (
+                <div key={it.id} style={qBlock}>
+                  <div style={{ ...qNum, marginBottom: 12, display: "block" }}>{num}.</div>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {pair.map(([val, txt]) => {
+                      const active = chosen === val;
+                      return (
+                        <button key={val} onClick={() => setAnswers({ ...answers, [it.id]: val })}
+                          style={{ ...choiceBtn, ...(active ? choiceBtnActive : {}) }}>
+                          <span style={{ ...choiceDot, ...(active ? choiceDotActive : {}) }}>
+                            {active ? "✓" : ""}
+                          </span>
+                          <span>{txt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div key={it.id}>
                 {firstWell && <div style={wellNotice}>{WELLBEING_NOTICE}</div>}
                 <div style={qBlock}>
                   <div style={qText}>
-                    <span style={qNum}>{page * perPage + i + 1}.</span> {it.text}
+                    <span style={qNum}>{num}.</span> {it.text}
                   </div>
                   <div style={scaleRow}>
                     {optsFor(it).map(([val, lbl]) => {
@@ -322,7 +423,7 @@ function AssessmentFlow() {
               </button>
             ) : (
               <button className="btn btn-primary" disabled={!allAnswered} onClick={proceedFromQuestions}>
-                {user ? "See my results →" : "Continue to your results →"}
+                {isRater ? "Submit my responses →" : user ? "See my results →" : "Continue to your results →"}
               </button>
             )}
           </div>
@@ -441,5 +542,9 @@ const qNum = { color: "var(--teal-deep)", fontWeight: 700, marginRight: 4 };
 const scaleRow = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(64px,1fr))", gap: 8 };
 const scaleBtn = { display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "10px 6px", borderRadius: 10, border: "1.5px solid var(--line)", background: "#fff", color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", transition: "all .12s ease" };
 const scaleBtnActive = { background: "var(--navy)", borderColor: "var(--navy)", color: "#fff" };
+const choiceBtn = { display: "flex", alignItems: "flex-start", gap: 12, width: "100%", textAlign: "left", padding: "15px 16px", borderRadius: 12, border: "1.5px solid var(--line)", background: "#fff", color: "var(--ink)", cursor: "pointer", fontFamily: "inherit", fontSize: 15.5, lineHeight: 1.5, transition: "all .12s ease" };
+const choiceBtnActive = { background: "var(--navy)", borderColor: "var(--navy)", color: "#fff" };
+const choiceDot = { flexShrink: 0, width: 22, height: 22, borderRadius: 999, border: "1.5px solid var(--line)", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, color: "#fff", marginTop: 1 };
+const choiceDotActive = { background: "var(--gold,#C4923E)", borderColor: "var(--gold,#C4923E)" };
 const navRow = { display: "flex", alignItems: "center", gap: 12, marginTop: 24 };
 const wellNotice = { background: "var(--blush)", border: "1px solid #EADFC9", borderRadius: 12, padding: "16px 18px", marginBottom: 14, fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.6 };

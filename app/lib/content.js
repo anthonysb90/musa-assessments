@@ -20,6 +20,12 @@ export const SCORING_TYPE = {
   // Pastor Profile: 3-pillar / 14-domain self-assessment with a separate,
   // quarantined wellbeing module (scored + stored apart, never emailed).
   "pastor-profile": "pillar",
+  // Spiritual Growth (LifeWay-based): 6 disciplines, scored by domain bands,
+  // shown as a Discipleship Wheel radar.
+  "spiritual-growth": "domain-bands",
+  // Enneagram: 36 forced-choice pairs, each statement keyed to a type; the
+  // taker picks one per pair and the type counts rank 1-9 (top three matter).
+  enneagram: "type-pick",
   // seeded but unpublished (dedicated flows pending)
   "called-together": "couple-lower",
   "church-health": "multi-rater",
@@ -54,6 +60,9 @@ export const SCALE_OPTIONS = {
   ],
   "leadership-health": [
     [1, "Strongly Disagree"], [2, "Disagree"], [3, "Neutral"], [4, "Agree"], [5, "Strongly Agree"],
+  ],
+  "spiritual-growth": [
+    [1, "Never"], [2, "Seldom"], [3, "Occasionally"], [4, "Frequent"], [5, "Always"],
   ],
 };
 
@@ -205,10 +214,198 @@ export const LEADERSHIP_DOMAINS = {
   },
 };
 
+/* Church Health — 8 team qualities, each with a focus step (multi-rater). */
+export const CHURCH_HEALTH_DOMAINS = {
+  "Leadership Development": { step: "Name one emerging leader and give them a real, defined next step this quarter, not just another task to cover." },
+  "Every-Member Ministry": { step: "Build one simple path this month that helps a new person discover their gifts and land somewhere to serve." },
+  "Prayer & Spiritual Depth": { step: "Put dedicated prayer into a decision your leadership is facing right now, not as an opener, but as the actual process." },
+  "Clear Systems & Communication": { step: "Pick the one broken hand-off your team feels most, follow-up, check-in, or communication, and fix that one first." },
+  "Worship That Connects": { step: "Walk your service through the eyes of a first-time guest this week, and remove one point of confusion." },
+  "Groups & Discipleship": { step: "Choose one group to help multiply, or one barrier to joining a group to remove, this season." },
+  "Outward Focus & Evangelism": { step: "Plan one concrete way your whole church engages the community in the next 60 days, not just a designated team." },
+  "Unity & Relational Health": { step: "Name one unresolved tension on the team and address it directly and biblically, before it hardens." },
+};
+
+/* ------------------------------------------------------------------ */
+/* Spiritual Growth — 6 disciplines (LifeWay Discipleship Wheel).       */
+/* Scored 1-5 by domain average; shown as a Discipleship Wheel radar.   */
+/* Each discipline total ranges 10-50 (10 statements). Content below is */
+/* Mission USA's own next-step + Scripture for each discipline.         */
+/* ------------------------------------------------------------------ */
+export const SPIRITUAL_GROWTH_ORDER = [
+  "Abide in Christ",
+  "Live in the Word",
+  "Pray in Faith",
+  "Fellowship with Believers",
+  "Witness to the World",
+  "Minister to Others",
+];
+
+export const SPIRITUAL_GROWTH_DOMAINS = {
+  "Abide in Christ": {
+    ref: "John 15:4-5",
+    blurb: "Staying connected to Jesus as the source of your life, not just serving in His name.",
+    step: "Set one fixed time this week to be with Christ with no agenda, not sermon prep, not a task, just abiding. Guard it like a meeting.",
+  },
+  "Live in the Word": {
+    ref: "Joshua 1:8 · 2 Timothy 3:16-17",
+    blurb: "Letting Scripture shape how you think, decide, and live day to day.",
+    step: "Pick one short book of the Bible and read a few verses at the same time each day, ending with one question: what does this ask of me today?",
+  },
+  "Pray in Faith": {
+    ref: "Philippians 4:6-7 · James 5:16",
+    blurb: "Talking with God honestly and often, and trusting Him with the results.",
+    step: "Add two minutes of listening to the end of your prayers this week. Say less, and give God room to speak.",
+  },
+  "Fellowship with Believers": {
+    ref: "Hebrews 10:24-25 · Proverbs 27:17",
+    blurb: "Living in real, accountable relationships with other believers, not faith in isolation.",
+    step: "Invite one trusted person into a standing check-in where they have permission to ask you hard questions and you actually answer.",
+  },
+  "Witness to the World": {
+    ref: "Matthew 28:19-20 · 1 Peter 3:15",
+    blurb: "Sharing Christ with people who don't yet know Him, in word and in life.",
+    step: "Write down two people who don't yet know Christ, pray for them by name daily, and look for one natural opening to share this month.",
+  },
+  "Minister to Others": {
+    ref: "1 Peter 4:10 · Matthew 25:40",
+    blurb: "Using your gifts, time, and resources to serve others the way Christ served you.",
+    step: "Say yes to one concrete way to serve this month that uses a gift you already have, and do it without expecting anything back.",
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Enneagram — 9 types. Mission USA's own redemptive, Scripture-rooted  */
+/* profiles (original wording), so the report is spiritual, not just a  */
+/* personality label. Keyed by type number "1".."9".                    */
+/* ------------------------------------------------------------------ */
+export const ENNEAGRAM_ORDER = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+export const ENNEAGRAM_TYPES = {
+  "1": {
+    name: "The Reformer",
+    tagline: "The principled, conscientious one",
+    essence:
+      "You carry a strong inner sense of right and wrong and a longing for things to be as they should be. You work hard, hold high standards, and can be trusted to do what is good even when no one is watching.",
+    gift: "A steady conscience the body of Christ needs, and the discipline to follow through on what is right.",
+    watch: "The inner critic can turn on you and on others. Grace can start to feel like lowered standards, and resentment can build when people fall short.",
+    grows:
+      "Let grace be as real as your standards. You are loved before you are useful, and God is not grading you. Rest is not laziness, it is trust.",
+    verse: "Micah 6:8",
+    devotion:
+      "God does not ask you to be perfect before He accepts you. In Christ you already stand accepted, not because your work is flawless but because His is. Let that settle in. Do good this week out of a full heart, not to quiet a critic that Jesus already silenced at the cross.",
+  },
+  "2": {
+    name: "The Helper",
+    tagline: "The caring, generous one",
+    essence:
+      "You notice what people need, often before they say it, and you move toward them with warmth. You are generous, sincere, and quick to give yourself away for others.",
+    gift: "Genuine, sacrificial love that makes the church feel like family, and eyes that see the person everyone else overlooks.",
+    watch: "You can serve to be needed, ignore your own needs until you are empty, and quietly keep score of the love you give.",
+    grows:
+      "Let yourself be cared for, not just the caregiver. Receiving is not weakness. You do not have to earn love by being useful, it is already yours.",
+    verse: "Mark 12:31",
+    devotion:
+      "You tell everyone else they are loved as they are. This week, believe it about yourself. God does not love you for what you do for Him. Sit still long enough to be filled before you pour out again, and let Him meet the need you keep hiding.",
+  },
+  "3": {
+    name: "The Achiever",
+    tagline: "The driven, effective one",
+    essence:
+      "You get things done and you get them done well. You are adaptable, confident, and motivated to succeed, and you often inspire others by what you accomplish.",
+    gift: "Energy, excellence, and the ability to move a vision from idea to reality, and to model what is possible.",
+    watch: "Your worth can quietly fuse to your performance. Image can outrun honesty, and you can lose track of who you are beneath what you do.",
+    grows:
+      "Learn to rest in being a beloved child before you are a successful one. Let people see the real you, not just the highlight reel.",
+    verse: "Galatians 1:10",
+    devotion:
+      "At Jesus' baptism the Father said He was well pleased before Jesus had preached a sermon or healed anyone. That is the order of the gospel: loved first, then sent. Your identity is not your résumé. Take one honest step this week where you are known, not just admired.",
+  },
+  "4": {
+    name: "The Individualist",
+    tagline: "The sensitive, authentic one",
+    essence:
+      "You feel deeply and long for what is real and meaningful. You are honest about the ache in things, creative, and drawn to beauty and depth others rush past.",
+    gift: "Emotional honesty and depth that gives the church permission to be real, and the ability to find meaning in suffering.",
+    watch: "You can dwell in what is missing, compare your inside to everyone's outside, and mistake your feelings for the final truth about you.",
+    grows:
+      "You are not too much, and nothing essential is missing from you. Your identity is settled in Christ, not in your moods. Gratitude is a way home.",
+    verse: "Psalm 139:14",
+    devotion:
+      "The feelings are real, but they are not the deepest thing true about you. In Christ you are seen, chosen, and complete, on the flat days as much as the vivid ones. This week, name three ordinary gifts God has already given you, and let ordinary grace be enough.",
+  },
+  "5": {
+    name: "The Investigator",
+    tagline: "The perceptive, thoughtful one",
+    essence:
+      "You want to understand. You observe carefully, think deeply, and value competence and clarity. You are often the calm, insightful presence others come to when they need to make sense of something.",
+    gift: "Wisdom, perspective, and the kind of careful thought that keeps the church from shallow answers.",
+    watch: "You can retreat into your head, hoard time and energy, and hold people at a distance while you feel prepared to engage.",
+    grows:
+      "God is not only understood, He is trusted and enjoyed. You have enough. Move toward people and toward God before you feel fully ready.",
+    verse: "Proverbs 3:5-6",
+    devotion:
+      "Knowledge can become a wall you hide behind. But God does not ask you to figure everything out before you trust Him, He asks you to lean on Him. This week, share yourself with one person before you feel ready, and give away some time as an act of faith that God will provide more.",
+  },
+  "6": {
+    name: "The Loyalist",
+    tagline: "The faithful, steadfast one",
+    essence:
+      "You are committed, responsible, and dependable. You think ahead, spot problems early, and stay when others leave. People trust you because you show up and follow through.",
+    gift: "Faithfulness, perseverance, and the loyalty that holds a community together through hard seasons.",
+    watch: "Anxiety and worst-case thinking can run the show. You can look for security in everything except the God who actually holds you.",
+    grows:
+      "Courage grows as you trust the Shepherd, not just the plan. God has not given you a spirit of fear. You are held, even when the ground feels unsure.",
+    verse: "Isaiah 41:10",
+    devotion:
+      "Fear says prepare for everything or the floor will fall out. Faith says the floor is God, and He does not move. You do not have to carry tomorrow's what-ifs today. This week, when worry rises, name it as a prayer and hand it back to the One who is already there.",
+  },
+  "7": {
+    name: "The Enthusiast",
+    tagline: "The joyful, visionary one",
+    essence:
+      "You bring energy, optimism, and possibility. You see the bright side, love new ideas and experiences, and lift the room simply by being in it.",
+    gift: "Joy, vision, and a contagious hope that reminds the church the good news really is good.",
+    watch: "You can outrun pain instead of facing it, scatter across too many things, and keep moving so you never have to sit with what hurts.",
+    grows:
+      "Real joy can hold sorrow without running. Presence beats novelty. Stay in one thing, and one feeling, long enough for God to meet you in it.",
+    verse: "Psalm 16:11",
+    devotion:
+      "The deepest joy is not the next exciting thing, it is God Himself, and He is found in the present moment, not the next one. This week, resist the urge to escape a hard feeling. Sit with it, and with Him, and discover that He is enough even when the day is heavy.",
+  },
+  "8": {
+    name: "The Challenger",
+    tagline: "The strong, protective one",
+    essence:
+      "You are decisive, direct, and strong. You take charge, protect the vulnerable, and are not afraid of hard truth or hard work. People feel safer when you are in the room.",
+    gift: "Strength used for others, the courage to confront what is wrong, and a heart that defends the weak.",
+    watch: "You can guard your heart so hard that vulnerability feels like danger. Strength can tip into control, and tenderness can feel like a threat.",
+    grows:
+      "True strength includes the courage to be tender and to let others in. You do not always have to be the strong one. God is your protector too.",
+    verse: "Micah 6:8",
+    devotion:
+      "It takes more strength to be gentle than to be forceful. Jesus, the strongest person who ever lived, washed feet and wept. You are allowed to be protected, not only the protector. This week, let one trusted person see the softer place you usually guard.",
+  },
+  "9": {
+    name: "The Peacemaker",
+    tagline: "The steady, reconciling one",
+    essence:
+      "You bring calm and see all sides. You are accepting, easygoing, and a steadying presence who helps people feel at ease and helps groups stay together.",
+    gift: "Peace, patience, and the rare gift of helping divided people hear one another.",
+    watch: "You can keep the peace by disappearing, avoid conflict until it festers, and lose your own voice and priorities in everyone else's.",
+    grows:
+      "Your presence and your voice matter. Real peace sometimes means showing up and speaking up. You are not invisible to God, and you should not be to yourself.",
+    verse: "Matthew 5:9",
+    devotion:
+      "Peacemaking is not the same as peacekeeping. Peacekeeping avoids, but peacemaking engages, the way Jesus did. You matter enough to have an opinion and to take up space. This week, name one thing you actually want or think, and say it out loud instead of going along.",
+  },
+};
+
 // Which metadata + report copy a domain-bands assessment uses, keyed by slug.
 export const DOMAIN_META = {
   rooted: ROOTED_MARKERS,
   "leadership-health": LEADERSHIP_DOMAINS,
+  "spiritual-growth": SPIRITUAL_GROWTH_DOMAINS,
 };
 
 export const DOMAIN_REPORT_COPY = {
@@ -225,6 +422,13 @@ export const DOMAIN_REPORT_COPY = {
     grow: "Where to grow",
     helper:
       "Self-assessment is a start, not the whole picture. These are where the next season of growth is, not a verdict on your leadership. Adding trusted voices later will sharpen it further.",
+  },
+  "spiritual-growth": {
+    snapshot: "Your six disciplines",
+    strong: "Where you're strongest",
+    grow: "Where to grow next",
+    helper:
+      "This is a mirror for one moment in your journey, not a grade on your walk with God. Every disciple has areas still filling in. These are simply where the next bit of growth is waiting.",
   },
 };
 
@@ -480,6 +684,8 @@ export const ASSESSMENT_IMAGE = {
   "church-health": pexels(7691722),
   "church-planter": pexels(30867724),
   "pastor-profile": pexels(18999688),
+  "spiritual-growth": pexels(1112048),
+  enneagram: pexels(3771069),
 };
 
 export function assessmentImage(slug) {
@@ -656,5 +862,39 @@ export const ASSESSMENT_LANDING = {
     ],
     demo: { headline: "Balanced across three pillars", sub: "Character · Competence · Contribution",
       bars: [["Character & Inner Life", 4.3, 5], ["Competence", 4.0, 5], ["Contribution & Support", 3.4, 5]] },
+  },
+  "spiritual-growth": {
+    tagline: "How is your walk with God, honestly?",
+    about:
+      "A prayerful look at six spiritual disciplines every follower of Christ grows in. Over 60 short statements you'll reflect on your own walk, then see it drawn as a Discipleship Wheel, so you can tell where your faith is strong and where the next season of growth is waiting. Based on LifeWay's Spiritual Growth Assessment.",
+    measures: [
+      "6 disciplines: Abide, the Word, Prayer, Fellowship, Witness, and Ministry",
+      "Your own honest self-reflection, before God",
+      "A Discipleship Wheel that shows the whole picture at a glance",
+    ],
+    youGet: [
+      "Your Discipleship Wheel across all six disciplines",
+      "Your strongest disciplines, affirmed",
+      "Your growth disciplines, each with a Scripture and a next step",
+    ],
+    demo: { headline: "Strongest: Abide in Christ", sub: "6 disciplines · Discipleship Wheel",
+      bars: [["Abide in Christ", 4.4, 5], ["Live in the Word", 4.1, 5], ["Minister to Others", 3.2, 5], ["Witness to the World", 2.6, 5]] },
+  },
+  enneagram: {
+    tagline: "Understand how you're wired, and grow.",
+    about:
+      "The Enneagram describes nine ways people see and move through the world. Over 36 quick either-or choices, this finds the type that fits you best, then turns it toward Christ, with Scripture and a short devotion written to help you grow, not just get a label.",
+    measures: [
+      "9 types, from the Reformer to the Peacemaker",
+      "Your top three, so a close call is never forced",
+      "A redemptive read: your gift, your watch-out, and where to grow",
+    ],
+    youGet: [
+      "Your core type, described honestly",
+      "All nine scored, with your top three highlighted",
+      "A Scripture and a written devotion for your type",
+    ],
+    demo: { headline: "Your type: 2 · The Helper", sub: "Top three of nine types",
+      bars: [["2 · Helper", 7, 8], ["9 · Peacemaker", 6, 8], ["6 · Loyalist", 5, 8]] },
   },
 };

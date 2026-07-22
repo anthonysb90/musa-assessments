@@ -99,22 +99,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section className="how" id="how">
-        <div className="hwrap">
-          <div className="how-head">
-            <p className="eyebrow">Simple by design</p>
-            <h2>Three steps to a clearer picture</h2>
-            <p>No guesswork and no jargon. Choose, answer honestly, and unlock a report made for where you actually are.</p>
-          </div>
-          <div className="how-rail">
-            <HowCard step="Step one" title="Choose your assessment" body="Instruments across calling, marriage, leadership, and church health. Start wherever fits your season." />
-            <HowCard step="Step two" title="Answer honestly" body="Ten to twenty private minutes. There's no score to pass or fail here, only an honest mirror." />
-            <HowCard step="Step three" title="Unlock your report" body="Add your details at the end and your full personal report comes straight to you, strengths, growth areas, and a next step." />
-          </div>
-        </div>
-      </section>
-
       {/* CATALOG */}
       <section className="catalog" id="assessments">
         <div className="hwrap">
@@ -164,6 +148,22 @@ export default function Home() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section className="how" id="how">
+        <div className="hwrap">
+          <div className="how-head">
+            <p className="eyebrow">Simple by design</p>
+            <h2>Three steps to a clearer picture</h2>
+            <p>No guesswork and no jargon. Choose, answer honestly, and unlock a report made for where you actually are.</p>
+          </div>
+          <div className="how-rail">
+            <HowCard step="Step one" title="Choose your assessment" body="Instruments across calling, marriage, leadership, and church health. Start wherever fits your season." />
+            <HowCard step="Step two" title="Answer honestly" body="Ten to twenty private minutes. There's no score to pass or fail here, only an honest mirror." />
+            <HowCard step="Step three" title="Unlock your report" body="Add your details at the end and your full personal report comes straight to you, strengths, growth areas, and a next step." />
+          </div>
         </div>
       </section>
 
@@ -228,8 +228,8 @@ const CSS = `
 .btn-arrow{transition:transform .16s ease;}
 .btn-primary:hover .btn-arrow{transform:translateX(3px);}
 .hero{position:relative;background:#fff;overflow:hidden;}
-.hero-inner{display:grid;grid-template-columns:1.05fr .95fr;align-items:stretch;min-height:600px;}
-.hero-copy{padding:88px 64px 88px 28px;display:flex;flex-direction:column;justify-content:center;max-width:640px;margin-left:auto;}
+.hero-inner{display:grid;grid-template-columns:1.05fr .95fr;align-items:stretch;min-height:460px;}
+.hero-copy{padding:56px 64px 56px 28px;display:flex;flex-direction:column;justify-content:center;max-width:640px;margin-left:auto;}
 .hero-free{display:inline-flex;align-items:center;gap:9px;align-self:flex-start;background:var(--gold-soft);color:#8A6420;font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 15px;border-radius:999px;margin-bottom:28px;}
 .hero-free .spark{width:7px;height:7px;border-radius:50%;background:var(--gold);}
 .hero h1{font-family:var(--display,'Fraunces');font-weight:400;font-size:clamp(40px,5vw,60px);line-height:1.04;letter-spacing:-.5px;margin:0 0 22px;color:var(--ink);}
@@ -244,13 +244,13 @@ const CSS = `
 .float-card .lbl{font-size:13.5px;color:var(--ink-soft);line-height:1.4;}
 .trust{background:var(--mist);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
 .trust-grid{display:grid;grid-template-columns:repeat(4,1fr);}
-.trust-item{padding:30px 26px;display:flex;gap:14px;align-items:flex-start;border-right:1px solid var(--line);}
+.trust-item{padding:20px 24px;display:flex;gap:14px;align-items:flex-start;border-right:1px solid var(--line);}
 .trust-item:last-child{border-right:none;}
 .trust-item .ti-ico{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
 .trust-item h4{margin:0 0 3px;font-size:15px;font-weight:700;color:var(--ink);}
 .trust-item p{margin:0;font-size:13.5px;color:var(--ink-soft);line-height:1.4;}
-.how{padding:88px 0 40px;}
-.how-head{max-width:620px;margin-bottom:52px;}
+.how{padding:56px 0 64px;}
+.how-head{max-width:620px;margin-bottom:34px;}
 .how h2,.section-head h2,.final h2{font-family:var(--display,'Fraunces');font-weight:400;font-size:clamp(30px,3.6vw,42px);line-height:1.1;letter-spacing:-.5px;color:var(--ink);margin:0 0 14px;}
 .how-head p{font-size:17px;color:var(--ink-soft);margin:0;}
 .how-rail{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;}
@@ -262,14 +262,14 @@ const CSS = `
 .how-card .kicker{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin:0 0 8px;}
 .how-card h3{font-family:var(--display,'Fraunces');font-weight:500;font-size:21px;color:var(--ink);margin:0 0 8px;}
 .how-card p{font-size:14.5px;color:var(--ink-soft);margin:0;}
-.catalog{padding:64px 0 96px;}
-.section-head{max-width:640px;margin:0 auto 48px;text-align:center;}
+.catalog{padding:44px 0 64px;}
+.section-head{max-width:640px;margin:0 auto 30px;text-align:center;}
 .section-head p{font-size:17px;color:var(--ink-soft);margin:0;}
-.filter-bar{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:0 auto 56px;max-width:820px;}
+.filter-bar{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:0 auto 36px;max-width:820px;}
 .filter-btn{font-family:var(--sans,'Inter');font-size:14px;font-weight:600;color:var(--ink-soft);background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:10px 20px;cursor:pointer;transition:color .18s, background .18s, border-color .18s, transform .12s;}
 .filter-btn:hover{border-color:var(--teal);color:var(--teal-deep);transform:translateY(-1px);}
 .filter-btn.is-active{background:var(--navy);border-color:var(--navy);color:#fff;}
-.group{margin-bottom:72px;}
+.group{margin-bottom:48px;}
 .group-head{display:flex;align-items:center;gap:18px;margin-bottom:30px;}
 .group-head .gh-line{height:1px;background:var(--line);flex:1;}
 .group-head h3{font-family:var(--display,'Fraunces');font-weight:500;font-size:24px;color:var(--ink);margin:0;white-space:nowrap;}

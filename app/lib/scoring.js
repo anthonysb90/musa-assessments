@@ -122,6 +122,26 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     return { ...base, type: "level-matrix", levels, winnerLevel: winner.level, transition };
   }
 
+  if (type === "type-pick") {
+    // Forced-choice: each item carries a type for option A (gift_letter) and
+    // option B (option_b_letter). The stored value is 0 (chose A) or 1 (B).
+    // Count picks per type, rank all nine, top three are what matter.
+    const counts = {};
+    let total = 0;
+    for (const [itemId, value] of Object.entries(answers)) {
+      const it = itemMap[itemId];
+      if (!it || it.is_scored === false) continue;
+      const picked = Number(value) === 1 ? it.option_b_letter : it.gift_letter;
+      if (!picked) continue;
+      counts[picked] = (counts[picked] || 0) + 1;
+      total += 1;
+    }
+    const ranked = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+      .map((t) => ({ type: t, score: counts[t] || 0 }))
+      .sort((a, b) => b.score - a.score || Number(a.type) - Number(b.type));
+    return { ...base, type: "type-pick", total, ranked, primary: ranked[0]?.type };
+  }
+
   if (type === "disc-blend") {
     const groups = groupBy(itemMap, answers, (it) => it.domain, smin, smax);
     const dims = ["D", "I", "S", "C"].map((key) => ({
