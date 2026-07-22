@@ -406,6 +406,55 @@ export const ENNEAGRAM_TYPES = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Called Together — 8 marriage & ministry domains + a confidential     */
+/* Safety check. Taken privately by each spouse; the couple report shows */
+/* both side by side. The couple band is the lower of the two views.     */
+/* ------------------------------------------------------------------ */
+export const CALLED_TOGETHER_DOMAINS = {
+  "Shared Calling": {
+    step: "Talk about where you each sense God leading next, and whether the call still feels shared or has quietly become one person's.",
+  },
+  "Boundaries: Home vs Ministry": {
+    step: "Name one place ministry has crept into your home, and agree together on one line you'll protect this season.",
+  },
+  "Role & Expectations": {
+    step: "Say out loud what you each expect of the other in ministry, especially the expectations you've never actually spoken.",
+  },
+  "Connection & Intimacy": {
+    step: "Put one unhurried, ministry-free time together on the calendar this week, and guard it like an appointment.",
+  },
+  "Conflict & Communication": {
+    step: "Pick one recurring argument and agree on how you'll handle it differently the next time it comes up.",
+  },
+  "Margin, Rest & Finances": {
+    step: "Look honestly at where your time and money actually go, and name one change that would give your marriage more margin.",
+  },
+  "Criticism & Resilience": {
+    step: "Talk about how criticism of one of you lands on both of you, and agree on how you'll protect each other from it.",
+  },
+  "Support & Community": {
+    step: "Name the people who actually pour into your marriage. If the list is thin, agree on one couple to pursue this season.",
+  },
+};
+
+// Confidential safety check (single item, quarantined). Never in the couple
+// report. A private, supportive message is shown to a spouse who indicates
+// they don't feel safe, and the care team is alerted quietly.
+export const CALLED_TOGETHER_SAFETY_NOTICE =
+  "One last question, just for you. It is completely private. Your spouse never sees your answer to it, and it never appears in your couple report.";
+
+// Safety item scale (1-5, low = does not feel safe). Flagged at 2 or below.
+export const SAFETY_OPTIONS = [
+  [5, "Yes, I feel safe"], [4, "Mostly"], [3, "Unsure"], [2, "Not really"], [1, "No, I don't"],
+];
+
+export const CALLED_TOGETHER_SAFETY_CARE = {
+  title: "Thank you for your honesty. You matter, and you don't have to carry this alone.",
+  body:
+    "What you shared is important. Please reach out to someone you trust. If you are in immediate danger, call 911. The National Domestic Violence Hotline is available 24/7, free and confidential: call 1-800-799-7233 or text START to 88788. Reaching out is not disloyalty. Your safety matters to God, and it matters to us.",
+};
+
+/* ------------------------------------------------------------------ */
 /* Church Planter — 13 characteristics (primary five weighted 2x).      */
 /* Candidate self-assessment. Each characteristic has a plain descriptor,*/
 /* a way to lean into it in a plant, and a growth step. Original wording.*/

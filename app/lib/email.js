@@ -19,6 +19,7 @@ import {
   DISC_DIMS,
   CROSS_PROMO,
   PROMO_HOOK,
+  ENNEAGRAM_TYPES,
 } from "./content";
 
 export async function sendEmail({ to, subject, html, text }) {
@@ -120,6 +121,13 @@ function inlineSummary(scored, assessment) {
     const b = DISC_BLENDS[scored.blend];
     const label = b ? `${scored.blend} · ${b.figure}, ${b.title}` : scored.blend;
     return `<p style="font-size:16px;margin:0;color:${INK};"><strong>${label}</strong> (${DISC_DIMS[scored.primary]} + ${DISC_DIMS[scored.secondary]})</p>`;
+  }
+  if (type === "type-pick") {
+    const t = ENNEAGRAM_TYPES[scored.primary] || {};
+    return `<p style="font-size:16px;margin:0;color:${INK};">Your core type: <strong>${scored.primary} · ${t.name || ""}</strong></p>`;
+  }
+  if (type === "planter") {
+    return `<p style="font-size:16px;margin:0;color:${INK};"><strong>${scored.tier_label || "Readiness"}</strong> · weighted score ${scored.composite ?? ""} / ${scored.scale_max || 5}</p>`;
   }
   return "";
 }

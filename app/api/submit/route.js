@@ -49,6 +49,72 @@ export async function POST(req) {
       return NextResponse.json({ ok: true, team_code: group.team_code });
     }
 
+    // Called Together (couple) submission: each spouse takes privately, no
+    // login. Domain averages are stored on the couple row for a side-by-side
+    // report. The confidential Safety answer is split out here, never stored on
+    // the couple row, and routes a private care alert when a spouse indicates
+    // they don't feel safe.
+    if (body.couple_code) {
+      const supabase = getServerSupabase();
+      const { data: couple } = await supabase
+        .from("couples").select("id,assessment_id,couple_code").eq("couple_code", body.couple_code).maybeSingle();
+      if (!couple) return NextResponse.json({ error: "Invalid couple link." }, { status: 400 });
+
+      const { data: items } = await supabase
+        .from("items").select("id,domain,is_scored").eq("assessment_id", couple.assessment_id);
+      const imap = Object.fromEntries((items || []).map((it) => [it.id, it]));
+
+      // Split the confidential Safety answer out of everything scored/stored.
+      let safetyVal = null;
+      const scoredAnswers = {};
+      for (const [itemId, value] of Object.entries(answers)) {
+        if (imap[itemId]?.domain === "Safety") safetyVal = Number(value);
+        else scoredAnswers[itemId] = value;
+      }
+
+      // Record a session + responses (Safety excluded), for data completeness.
+      const { data: session } = await supabase
+        .from("sessions")
+        .insert({ assessment_id: couple.assessment_id, mode: "couple", cohort: couple.couple_code, status: "completed", completed_at: new Date().toISOString(), source_tag: "couple" })
+        .select("id").single();
+      if (session) {
+        const rrows = Object.entries(scoredAnswers).map(([item_id, value]) => ({ session_id: session.id, item_id, value: Number(value) }));
+        if (rrows.length) await supabase.from("responses").insert(rrows);
+      }
+
+      // Per-domain averages for this spouse.
+      const g = {};
+      for (const [itemId, value] of Object.entries(scoredAnswers)) {
+        const it = imap[itemId];
+        if (!it || it.is_scored === false || !it.domain) continue;
+        (g[it.domain] ||= []).push(Number(value));
+      }
+      const domains = Object.entries(g)
+        .map(([domain, vals]) => ({ domain, average: +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) }))
+        .sort((a, b) => b.average - a.average);
+      const memberJson = { domains, scale_max: 5, name: body.name || null };
+
+      const { data: rec } = await supabase.rpc("record_couple_member", {
+        p_code: couple.couple_code, p_name: body.name || null, p_json: memberJson,
+      });
+
+      // Confidential safety alert: 1-5 agree scale, low = doesn't feel safe.
+      const safetyFlag = safetyVal != null && safetyVal <= 2;
+      if (safetyFlag && CARE_CONTACT_EMAIL) {
+        try {
+          await sendEmail({
+            to: CARE_CONTACT_EMAIL,
+            subject: "Called Together — a private safety concern",
+            html: `<p>Someone just completed the Called Together assessment and indicated on the confidential safety question that they do <strong>not</strong> feel physically or emotionally safe in their marriage right now.</p>
+              <p>First name given: <strong>${body.name || "(not given)"}</strong>. This was taken through the couple link <strong>${couple.couple_code}</strong>.</p>
+              <p>Individual answers are private, so this note carries only what's needed to reach out with care. Please handle it gently and confidentially, and follow your safeguarding process.</p>`,
+          });
+        } catch { /* never block completion on the alert */ }
+      }
+
+      return NextResponse.json({ ok: true, couple_code: couple.couple_code, both_done: !!rec?.both_done, safety_flag: safetyFlag });
+    }
+
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
     const ts = await verifyTurnstile(turnstileToken, ip);
     if (!ts.ok) {

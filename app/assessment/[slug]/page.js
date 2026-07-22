@@ -44,10 +44,17 @@ export default async function AssessmentLanding({ params, searchParams }) {
     const v = searchParams?.[k];
     if (v) qp.set(k, Array.isArray(v) ? v[0] : v);
   }
+  const isCouple = slug === "called-together";
   const startHref = a.is_multi_rater
     ? `/assessment/${slug}/team`
+    : isCouple
+    ? `/assessment/${slug}/couple`
     : `/assessment/${slug}/start${qp.toString() ? `?${qp}` : ""}`;
-  const startLabel = a.is_multi_rater ? "Start as a leadership team →" : "Start the assessment →";
+  const startLabel = a.is_multi_rater
+    ? "Start as a leadership team →"
+    : isCouple
+    ? "Start as a couple →"
+    : "Start the assessment →";
 
   return (
     <main style={{ background: "var(--mist)" }}>

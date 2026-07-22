@@ -2,7 +2,10 @@
 import { Suspense, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getSupabase } from "../../../lib/supabase";
-import { scaleOptions, WELLBEING_OPTIONS, WELLBEING_NOTICE } from "../../../lib/content";
+import {
+  scaleOptions, WELLBEING_OPTIONS, WELLBEING_NOTICE,
+  SAFETY_OPTIONS, CALLED_TOGETHER_SAFETY_NOTICE, CALLED_TOGETHER_SAFETY_CARE,
+} from "../../../lib/content";
 import { TURNSTILE_SITE_KEY, CONSENT_VERSION } from "../../../lib/config";
 
 const AGE_BANDS = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
@@ -38,6 +41,8 @@ function AssessmentFlow() {
   const [honeypot, setHoneypot] = useState("");
   const [tsToken, setTsToken] = useState("");
   const [teamName, setTeamName] = useState("");
+  const [coupleName, setCoupleName] = useState("");
+  const [safetyFlagged, setSafetyFlagged] = useState(false);
 
   const [answers, setAnswers] = useState({}); // item_id -> value
   const [page, setPage] = useState(0);
@@ -48,6 +53,8 @@ function AssessmentFlow() {
   const cohort = params.get("cohort") || null;
   const teamCode = params.get("team") || null;
   const isRater = !!(assessment?.is_multi_rater && teamCode);
+  const coupleCode = params.get("couple") || null;
+  const isCouple = slug === "called-together" && !!coupleCode;
 
   useEffect(() => {
     (async () => {
@@ -65,6 +72,19 @@ function AssessmentFlow() {
         const { data: its } = await supabase
           .from("items").select("id,text,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
         setAssessment(a); setItems(its || []); setTeamName(g.church_name || ""); setPhase("intro");
+        return;
+      }
+
+      // Called Together (couple): each spouse takes privately via a couple
+      // link. Without a link, send them to couple setup. No login required.
+      if (slug === "called-together") {
+        if (!coupleCode) { setAssessment(a); setPhase("coupleredirect"); return; }
+        const { data: cp } = await supabase
+          .from("couples").select("couple_code").eq("couple_code", coupleCode).maybeSingle();
+        if (!cp) { setErr("That couple link isn't valid. Ask your spouse for the correct link, or start a new one."); setPhase("error"); return; }
+        const { data: its } = await supabase
+          .from("items").select("id,text,option_b_text,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
+        setAssessment(a); setItems(its || []); setPhase("intro");
         return;
       }
 
@@ -169,7 +189,10 @@ function AssessmentFlow() {
   const answeredCount = Object.keys(answers).filter((id) => activeIds.has(id)).length;
   const allAnswered = answeredCount === activeItems.length;
   const pageComplete = pageItems.every((it) => answers[it.id] !== undefined);
-  const optsFor = (it) => (it.domain === "Wellbeing" ? WELLBEING_OPTIONS : scaleOptions(assessment));
+  const optsFor = (it) =>
+    it.domain === "Wellbeing" ? WELLBEING_OPTIONS
+      : it.domain === "Safety" ? SAFETY_OPTIONS
+      : scaleOptions(assessment);
   const isForced = slug === "enneagram";
 
   function startQuestions() {
@@ -181,7 +204,7 @@ function AssessmentFlow() {
   // After the questions: logged-in users go straight to results; everyone else
   // provides their details first (the info gate that unlocks the report).
   function proceedFromQuestions() {
-    if (user || isRater) submit();
+    if (user || isRater || isCouple) submit();
     else { setPhase("details"); window.scrollTo(0, 0); }
   }
 
@@ -203,6 +226,20 @@ function AssessmentFlow() {
         const out = await res.json();
         if (!res.ok) throw new Error(out.error || "Submission failed");
         setPhase("thanks");
+        window.scrollTo(0, 0);
+        return;
+      }
+
+      if (isCouple) {
+        const res = await fetch("/api/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug, couple_code: coupleCode, name: coupleName, answers, honeypot }),
+        });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out.error || "Submission failed");
+        setSafetyFlagged(!!out.safety_flag);
+        setPhase("couplethanks");
         window.scrollTo(0, 0);
         return;
       }
@@ -282,6 +319,12 @@ function AssessmentFlow() {
                 anonymous, no one, including your pastor, ever sees your individual responses. Only the
                 combined team picture is shared, once at least three leaders have finished.
               </p>
+            ) : isCouple ? (
+              <p style={{ marginTop: 0, color: "var(--ink-soft)" }}>
+                You'll answer {activeItems.length} short statements privately, about {assessment.estimated_minutes} minutes.
+                Your spouse never sees your individual answers, only the combined picture you'll look at together.
+                Answer honestly, from where things really are. First, your first name:
+              </p>
             ) : (
               <p style={{ marginTop: 0, color: "var(--ink-soft)" }}>
                 {activeItems.length} short statements, about {assessment.estimated_minutes} minutes.
@@ -296,6 +339,10 @@ function AssessmentFlow() {
               <Select label="Marital status" v={marital} on={setMarital} opts={[["married", "Married"], ["single", "Single"]]} />
             )}
 
+            {isCouple && (
+              <Field label="Your first name" v={coupleName} on={setCoupleName} />
+            )}
+
             {assignmentToken && form.church_id && (
               <div style={ackRow}>
                 <span>
@@ -306,9 +353,9 @@ function AssessmentFlow() {
               </div>
             )}
 
-            <button className="btn btn-primary" disabled={needsMarital && !marital} onClick={startQuestions}
+            <button className="btn btn-primary" disabled={(needsMarital && !marital) || (isCouple && !coupleName.trim())} onClick={startQuestions}
               style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
-              {isRater ? "Begin" : "Start the assessment"}
+              {isRater ? "Begin" : isCouple ? "Begin my part" : "Start the assessment"}
             </button>
           </div>
         </>
@@ -340,6 +387,43 @@ function AssessmentFlow() {
             </p>
             <a className="btn btn-ghost" href={`/team/${teamCode}`} style={{ marginTop: 12 }}>
               See team progress →
+            </a>
+          </div>
+        </Centered>
+      )}
+
+      {phase === "coupleredirect" && (
+        <Centered>
+          <div style={{ textAlign: "center", maxWidth: 480 }}>
+            <h1 className="serif" style={{ ...h1, marginTop: 0 }}>{assessment.name}</h1>
+            <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.6 }}>
+              This one is taken together as a couple. Each of you answers privately, then you look at the
+              combined picture side by side. Set it up here, and you'll get a link to share with your spouse.
+            </p>
+            <a className="btn btn-primary" href={`/assessment/${slug}/couple`} style={{ marginTop: 12 }}>
+              Start as a couple →
+            </a>
+            <div style={{ marginTop: 14 }}><a href="/" style={back}>← All assessments</a></div>
+          </div>
+        </Centered>
+      )}
+
+      {phase === "couplethanks" && (
+        <Centered>
+          <div style={{ textAlign: "center", maxWidth: 520 }}>
+            <h1 className="serif" style={{ ...h1, marginTop: 0 }}>Thank you, {coupleName || "friend"}.</h1>
+            {safetyFlagged && (
+              <div style={{ ...wellNotice, textAlign: "left", marginBottom: 18 }}>
+                <div style={{ fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>{CALLED_TOGETHER_SAFETY_CARE.title}</div>
+                {CALLED_TOGETHER_SAFETY_CARE.body}
+              </div>
+            )}
+            <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.6 }}>
+              Your part is saved privately. When your spouse finishes their part, your couple report unlocks.
+              Bookmark this link, it's where the two of you will look at it together.
+            </p>
+            <a className="btn btn-primary" href={`/couple/${coupleCode}`} style={{ marginTop: 12 }}>
+              Go to our couple report →
             </a>
           </div>
         </Centered>
@@ -392,6 +476,7 @@ function AssessmentFlow() {
             return (
               <div key={it.id}>
                 {firstWell && <div style={wellNotice}>{WELLBEING_NOTICE}</div>}
+                {it.domain === "Safety" && <div style={wellNotice}>{CALLED_TOGETHER_SAFETY_NOTICE}</div>}
                 <div style={qBlock}>
                   <div style={qText}>
                     <span style={qNum}>{num}.</span> {it.text}
@@ -427,7 +512,7 @@ function AssessmentFlow() {
               </button>
             ) : (
               <button className="btn btn-primary" disabled={!allAnswered} onClick={proceedFromQuestions}>
-                {isRater ? "Submit my responses →" : user ? "See my results →" : "Continue to your results →"}
+                {isRater ? "Submit my responses →" : isCouple ? "Finish my part →" : user ? "See my results →" : "Continue to your results →"}
               </button>
             )}
           </div>
