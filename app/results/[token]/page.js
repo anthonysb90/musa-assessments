@@ -31,6 +31,9 @@ import {
   EFMI_REFERENCES,
   EFMI_HURT_OPTIONS,
   EFMI_DEGREE_OPTIONS,
+  DOMAIN_BANDS,
+  ROOTED_BANDS,
+  EFMI_BANDS,
 } from "../../lib/content";
 import {
   BIG5_TRAITS,
@@ -56,6 +59,10 @@ import DonationCard from "../../components/DonationCard";
 import CircleInvite from "../../components/CircleInvite";
 import { buildSynthesis } from "../../lib/synthesis";
 import { headlineFor } from "../../lib/headline";
+import {
+  TYPE, SP, COLOR, NEUTRAL, ACCENT, SCORE_STATE, NUM, CHART,
+  FONT_SERIF, FONT_SANS, typeStyle, scoreState,
+} from "../../lib/reportTokens";
 
 export default function ResultsPage() {
   const { token } = useParams();
@@ -87,7 +94,7 @@ export default function ResultsPage() {
           filename: `${who}-${what}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", ignoreElements: (el) => el.classList?.contains?.("no-pdf") },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          jsPDF: { unit: "mm", format: "letter", orientation: "portrait" },
           pagebreak: { mode: ["avoid-all", "css"] },
         })
         .from(reportRef.current)
@@ -202,24 +209,29 @@ export default function ResultsPage() {
         {contact.first_name} {contact.last_name} · {meta?.name} · Mission USA
       </div>
       <div ref={reportRef} id="report-capture">
-        <header style={hd}>
+        <header className="report-hd" style={hd}>
           <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, gap: 16 }}>
-              <img src="/musa-logo-white-h.png" alt="Mission USA Assessments" style={{ height: 46, width: "auto", display: "block" }} />
+              <img className="hd-logo" src="/musa-logo-white-h.png" alt="Mission USA Assessments" style={{ height: 46, width: "auto", display: "block" }} />
+              {/* Print-only navy wordmark: the screen logo PNG is white and would
+                  vanish on the print header's white ground, so we swap in ink text. */}
+              <div className="hd-print-mark serif" aria-hidden="true" style={{ fontSize: 20, fontWeight: 600, color: COLOR.navy, letterSpacing: ".01em" }}>
+                MISSION USA <span style={{ color: COLOR.gold }}>— Assessments</span>
+              </div>
               {brand?.logo_url && (
-                <span style={{ background: "#fff", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}>
+                <span className="brand-chip" style={{ background: "#fff", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}>
                   <img src={brand.logo_url} alt={brand.name} style={{ height: 34, width: "auto", display: "block" }} />
                 </span>
               )}
             </div>
             <div style={hdRow}>
               <div>
-                <div style={kicker}>{meta?.name}{meta?.subtitle && meta.subtitle.length <= 16 ? ` · ${meta.subtitle}` : ""}</div>
+                <div className="hd-kicker" style={kicker}>{meta?.name}{meta?.subtitle && meta.subtitle.length <= 16 ? ` · ${meta.subtitle}` : ""}</div>
                 <h1 className="serif" style={hName}>
                   {contact.first_name} {contact.last_name}
                 </h1>
               </div>
-              <div style={hMeta}>
+              <div className="hd-meta" style={hMeta}>
                 {meta?.created_at &&
                   new Date(meta.created_at).toLocaleDateString(undefined, {
                     year: "numeric", month: "long", day: "numeric",
@@ -571,7 +583,7 @@ const gfCap = { fontSize: 46, fontWeight: 600, color: "#B07C2E", lineHeight: 1 }
 const gfRankTag = { position: "absolute", top: -10, right: -10, background: "#1B3A57", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999 };
 const gfName = { fontSize: 21, color: "#3A2E18", lineHeight: 1.15 };
 const gfScoreRow = { display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, margin: "6px 0 10px" };
-const gfScore = { fontSize: 30, fontWeight: 700, color: "#C4923E", lineHeight: 1, fontFamily: "'Inter',sans-serif" };
+const gfScore = { fontSize: 30, fontWeight: 700, color: "#C4923E", lineHeight: 1, fontFamily: "'Inter',sans-serif", fontVariantNumeric: NUM };
 const gfPanelDef = { fontSize: 13, color: "#6B5B3E", lineHeight: 1.5, margin: "0 0 12px" };
 const gfVerse = { fontSize: 11.5, color: "#8A6D3B", fontWeight: 600, borderTop: "1px solid #E7D6B4", paddingTop: 10, fontStyle: "italic" };
 const gfScale = { display: "flex", alignItems: "center", gap: 14, padding: "8px 16px 2px" };
@@ -630,8 +642,10 @@ function RankedSum({ scored }) {
                 <div style={barBtn}>
                   <span style={rRank}>{i + 1}</span>
                   <span style={rName}>{r.key}</span>
-                  <span style={track}><span style={fill(r.score / per, color)} /></span>
-                  <span style={{ ...rScore, color }}>{r.score}</span>
+                  <BarTrack frac={r.score / per} color={color} refs={[1 / 3, 2 / 3]} />
+                  <span style={{ ...rScore, color, display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                    <span aria-hidden="true" style={{ fontSize: 9, color }}>{glyphFor(color)}</span>{r.score}
+                  </span>
                   <span />
                 </div>
                 <div style={{ padding: "2px 16px 14px 52px" }}>
@@ -656,6 +670,7 @@ function DomainBandsReport({ scored }) {
   const top2 = domains.slice(0, 2);
   const bottom2 = [...domains].slice(-2).reverse();
   const bandFn = scored.slug === "rooted" ? rootedBand : domainBand;
+  const bandRefs = cutoffFracs(scored.slug === "rooted" ? ROOTED_BANDS : DOMAIN_BANDS, per);
   const meta = DOMAIN_META[scored.slug] || {};
   const copy = DOMAIN_REPORT_COPY[scored.slug] || {
     snapshot: "Your results, domain by domain",
@@ -671,13 +686,9 @@ function DomainBandsReport({ scored }) {
           {domains.map((d) => {
             const band = bandFn(d.average);
             return (
-              <div key={d.domain} style={rowGrid}>
-                <span style={rName}>{d.domain}</span>
-                <span style={track}><span style={fill(d.average / per, band.color)} /></span>
-                <span style={{ ...rScore, color: band.color, minWidth: 128, textAlign: "right" }}>
-                  {d.average.toFixed(1)} · {band.label}
-                </span>
-              </div>
+              <ScoreBar key={d.domain} label={d.domain} frac={d.average / per} band={band}
+                refs={bandRefs} scoreMinWidth={128}
+                valueText={`${d.average.toFixed(1)} · ${band.label}`} />
             );
           })}
         </div>
@@ -690,7 +701,7 @@ function DomainBandsReport({ scored }) {
               <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
               <div style={{ ...scoreRow, marginTop: 4 }}>
                 <span style={{ ...topScore, fontSize: 26 }}>{d.average.toFixed(1)}</span>
-                <span style={{ fontSize: 13, color: "#8CA0B3" }}>{bandFn(d.average).label}</span>
+                <BandMark color={bandFn(d.average).color} label={bandFn(d.average).label} style={{ fontSize: 13 }} />
               </div>
             </div>
           ))}
@@ -704,9 +715,7 @@ function DomainBandsReport({ scored }) {
             <div key={d.domain} style={growCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: bandFn(d.average).color }}>
-                  {d.average.toFixed(1)} · {bandFn(d.average).label}
-                </div>
+                <BandMark color={bandFn(d.average).color} label={`${d.average.toFixed(1)} · ${bandFn(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
               <Block h="A next step" t={m.step} />
               {m.ref && <div style={refLine}>{m.ref}</div>}
@@ -729,53 +738,25 @@ function SpiritualGrowthReport({ scored }) {
   const bottom2 = [...domains].slice(-2).reverse();
   const meta = SPIRITUAL_GROWTH_DOMAINS;
 
-  // Discipleship Wheel geometry
-  const R = 108, cx = 170, cy = 168, N = order.length || 6;
-  const ang = (i) => (-90 + i * (360 / N)) * (Math.PI / 180);
-  const pt = (i, val) => [cx + (val / per) * R * Math.cos(ang(i)), cy + (val / per) * R * Math.sin(ang(i))];
-  const ringPoly = (v) => order.map((_, i) => pt(i, v).map((n) => n.toFixed(1)).join(",")).join(" ");
-  const dataPoly = order.map((name, i) => pt(i, byName[name]?.average || 0).map((n) => n.toFixed(1)).join(",")).join(" ");
-  const labelPos = (i) => pt(i, per * 1.34);
+  // Discipleship Wheel — shared RadarChart with ring value labels, a dashed
+  // Strength reference ring, and band-colored SCORE_STATE vertex shapes.
+  const wheelAxes = order.map((name) => {
+    const d = byName[name];
+    const avg = d?.average || 0;
+    const total = d ? Math.round(avg * (d.count || 10)) : 0;
+    const maxTotal = (d?.count || 10) * per;
+    const band = domainBand(avg);
+    return { label: shortDisc(name), sub: `${total}/${maxTotal}`, subColor: COLOR.teal, value: avg, color: band.color, shape: shapeForColor(band.color) };
+  });
 
   return (
     <>
       <section style={{ padding: "8px 0" }}>
         <div style={sectionLabel}>Your Discipleship Wheel</div>
         <div style={{ ...chart, padding: "18px 12px", display: "flex", justifyContent: "center" }}>
-          <svg viewBox="0 0 340 336" width="100%" style={{ maxWidth: 420 }} role="img" aria-label="Discipleship Wheel">
-            {[1, 2, 3, 4, 5].map((v) => (
-              <polygon key={v} points={ringPoly(v)} fill="none" stroke="#E7E9EC" strokeWidth="1" />
-            ))}
-            {order.map((_, i) => {
-              const [x, y] = pt(i, per);
-              return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#E7E9EC" strokeWidth="1" />;
-            })}
-            <polygon points={dataPoly} fill="rgba(46,125,138,.22)" stroke="#2E7D8A" strokeWidth="2" strokeLinejoin="round" />
-            {order.map((name, i) => {
-              const d = byName[name];
-              const [px, py] = pt(i, d?.average || 0);
-              return <circle key={name} cx={px} cy={py} r="4" fill="#1F5E68" />;
-            })}
-            {order.map((name, i) => {
-              const [lx, ly] = labelPos(i);
-              const anchor = Math.abs(lx - cx) < 8 ? "middle" : lx > cx ? "start" : "end";
-              const d = byName[name];
-              const total = d ? Math.round(d.average * (d.count || 10)) : 0;
-              const maxTotal = (d?.count || 10) * per;
-              return (
-                <g key={name}>
-                  <text x={lx} y={ly - 4} textAnchor={anchor} fontSize="10.5" fontWeight="700" fill="#1C2B3A"
-                    style={{ fontFamily: "Inter,system-ui,sans-serif" }}>
-                    {shortDisc(name)}
-                  </text>
-                  <text x={lx} y={ly + 9} textAnchor={anchor} fontSize="10" fill="#2E7D8A"
-                    style={{ fontFamily: "Inter,system-ui,sans-serif" }}>
-                    {total}/{maxTotal}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
+          <RadarChart axes={wheelAxes} max={per} cx={170} cy={168} radius={108}
+            viewBox="0 0 340 336" maxWidth={420} reference={4} referenceLabel="Strength"
+            fill="rgba(46,125,138,.22)" stroke={COLOR.teal} ariaLabel="Discipleship Wheel" />
         </div>
         <p style={helper}>
           The more a discipline is shaded toward the edge, the stronger it is in this season. The shape of
@@ -791,13 +772,9 @@ function SpiritualGrowthReport({ scored }) {
             const band = domainBand(d.average);
             const total = Math.round(d.average * (d.count || 10));
             return (
-              <div key={d.domain} style={rowGrid}>
-                <span style={rName}>{d.domain}</span>
-                <span style={track}><span style={fill(d.average / per, band.color)} /></span>
-                <span style={{ ...rScore, color: band.color, minWidth: 150, textAlign: "right" }}>
-                  {total}/{(d.count || 10) * per} · {band.label}
-                </span>
-              </div>
+              <ScoreBar key={d.domain} label={d.domain} frac={d.average / per} band={band}
+                refs={cutoffFracs(DOMAIN_BANDS, per)} scoreMinWidth={150}
+                valueText={`${total}/${(d.count || 10) * per} · ${band.label}`} />
             );
           })}
         </div>
@@ -811,7 +788,7 @@ function SpiritualGrowthReport({ scored }) {
               <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
               <div style={{ ...scoreRow, marginTop: 4 }}>
                 <span style={{ ...topScore, fontSize: 26 }}>{Math.round(d.average * (d.count || 10))}</span>
-                <span style={{ fontSize: 13, color: "#8CA0B3" }}>/ {(d.count || 10) * per} · {domainBand(d.average).label}</span>
+                <BandMark color={domainBand(d.average).color} label={`/ ${(d.count || 10) * per} · ${domainBand(d.average).label}`} style={{ fontSize: 13, fontVariantNumeric: NUM }} />
               </div>
               <p style={topDef}>{meta[d.domain]?.blurb}</p>
             </div>
@@ -827,9 +804,7 @@ function SpiritualGrowthReport({ scored }) {
             <div key={d.domain} style={growCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: domainBand(d.average).color }}>
-                  {Math.round(d.average * (d.count || 10))}/{(d.count || 10) * per} · {domainBand(d.average).label}
-                </div>
+                <BandMark color={domainBand(d.average).color} label={`${Math.round(d.average * (d.count || 10))}/${(d.count || 10) * per} · ${domainBand(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
               <Block h="A next step" t={m.step} />
               {m.ref && <div style={refLine}>{m.ref}</div>}
@@ -868,13 +843,12 @@ function BigFiveReport({ scored }) {
   const byKey = Object.fromEntries(traits.map((t) => [t.key, t]));
   const order = BIG5_TRAIT_ORDER.filter((k) => byKey[k]); // O, C, E, A, ES
 
-  // Radar geometry (0-100).
-  const per = 100, R = 108, cx = 170, cy = 168, N = order.length || 5;
-  const ang = (i) => (-90 + i * (360 / N)) * (Math.PI / 180);
-  const pt = (i, val) => [cx + (val / per) * R * Math.cos(ang(i)), cy + (val / per) * R * Math.sin(ang(i))];
-  const ringPoly = (v) => order.map((_, i) => pt(i, v).map((n) => n.toFixed(1)).join(",")).join(" ");
-  const dataPoly = order.map((k, i) => pt(i, byKey[k].pct).map((n) => n.toFixed(1)).join(",")).join(" ");
-  const labelPos = (i) => pt(i, per * 1.32);
+  // Radar (0-100) via the shared RadarChart: ring value labels, a dashed
+  // midpoint reference ring, trait-colored vertices carrying SCORE_STATE shapes.
+  const b5Axes = order.map((k) => {
+    const t = byKey[k];
+    return { label: B5_SHORT[k], sub: t.pct, subColor: BIG5_TRAIT_META[k].color, value: t.pct, color: BIG5_TRAIT_META[k].color, shape: shapeForColor(B5_BAND_COLOR[t.band]) };
+  });
 
   const sigStrengths = facets.filter((f) => f.pct >= 70);
   const lowPref = facets.filter((f) => f.pct <= 39);
@@ -886,24 +860,9 @@ function BigFiveReport({ scored }) {
       <section style={{ padding: "8px 0" }}>
         <div style={sectionLabel}>Your trait profile</div>
         <div style={{ ...chart, padding: "18px 12px", display: "flex", justifyContent: "center" }}>
-          <svg viewBox="-44 0 428 336" width="100%" style={{ maxWidth: 480 }} role="img" aria-label="Big Five trait profile">
-            {[20, 40, 60, 80, 100].map((v) => (
-              <polygon key={v} points={ringPoly(v)} fill="none" stroke="#E7E9EC" strokeWidth="1" />
-            ))}
-            {order.map((_, i) => { const [x, y] = pt(i, per); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#E7E9EC" strokeWidth="1" />; })}
-            <polygon points={dataPoly} fill="rgba(31,94,104,.16)" stroke="#1F5E68" strokeWidth="2.4" strokeLinejoin="round" />
-            {order.map((k, i) => { const [px, py] = pt(i, byKey[k].pct); return <circle key={k} cx={px} cy={py} r="4.2" fill={BIG5_TRAIT_META[k].color} />; })}
-            {order.map((k, i) => {
-              const [lx, ly] = labelPos(i);
-              const anchor = Math.abs(lx - cx) < 8 ? "middle" : lx > cx ? "start" : "end";
-              return (
-                <g key={k}>
-                  <text x={lx} y={ly - 3} textAnchor={anchor} fontSize="10.5" fontWeight="700" fill="#1C2B3A" style={{ fontFamily: "Inter,system-ui,sans-serif" }}>{B5_SHORT[k]}</text>
-                  <text x={lx} y={ly + 11} textAnchor={anchor} fontSize="11" fontWeight="700" fill={BIG5_TRAIT_META[k].color} style={{ fontFamily: "Inter,system-ui,sans-serif" }}>{byKey[k].pct}</text>
-                </g>
-              );
-            })}
-          </svg>
+          <RadarChart axes={b5Axes} max={100} cx={170} cy={168} radius={108}
+            viewBox="-44 0 428 336" maxWidth={480} reference={50} referenceLabel="mid"
+            fill="rgba(31,94,104,.16)" stroke={COLOR.tealDeep} ariaLabel="Big Five trait profile" />
         </div>
         <p style={helper}>
           Every trait is scored 0 to 100 against the trait itself, never against other people. There are no good
@@ -956,7 +915,7 @@ function BigFiveReport({ scored }) {
                   <div style={{ fontSize: 13, color: "#8CA0B3", marginTop: 2 }}>{meta.tag}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 30, fontWeight: 700, color: bc, lineHeight: 1 }}>{t.pct}</div>
+                  <div style={{ fontSize: 30, fontWeight: 700, color: bc, lineHeight: 1, fontVariantNumeric: NUM }}>{t.pct}</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: bc, textTransform: "uppercase", letterSpacing: ".06em" }}>{B5_BAND_LABEL[t.band]}</div>
                 </div>
               </div>
@@ -1017,11 +976,9 @@ function BigFiveReport({ scored }) {
           {facets.map((f) => {
             const meta = BIG5_FACETS[f.key];
             return (
-              <div key={f.key} style={rowGrid}>
-                <span style={rName}>{meta.name}</span>
-                <span style={track}><span style={fill(f.pct / 100, meta.color)} /></span>
-                <span style={{ ...rScore, color: B5_BAND_COLOR[f.band], minWidth: 120, textAlign: "right" }}>{f.pct} · {B5_BAND_LABEL[f.band]}</span>
-              </div>
+              <ScoreBar key={f.key} label={meta.name} frac={f.pct / 100}
+                fillColor={meta.color} color={B5_BAND_COLOR[f.band]} refs={[0.4, 0.7]} scoreMinWidth={120}
+                valueText={`${f.pct} · ${B5_BAND_LABEL[f.band]}`} />
             );
           })}
         </div>
@@ -1413,8 +1370,10 @@ function EnneagramReport({ scored }) {
                 <button onClick={() => setOpen(isOpen ? null : r.type)} style={barBtn} className="bar">
                   <span style={rRank}>{r.type}</span>
                   <span style={rName}>{t.name}</span>
-                  <span style={track}><span style={fill(r.score / per, color)} /></span>
-                  <span style={{ ...rScore, color }}>{r.score}</span>
+                  <BarTrack frac={r.score / per} color={color} refs={[0.5]} />
+                  <span style={{ ...rScore, color, display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                    <span aria-hidden="true" style={{ fontSize: 9, color }}>{glyphFor(color)}</span>{r.score}
+                  </span>
                   <span className="no-print" style={chevron(isOpen)}>›</span>
                 </button>
                 <div className={`ennea-study${isOpen ? " is-open" : ""}`} style={detail}>
@@ -1548,7 +1507,7 @@ function ForgivenessReport({ scored }) {
             <div key={s.key} style={growCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{s.key}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: band.color }}>{s.score}/{per} · {band.label}</div>
+                <BandMark color={band.color} label={`${s.score}/${per} · ${band.label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
               <p style={{ ...detailP, margin: "8px 0 0" }}>{m.body}</p>
               {m.verse && <div style={refLine}>{m.verse}</div>}
@@ -1569,8 +1528,10 @@ function ForgivenessReport({ scored }) {
                 <button onClick={() => setOpen(isOpen ? null : s.key)} style={barBtn} className="bar">
                   <span style={rRank}>{i + 1}</span>
                   <span style={rName}>{s.key}</span>
-                  <span style={track}><span style={fill(s.score / per, band.color)} /></span>
-                  <span style={{ ...rScore, color: band.color }}>{s.score}</span>
+                  <BarTrack frac={s.score / per} color={band.color} refs={cutoffFracs(EFMI_BANDS, per)} />
+                  <span style={{ ...rScore, color: band.color, display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                    <span aria-hidden="true" style={{ fontSize: 9, color: band.color }}>{glyphFor(band.color)}</span>{s.score}
+                  </span>
                   <span className="no-print" style={chevron(isOpen)}>›</span>
                 </button>
                 <div className={`ennea-study${isOpen ? " is-open" : ""}`} style={detail}>
@@ -1628,12 +1589,14 @@ function PlanterReport({ scored }) {
   const weakPrimaries = domains.filter((d) => d.primary && d.average < 3.5);
   const watch = (weakPrimaries.length ? weakPrimaries : [...domains].slice(-3).reverse()).slice(0, 3);
 
-  // Radar geometry (13 spokes)
-  const R = 108, cx = 175, cy = 172, N = order.length || 13;
-  const ang = (i) => (-90 + i * (360 / N)) * (Math.PI / 180);
-  const pt = (i, v) => [cx + (v / per) * R * Math.cos(ang(i)), cy + (v / per) * R * Math.sin(ang(i))];
-  const ringPoly = (v) => order.map((_, i) => pt(i, v).map((n) => n.toFixed(1)).join(",")).join(" ");
-  const dataPoly = order.map((n, i) => pt(i, byName[n]?.average || 0).map((x) => x.toFixed(1)).join(",")).join(" ");
+  // Readiness radar — shared RadarChart with a numbered legend (names are too
+  // long for the tips). Gold vertices mark the five primary characteristics;
+  // vertex shape encodes the band (grayscale-safe). Dashed Strength reference.
+  const planterAxes = order.map((n) => {
+    const avg = byName[n]?.average || 0;
+    const isP = PLANTER_PRIMARY.includes(n);
+    return { value: avg, primary: isP, color: isP ? COLOR.gold : COLOR.tealDeep, shape: shapeForColor(domainBand(avg).color), numColor: isP ? "#B07C2E" : "#5E7183" };
+  });
 
   return (
     <>
@@ -1653,26 +1616,9 @@ function PlanterReport({ scored }) {
       <section style={{ padding: "20px 0 4px" }}>
         <div style={sectionLabel}>All 13 characteristics</div>
         <div style={{ ...chart, padding: "18px 12px", display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 24 }}>
-          <svg viewBox="0 0 350 344" width="100%" style={{ maxWidth: 380 }} role="img" aria-label="Readiness radar">
-            {[1, 2, 3, 4, 5].map((v) => <polygon key={v} points={ringPoly(v)} fill="none" stroke="#E7E9EC" strokeWidth="1" />)}
-            {order.map((_, i) => { const [x, y] = pt(i, per); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#E7E9EC" strokeWidth="1" />; })}
-            <polygon points={dataPoly} fill="rgba(46,125,138,.20)" stroke="#2E7D8A" strokeWidth="2" strokeLinejoin="round" />
-            {order.map((n, i) => {
-              const [px, py] = pt(i, byName[n]?.average || 0);
-              const isP = PLANTER_PRIMARY.includes(n);
-              return <circle key={n} cx={px} cy={py} r={isP ? 4.5 : 3.2} fill={isP ? "#C4923E" : "#1F5E68"} />;
-            })}
-            {/* Numbered spoke labels (keyed to the legend); names are too long to sit at the tips. */}
-            {order.map((n, i) => {
-              const [lx, ly] = pt(i, per + 0.6);
-              const isP = PLANTER_PRIMARY.includes(n);
-              return (
-                <text key={`num-${n}`} x={lx.toFixed(1)} y={ly.toFixed(1)} textAnchor="middle" dominantBaseline="central"
-                  fontSize="9.5" fontWeight="700" fill={isP ? "#B07C2E" : "#5E7183"}
-                  style={{ fontFamily: "Inter,system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>{i + 1}</text>
-              );
-            })}
-          </svg>
+          <RadarChart axes={planterAxes} max={per} cx={175} cy={172} radius={108}
+            viewBox="0 0 350 344" maxWidth={380} numbered reference={4} referenceLabel="Strength"
+            fill="rgba(46,125,138,.20)" stroke={COLOR.teal} ariaLabel="Readiness radar" />
           <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gridTemplateColumns: "1fr", gap: 5, minWidth: 190 }}>
             {order.map((n, i) => {
               const isP = PLANTER_PRIMARY.includes(n);
@@ -1689,16 +1635,10 @@ function PlanterReport({ scored }) {
           {domains.map((d) => {
             const band = domainBand(d.average);
             return (
-              <div key={d.domain} style={rowGrid}>
-                <span style={rName}>
-                  {d.domain}
-                  {d.primary && <span style={primaryTag}>Primary</span>}
-                </span>
-                <span style={track}><span style={fill(d.average / per, band.color)} /></span>
-                <span style={{ ...rScore, color: band.color, minWidth: 128, textAlign: "right" }}>
-                  {d.average.toFixed(1)} · {band.label}
-                </span>
-              </div>
+              <ScoreBar key={d.domain} frac={d.average / per} band={band}
+                refs={cutoffFracs(DOMAIN_BANDS, per)} scoreMinWidth={128}
+                label={<>{d.domain}{d.primary && <span style={primaryTag}>Primary</span>}</>}
+                valueText={`${d.average.toFixed(1)} · ${band.label}`} />
             );
           })}
         </div>
@@ -1716,9 +1656,7 @@ function PlanterReport({ scored }) {
             <div key={d.domain} style={growCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: domainBand(d.average).color }}>
-                  {d.average.toFixed(1)} · {domainBand(d.average).label}
-                </div>
+                <BandMark color={domainBand(d.average).color} label={`${d.average.toFixed(1)} · ${domainBand(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
               <p style={{ ...detailP, margin: "8px 0 0" }}>{m.blurb}</p>
               <Block h="Lean into it" t={m.leanIn} />
@@ -1737,9 +1675,7 @@ function PlanterReport({ scored }) {
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>
                   {d.domain}{d.primary && <span style={primaryTag}>Primary</span>}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: domainBand(d.average).color }}>
-                  {d.average.toFixed(1)} · {domainBand(d.average).label}
-                </div>
+                <BandMark color={domainBand(d.average).color} label={`${d.average.toFixed(1)} · ${domainBand(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
               <Block h="A next step" t={m.step} />
             </div>
@@ -1818,13 +1754,10 @@ function GrowthReport({ scored }) {
             const isWin = l.level === scored.winnerLevel;
             const color = isWin ? "#C4923E" : "#8CA0B3";
             return (
-              <div key={l.level} style={rowGrid}>
-                <span style={{ ...rName, fontWeight: isWin ? 700 : 600 }}>{g.name}</span>
-                <span style={track}><span style={fill(l.score / per, color)} /></span>
-                <span style={{ ...rScore, color }}>
-                  {l.score}<span style={{ color: "#B4BEC9", fontWeight: 400 }}>/{per}</span>
-                </span>
-              </div>
+              <ScoreBar key={l.level} frac={l.score / per} color={color} refs={[0.5]}
+                nameStyle={{ fontWeight: isWin ? 700 : 600 }}
+                label={g.name}
+                valueText={<>{l.score}<span style={{ color: "#B4BEC9", fontWeight: 400 }}>/{per}</span></>} />
             );
           })}
         </div>
@@ -1900,7 +1833,7 @@ function DiscReport({ scored }) {
             {primaryClear
               ? ", clearly out front,"
               : `, with ${secondaryName} close behind,`}{" "}
-            and <strong>{secondaryName}</strong> ({pct(scored.dims.find((d) => d.key === scored.secondary).score)}%) backs it up. That combination is what shapes the {b.title} blend.
+            and <strong>{secondaryName}</strong> ({pct(scored.dims.find((d) => d.key === scored.secondary)?.score ?? 0)}%) backs it up. That combination is what shapes the {b.title} blend.
           </p>
         </div>
 
@@ -1934,17 +1867,10 @@ function DiscReport({ scored }) {
             const color = isPrimary ? "#C4923E" : isSecondary ? "#2E7D8A" : "#8CA0B3";
             const p = pct(d.score);
             return (
-              <div key={d.key} style={{ ...rowGrid, opacity: isTop ? 1 : 0.72 }}>
-                <span style={{ ...rName, fontWeight: isTop ? 800 : 600, display: "flex", alignItems: "center", gap: 8 }}>
-                  {DISC_DIMS[d.key]}
-                  {isPrimary && <span style={discTag("#C4923E")}>Primary</span>}
-                  {isSecondary && <span style={discTag("#2E7D8A")}>Secondary</span>}
-                </span>
-                <span style={track}><span style={fill(d.score / per, color)} /></span>
-                <span style={{ ...rScore, color, fontVariantNumeric: "tabular-nums" }}>
-                  {p}<span style={{ color: "#B4BEC9", fontWeight: 400, fontSize: 12 }}>%</span>
-                </span>
-              </div>
+              <ScoreBar key={d.key} frac={d.score / per} color={color} refs={[0.5]} opacity={isTop ? 1 : 0.72}
+                nameStyle={{ fontWeight: isTop ? 800 : 600, display: "flex", alignItems: "center", gap: 8 }}
+                label={<>{DISC_DIMS[d.key]}{isPrimary && <span style={discTag("#C4923E")}>Primary</span>}{isSecondary && <span style={discTag("#2E7D8A")}>Secondary</span>}</>}
+                valueText={<>{p}<span style={{ color: "#B4BEC9", fontWeight: 400, fontSize: 12 }}>%</span></>} />
             );
           })}
         </div>
@@ -1952,7 +1878,7 @@ function DiscReport({ scored }) {
 
       {/* Your DISC dimensions — each dimension read at its own level */}
       {(() => {
-        const scales = dims.map((d) => ({ key: d.key, pct: Math.round((d.score / per) * 100) }));
+        const scales = scored.dims.map((d) => ({ key: d.key, pct: Math.round((d.score / per) * 100) }));
         const rows = discDimensions(scales);
         const LEVEL = { high: "High", moderate: "Moderate", low: "Low" };
         const LEVEL_COLOR = { high: "#2E7D8A", moderate: "#C4923E", low: "#8CA0B3" };
@@ -2007,7 +1933,7 @@ function PastorReport({ scored }) {
                 <div className="serif" style={{ ...topName, fontSize: 19 }}>{p.pillar}</div>
                 <div style={{ ...scoreRow, marginTop: 4 }}>
                   <span style={{ ...topScore, fontSize: 26 }}>{p.average.toFixed(1)}</span>
-                  <span style={{ fontSize: 13, color: band.color }}>{band.label}</span>
+                  <BandMark color={band.color} label={band.label} style={{ fontSize: 13 }} />
                 </div>
               </div>
             );
@@ -2031,13 +1957,9 @@ function PastorReport({ scored }) {
                 {ds.map((d) => {
                   const band = domainBand(d.average);
                   return (
-                    <div key={d.domain} style={rowGrid}>
-                      <span style={rName}>{d.domain}</span>
-                      <span style={track}><span style={fill(d.average / per, band.color)} /></span>
-                      <span style={{ ...rScore, color: band.color, minWidth: 128, textAlign: "right" }}>
-                        {d.average.toFixed(1)} · {band.label}
-                      </span>
-                    </div>
+                    <ScoreBar key={d.domain} label={d.domain} frac={d.average / per} band={band}
+                      refs={cutoffFracs(DOMAIN_BANDS, per)} scoreMinWidth={128}
+                      valueText={`${d.average.toFixed(1)} · ${band.label}`} />
                   );
                 })}
               </div>
@@ -2054,7 +1976,7 @@ function PastorReport({ scored }) {
               <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
               <div style={{ ...scoreRow, marginTop: 4 }}>
                 <span style={{ ...topScore, fontSize: 26 }}>{d.average.toFixed(1)}</span>
-                <span style={{ fontSize: 13, color: "#8CA0B3" }}>{domainBand(d.average).label}</span>
+                <BandMark color={domainBand(d.average).color} label={domainBand(d.average).label} style={{ fontSize: 13 }} />
               </div>
             </div>
           ))}
@@ -2069,9 +1991,7 @@ function PastorReport({ scored }) {
             <div key={d.domain} style={growCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: domainBand(d.average).color }}>
-                  {d.average.toFixed(1)} · {domainBand(d.average).label}
-                </div>
+                <BandMark color={domainBand(d.average).color} label={`${d.average.toFixed(1)} · ${domainBand(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
               <Block h="A next step" t={m.step} />
             </div>
@@ -2125,11 +2045,8 @@ function DomainReport({ scored }) {
         {scored.domains.map((d) => {
           const band = domainBand(d.average);
           return (
-            <div key={d.domain} style={rowGrid}>
-              <span style={rName}>{d.domain}</span>
-              <span style={track}><span style={fill(d.average / per, band.color)} /></span>
-              <span style={{ ...rScore, color: band.color }}>{d.average}</span>
-            </div>
+            <ScoreBar key={d.domain} label={d.domain} frac={d.average / per} band={band}
+              refs={cutoffFracs(DOMAIN_BANDS, per)} valueText={`${d.average}`} />
           );
         })}
       </div>
@@ -2158,38 +2075,178 @@ const chevron = (open) => ({
   color: "#B4BEC9", fontSize: 18, transform: open ? "rotate(90deg)" : "none", transition: "transform .2s",
 });
 
-const hd = { background: "linear-gradient(135deg,#1B3A57,#122A44)", color: "#fff", padding: "40px 0 34px" };
+// Shared style constants. Colors reference the reportTokens palette (COLOR.*)
+// and chart contract (CHART.*) so the report has a single source of truth for
+// its ink/teal/gold/navy/line values instead of repeated raw hexes.
+const hd = { background: `linear-gradient(135deg,${COLOR.navy},${COLOR.navyDeep})`, color: COLOR.paper, padding: "40px 0 34px" };
 const hdRow = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 };
 const kicker = { fontSize: 12.5, letterSpacing: ".16em", textTransform: "uppercase", color: "#E4CE8C", fontWeight: 600, marginBottom: 10 };
 const hName = { fontWeight: 500, fontSize: 38, margin: 0 };
 const hMeta = { fontSize: 13.5, textAlign: "right", lineHeight: 1.5 };
 const actions = { display: "flex", gap: 12, padding: "24px 0 6px", flexWrap: "wrap" };
-const savedNote = { display: "flex", gap: 10, alignItems: "center", background: "#EAF3F4", border: "1px solid #CFE3E5", color: "#1F5E68", borderRadius: 12, padding: "12px 16px", fontSize: 14, lineHeight: 1.5, margin: "6px 0 22px" };
-const sectionLabel = { fontSize: 12.5, letterSpacing: ".14em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, marginBottom: 18 };
+const savedNote = { display: "flex", gap: 10, alignItems: "center", background: "#EAF3F4", border: "1px solid #CFE3E5", color: COLOR.tealDeep, borderRadius: 12, padding: "12px 16px", fontSize: 14, lineHeight: 1.5, margin: "6px 0 22px" };
+const sectionLabel = { fontSize: 12.5, letterSpacing: ".14em", textTransform: "uppercase", color: COLOR.teal, fontWeight: 700, marginBottom: 18 };
 const topGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 16 };
-const topCard = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 16, padding: "22px 22px 24px" };
-const topRank = { fontFamily: "'Fraunces',Georgia,serif", fontSize: 14, color: "#C4923E", fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase" };
+const topCard = { background: COLOR.paper, border: `1px solid ${COLOR.line}`, borderRadius: 16, padding: "22px 22px 24px" };
+const topRank = { fontFamily: FONT_SERIF, fontSize: 14, color: COLOR.gold, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase" };
 const topName = { fontWeight: 500, fontSize: 23, marginTop: 4 };
 const scoreRow = { display: "flex", alignItems: "baseline", gap: 5, margin: "6px 0 12px" };
-const topScore = { fontSize: 34, fontWeight: 700, color: "#1B3A57", lineHeight: 1 };
-const topDef = { fontSize: 13.5, color: "#4A5B6D", margin: 0, lineHeight: 1.5 };
-const helper = { fontSize: 13.5, color: "#4A5B6D", marginTop: 20, lineHeight: 1.55, maxWidth: 640 };
-const chart = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 16, padding: "6px 10px", overflow: "hidden" };
+const topScore = { fontSize: 34, fontWeight: 700, color: COLOR.navy, lineHeight: 1, fontVariantNumeric: NUM };
+const topDef = { fontSize: 13.5, color: COLOR.inkSoft, margin: 0, lineHeight: 1.5 };
+const helper = { fontSize: 13.5, color: COLOR.inkSoft, marginTop: 20, lineHeight: 1.55, maxWidth: 640 };
+const chart = { background: COLOR.paper, border: `1px solid ${COLOR.line}`, borderRadius: 16, padding: "6px 10px", overflow: "hidden" };
 const barBtn = { width: "100%", display: "grid", gridTemplateColumns: "26px 150px 1fr 46px 16px", alignItems: "center", gap: 12, padding: "13px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const rowGrid = { display: "grid", gridTemplateColumns: "1fr 2fr auto", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: "1px solid #F0F2F4" };
-const rRank = { fontSize: 13, color: "#8CA0B3", fontWeight: 600, fontVariantNumeric: "tabular-nums" };
-const rName = { fontSize: 14.5, fontWeight: 600, color: "#1C2B3A" };
-const track = { height: 10, background: "#EEF1F4", borderRadius: 999, overflow: "hidden", width: "100%" };
-const rScore = { fontSize: 15, fontWeight: 700, textAlign: "right", fontVariantNumeric: "tabular-nums" };
+const rRank = { fontSize: 13, color: COLOR.inkMute, fontWeight: 600, fontVariantNumeric: NUM };
+const rName = { fontSize: 14.5, fontWeight: 600, color: COLOR.ink };
+const track = { height: 10, background: CHART.trackBg, borderRadius: 999, overflow: "hidden", width: "100%" };
+const rScore = { fontSize: 15, fontWeight: 700, textAlign: "right", fontVariantNumeric: NUM };
 const detail = { padding: "4px 16px 22px 52px" };
 const detailP = { fontSize: 14.5, color: "#2B3A4A", margin: "0 0 14px", lineHeight: 1.55 };
-const blockH = { fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, marginBottom: 5 };
+const blockH = { fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: COLOR.teal, fontWeight: 700, marginBottom: 5 };
 const refLine = { fontSize: 12, color: "#8CA0B3", fontStyle: "italic", marginTop: 12 };
 const devotionBox = { background: "#FBF6EC", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", marginTop: 8 };
 const primaryTag = { fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#B07C2E", background: "#F5EFE6", border: "1px solid #EADFC9", padding: "2px 7px", borderRadius: 999, marginLeft: 8, verticalAlign: "middle" };
 const growCard = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 14, padding: "18px 20px", marginBottom: 14 };
 const transitionBox = { background: "var(--blush,#F5EFE6)", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", marginTop: 14, fontSize: 14, color: "#4A5B6D", lineHeight: 1.55 };
 const ft = { textAlign: "center", padding: "34px 0 0", fontSize: 12.5, color: "#7C8A9C" };
+
+/* ============================================================================
+   SHARED CHART PRIMITIVES (reportTokens design system)
+   One ScoreBar, one BarTrack, one RadarChart used by every report so bars and
+   radars read as one master-designed system: banded fills, tabular value
+   labels, faint band-cutoff reference lines, and a grayscale-safe SCORE_STATE
+   shape mark (●◆■) paired with every band color.
+   ============================================================================ */
+
+// SCORE_STATE shape -> printable glyph. Pairing color with a mark keeps meaning
+// alive in grayscale / for color-blind readers (never color-only).
+const SHAPE_GLYPH = { circle: "●", diamond: "◆", square: "■" };
+// Map any band color used across the reports to a SCORE_STATE shape. High/teal
+// families -> circle, moderate/gold -> diamond, low/clay/grey -> square.
+function shapeForColor(color) {
+  const c = String(color || "").toUpperCase();
+  if (/(2E7D8A|1F5E68|1F7A4D|4E8C93|3E7C63|2E7D8A)/.test(c)) return "circle";
+  if (/(C4923E|C08E38|B07C2E|A87A2E|E0B25A|D9A96A|E4CE8C)/.test(c)) return "diamond";
+  return "square"; // 8CA0B3, B4653A, 9AA7B3, B4BEC9, 8A6D3B, etc.
+}
+const glyphFor = (color) => SHAPE_GLYPH[shapeForColor(color)];
+// Turn a bands array ([{min},...]) into reference fractions on a 0..max scale,
+// dropping the 0 floor (it isn't a meaningful cutoff line).
+const cutoffFracs = (bands, max) =>
+  (bands || []).map((b) => b.min).filter((m) => m > 0 && m < max).map((m) => m / max);
+
+// The shared track atom: unfilled track + banded fill + faint reference ticks.
+// Used inside ScoreBar and inside the interactive expand-rows (RankedSum,
+// Enneagram, Forgiveness, Gift ladder) so every bar is drawn one way.
+function BarTrack({ frac, color, refs = [], height = 10 }) {
+  return (
+    <span style={{ position: "relative", display: "block", width: "100%", height, background: CHART.trackBg, borderRadius: 999 }}>
+      <span style={fill(frac, color)} />
+      {refs.map((r, i) =>
+        r > 0 && r < 1 ? (
+          <span key={i} aria-hidden="true"
+            style={{ position: "absolute", left: `${r * 100}%`, top: -2, bottom: -2, width: 1, background: CHART.anchor, opacity: 0.55 }} />
+        ) : null
+      )}
+    </span>
+  );
+}
+
+// The shared horizontal score bar: label · banded track w/ reference lines ·
+// direct tabular value label with a SCORE_STATE shape mark. `band` may be a
+// band object {color,label}; `valueText` overrides the trailing display.
+function ScoreBar({ label, value, max = 1, frac, color, fillColor, band, valueText, refs = [], scoreMinWidth, nameStyle, rowStyle, opacity, showShape = true }) {
+  const barColor = color || band?.color || CHART.dataInk;
+  const f = frac != null ? frac : value / (max || 1);
+  const text = valueText != null ? valueText : (band ? `${value} · ${band.label}` : `${value}`);
+  const shape = showShape ? shapeForColor(barColor) : null;
+  return (
+    <div style={{ ...rowGrid, ...(opacity != null ? { opacity } : {}), ...rowStyle }}>
+      <span style={{ ...rName, ...nameStyle }}>{label}</span>
+      <BarTrack frac={f} color={fillColor || barColor} refs={refs} />
+      <span style={{ ...rScore, color: barColor, minWidth: scoreMinWidth, textAlign: "right", display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 6, fontVariantNumeric: NUM }}>
+        {shape && <span aria-hidden="true" style={{ fontSize: 9, lineHeight: 1, color: barColor }}>{SHAPE_GLYPH[shape]}</span>}
+        <span>{text}</span>
+      </span>
+    </div>
+  );
+}
+
+// A grayscale-safe band chip: the band color + its SCORE_STATE shape + label.
+// Use anywhere a band pill/verdict is shown (topCards, growCard headers).
+function BandMark({ color, label, size = 10, style }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color, fontWeight: 700, ...style }}>
+      <span aria-hidden="true" style={{ fontSize: size, lineHeight: 1 }}>{glyphFor(color)}</span>
+      {label != null && <span>{label}</span>}
+    </span>
+  );
+}
+
+// A vertex marker drawn as a real SVG shape (circle/diamond/square) so radar
+// vertices survive grayscale, matching the SCORE_STATE shape vocabulary.
+function VertexMark({ x, y, shape = "circle", color, r = 4 }) {
+  if (shape === "square") return <rect x={x - r} y={y - r} width={r * 2} height={r * 2} fill={color} />;
+  if (shape === "diamond") return <rect x={x - r} y={y - r} width={r * 2} height={r * 2} fill={color} transform={`rotate(45 ${x} ${y})`} />;
+  return <circle cx={x} cy={y} r={r} fill={color} />;
+}
+
+// The shared radar/wheel. Draws rings WITH value labels up the top spoke,
+// spokes, a dashed reference ring (band cutoff / midpoint), the data polygon,
+// and SCORE_STATE-shaped vertices. `axes`: [{label,sub,subColor,value,color,
+// shape,primary}]. `numbered` swaps tip labels for an index (legend beside it).
+function RadarChart({
+  axes, max, cx = 170, cy = 168, radius = 108, rings, reference, referenceLabel,
+  fill: fillCol = "rgba(46,125,138,.18)", stroke = COLOR.tealDeep, numbered = false,
+  ringLabels = true, maxWidth = 440, viewBox = "0 0 340 336", ariaLabel = "chart",
+}) {
+  const N = axes.length || 1;
+  const ang = (i) => (-90 + i * (360 / N)) * (Math.PI / 180);
+  const pt = (i, val) => [cx + (val / max) * radius * Math.cos(ang(i)), cy + (val / max) * radius * Math.sin(ang(i))];
+  const ringVals = rings || (max === 100 ? [20, 40, 60, 80, 100] : Array.from({ length: Math.round(max) }, (_, k) => k + 1));
+  const ringPoly = (v) => axes.map((_, i) => pt(i, v).map((n) => n.toFixed(1)).join(",")).join(" ");
+  const dataPoly = axes.map((a, i) => pt(i, a.value || 0).map((n) => n.toFixed(1)).join(",")).join(" ");
+  const labelPos = (i) => pt(i, max * 1.32);
+  return (
+    <svg viewBox={viewBox} width="100%" style={{ maxWidth }} role="img" aria-label={ariaLabel}>
+      {ringVals.map((v) => <polygon key={`r${v}`} points={ringPoly(v)} fill="none" stroke={CHART.tick} strokeWidth={CHART.strokeW} />)}
+      {axes.map((_, i) => { const [x, y] = pt(i, max); return <line key={`s${i}`} x1={cx} y1={cy} x2={x} y2={y} stroke={CHART.tick} strokeWidth={CHART.strokeW} />; })}
+      {reference != null && reference < max && (
+        <polygon points={ringPoly(reference)} fill="none" stroke={CHART.anchor} strokeWidth="1.4" strokeDasharray="4 3" />
+      )}
+      {ringLabels && ringVals.map((v) => { const [lx, ly] = pt(0, v); return (
+        <text key={`rl${v}`} x={lx - 5} y={ly + 3} textAnchor="end" fontSize="8.5" fill={CHART.tickLabel}
+          style={{ fontFamily: FONT_SANS, fontVariantNumeric: NUM }}>{v}</text>
+      ); })}
+      {reference != null && reference < max && referenceLabel && (() => { const [lx, ly] = pt(0, reference); return (
+        <text x={lx + 6} y={ly + 3} textAnchor="start" fontSize="8" fill={CHART.anchor} style={{ fontFamily: FONT_SANS }}>{referenceLabel}</text>
+      ); })()}
+      <polygon points={dataPoly} fill={fillCol} stroke={stroke} strokeWidth={CHART.dataStrokeW} strokeLinejoin="round" />
+      {axes.map((a, i) => { const [x, y] = pt(i, a.value || 0); return (
+        <VertexMark key={`v${i}`} x={+x.toFixed(1)} y={+y.toFixed(1)} shape={a.shape || "circle"}
+          color={a.color || stroke} r={a.r || (numbered ? (a.primary ? 4.5 : 3.2) : 4.2)} />
+      ); })}
+      {numbered && axes.map((a, i) => { const [lx, ly] = pt(i, max * 1.12); return (
+        <text key={`n${i}`} x={lx.toFixed(1)} y={ly.toFixed(1)} textAnchor="middle" dominantBaseline="central"
+          fontSize="9.5" fontWeight="700" fill={a.numColor || (a.primary ? "#B07C2E" : "#5E7183")}
+          style={{ fontFamily: FONT_SANS, fontVariantNumeric: NUM }}>{i + 1}</text>
+      ); })}
+      {!numbered && axes.map((a, i) => {
+        const [lx, ly] = labelPos(i);
+        const anchor = Math.abs(lx - cx) < 8 ? "middle" : lx > cx ? "start" : "end";
+        return (
+          <g key={`l${i}`}>
+            <text x={lx} y={a.sub != null ? ly - 3 : ly} textAnchor={anchor} fontSize="10.5" fontWeight="700" fill={COLOR.ink} style={{ fontFamily: FONT_SANS }}>{a.label}</text>
+            {a.sub != null && (
+              <text x={lx} y={ly + 11} textAnchor={anchor} fontSize="11" fontWeight="700" fill={a.subColor || stroke} style={{ fontFamily: FONT_SANS, fontVariantNumeric: NUM }}>{a.sub}</text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
 
 /* ================= Discover Your Leadership Style ================= */
 const LD_BAND = Object.fromEntries(BANDS.map((b) => [b.key, b]));
@@ -2255,7 +2312,7 @@ function LeadershipStool({ legs, seat, active, setActive, grown }) {
             <ellipse cx={f.x} cy={f.y + 2} rx="13" ry="5" fill="#1C2B3A" opacity="0.08" />
             <rect x={f.x - 20} y={f.y - 30} width="40" height="24" rx="12" fill={meta.color} />
             <text x={f.x} y={f.y - 13} textAnchor="middle" fontSize="14" fontWeight="700" fill="#fff"
-              style={{ fontFamily: "Inter,system-ui,sans-serif" }}>{leg.pct}</text>
+              style={{ fontFamily: FONT_SANS, fontVariantNumeric: NUM }}>{leg.pct}</text>
           </g>
         );
       })}
@@ -2269,7 +2326,7 @@ function LeadershipStool({ legs, seat, active, setActive, grown }) {
         <text x="220" y="97" textAnchor="middle" fontSize="13" fontWeight="700" letterSpacing="2.5"
           fill="#4A3410" style={{ fontFamily: "Inter,system-ui,sans-serif" }}>LEADERSHIP</text>
         <text x="220" y="112" textAnchor="middle" fontSize="11" fontWeight="600"
-          fill="#6B4B18" style={{ fontFamily: "Inter,system-ui,sans-serif" }}>the seat · {seat.pct}</text>
+          fill="#6B4B18" style={{ fontFamily: FONT_SANS, fontVariantNumeric: NUM }}>the seat · {seat.pct}</text>
       </g>
     </svg>
   );
@@ -2311,7 +2368,7 @@ function LeadershipReport({ scored }) {
       {/* Masthead */}
       <section style={{ padding: "4px 0 8px" }}>
         <div style={ldRibbon}>
-          {LEG_ORDER.map((k) => <span key={k} style={{ flex: legs[k].pct + 8, background: LEGS[k].color }} />)}
+          {LEG_ORDER.map((k) => <span key={k} style={{ flex: (legs[k]?.pct ?? 0) + 8, background: LEGS[k].color }} />)}
         </div>
         <div style={{ ...sectionLabel, color: accent, marginTop: 18 }}>Your leadership style</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
@@ -2342,8 +2399,8 @@ function LeadershipReport({ scored }) {
                   style={{ ...ldLegCard, borderColor: on ? meta.color : "#EAECEF", boxShadow: on ? `0 8px 22px ${meta.soft}` : "none" }}>
                   <span style={{ width: 10, height: 10, borderRadius: 3, background: meta.color, display: "inline-block" }} />
                   <span style={{ fontWeight: 700, color: "#1C2B3A", fontSize: 14 }}>{meta.name}</span>
-                  <span style={{ fontSize: 26, fontWeight: 700, color: meta.color, lineHeight: 1 }}>{leg.pct}</span>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: b.color, textTransform: "uppercase", letterSpacing: ".04em" }}>{b.label}</span>
+                  <span style={{ fontSize: 26, fontWeight: 700, color: meta.color, lineHeight: 1, fontVariantNumeric: NUM }}>{leg.pct}</span>
+                  <BandMark color={b.color} label={b.label} size={9} style={{ fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".04em" }} />
                 </button>
               );
             })}
@@ -2371,7 +2428,7 @@ function LeadershipReport({ scored }) {
               <div key={s.key} style={{ padding: "13px 16px", borderBottom: "1px solid #F0F2F4" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2B3A" }}>{meta.name} <span style={{ fontWeight: 400, color: "#8CA0B3", fontSize: 13 }}>· {meta.call}</span></span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: b.color }}>{s.pct} · {b.label}</span>
+                  <BandMark color={b.color} label={`${s.pct} · ${b.label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
                 </div>
                 <div style={ldTrack}><div style={{ ...ldFill, width: grown ? `${s.pct}%` : "0%", background: meta.color }} /></div>
               </div>
@@ -2380,7 +2437,7 @@ function LeadershipReport({ scored }) {
           <div style={{ padding: "13px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2B3A" }}>{SEAT.name} <span style={{ fontWeight: 400, color: "#8CA0B3", fontSize: 13 }}>· the seat</span></span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: bandOf(seat.band).color }}>{seat.pct} · {bandOf(seat.band).label}</span>
+              <BandMark color={bandOf(seat.band).color} label={`${seat.pct} · ${bandOf(seat.band).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
             </div>
             <div style={ldTrack}><div style={{ ...ldFill, width: grown ? `${seat.pct}%` : "0%", background: SEAT.color }} /></div>
           </div>
@@ -2491,7 +2548,7 @@ function LeadershipReport({ scored }) {
                   <div className="serif" style={{ fontSize: 24, color: "#1C2B3A", marginTop: 2 }}>{meta.name}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 30, fontWeight: 700, color: meta.color, lineHeight: 1 }}>{leg.pct}</div>
+                  <div style={{ fontSize: 30, fontWeight: 700, color: meta.color, lineHeight: 1, fontVariantNumeric: NUM }}>{leg.pct}</div>
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: b.color, textTransform: "uppercase", letterSpacing: ".05em" }}>{b.label}</div>
                 </div>
               </div>
@@ -2695,7 +2752,17 @@ const PRINT_CSS = `
 /* Enneagram type profiles & Forgiveness (EFMI) subscale detail: same technique. */
 .ennea-study { display:none; }
 .ennea-study.is-open { display:block; }
+/* The print-only navy wordmark is hidden on screen (the white PNG logo shows there). */
+.hd-print-mark { display:none; }
 @media print {
+  /* Print header: a light ground with navy ink + a thin gold rule instead of
+     the full navy ink slab. Swap the white PNG logo for the navy wordmark. */
+  .report-hd { background:#fff !important; background-image:none !important; color:#1C2B3A !important; padding:16px 0 12px !important; border-bottom:2px solid #C4923E; }
+  .report-hd .hd-logo { display:none !important; }
+  .report-hd .hd-print-mark { display:block !important; }
+  .report-hd .hd-kicker { color:#1F5E68 !important; }
+  .report-hd .hd-meta { color:#5A6A78 !important; }
+  .report-hd .brand-chip { border:1px solid #E7E9EC; background:#fff !important; }
   /* US Letter with the report's margin geometry (reportTokens.PRINT). */
   @page { size: letter; margin: 18mm 16mm 20mm; }
 
@@ -2719,7 +2786,9 @@ const PRINT_CSS = `
   h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
   h1, h2, h3, h4 { break-inside: avoid; }
   p { orphans: 3; widows: 3; }
-  .sheet section, section { break-inside: avoid; page-break-inside: avoid; }
+  /* Only keep small units atomic. A blanket "section" rule forces whole
+     chapters onto the next page and leaves large white voids (the classic
+     HTML-to-PDF tell), so it is intentionally NOT here. */
   .chart, .card, figure, .avoid-break, table, li { break-inside: avoid; page-break-inside: avoid; }
   .break-before { break-before: page; page-break-before: always; }
   /* Table headers repeat on every page; rows stay with their header. */

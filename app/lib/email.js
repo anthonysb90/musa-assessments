@@ -114,7 +114,15 @@ function stripHtml(html) {
 
 const NAVY = "#1B3A57";
 const GOLD = "#C4923E";
+const TEAL = "#2E7D8A";
 const INK = "#1C2B3A";
+const MUTED = "#4A5B6D";
+// Warm parchment tones for the designed "results card".
+const PAPER = "#FCFAF5";
+const CARD_BORDER = "#EBE4D6";
+const TRACK = "#EAE3D5";
+// Bar accents, cycled so a stack of dimensions reads as one designed set.
+const BAR_COLORS = [NAVY, TEAL, GOLD];
 // Standard body-paragraph style, shared by every builder.
 const P = "font-size:15px;line-height:1.6;color:#4A5B6D;";
 
@@ -169,71 +177,185 @@ export function renderEmail({ preheader, heading, bodyHtml, cta, footNote }) {
   return shell(inner, pre);
 }
 
+// Secondary "what to take next" block. Deliberately quiet: muted eyebrow,
+// smaller type, a light divider — it supports the report link, never competes.
 function promoBlock(slug, names) {
   const picks = (CROSS_PROMO[slug] || []).filter((s) => names[s]);
   if (!picks.length) return "";
   const rows = picks
     .map(
       (s) =>
-        `<tr><td style="padding:10px 0;border-top:1px solid #EEF1F4;">
-          <a href="${APP_URL}/assessment/${s}" style="color:${NAVY};font-weight:bold;text-decoration:none;font-size:15px;">${esc(names[s])}</a>
-          <div style="color:#4A5B6D;font-size:13px;">${esc(PROMO_HOOK[s] || "")}</div>
+        `<tr><td style="padding:11px 0;border-top:1px solid #EEF1F4;">
+          <a href="${APP_URL}/assessment/${s}" style="color:${NAVY};font-weight:bold;text-decoration:none;font-size:14px;">${esc(names[s])}</a>
+          <div style="color:#8CA0B3;font-size:12.5px;line-height:1.5;margin-top:2px;">${esc(PROMO_HOOK[s] || "")}</div>
         </td></tr>`
     )
     .join("");
-  return `<div style="margin-top:26px;">
-    <div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:${GOLD};font-weight:bold;margin-bottom:6px;">What to take next</div>
+  return `<div style="margin-top:28px;">
+    <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9AA7B5;font-weight:bold;margin-bottom:2px;">Continue your journey</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table></div>`;
 }
 
-// Build a short, email-safe results summary per scoring type.
+// ---- Email-safe building blocks for the designed results card ----
+
+const clampPct = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+
+// Bulletproof progress bar: a grey "track" table cell with a colored inner
+// cell sized to a percentage width. No CSS widths on divs, no images — this
+// renders identically in Gmail, Apple Mail, and Outlook's Word engine.
+function pctBar(pct, color = NAVY) {
+  const w = clampPct(pct);
+  const fill =
+    w > 0
+      ? `<table role="presentation" width="${w}%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="height:8px;line-height:8px;font-size:0;background:${color};border-radius:6px;">&nbsp;</td></tr></table>`
+      : "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr><td style="height:8px;line-height:8px;font-size:0;background:${TRACK};border-radius:6px;padding:0;">${fill}</td></tr></table>`;
+}
+
+// One dimension: bold label + right-aligned value, then a bar underneath.
+function metricRow(label, value, pct, color = NAVY) {
+  return `<tr><td style="padding:12px 0 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="font-size:14px;color:${INK};font-weight:bold;padding:0 8px 6px 0;">${esc(label)}</td>
+      <td align="right" style="font-size:13px;color:${TEAL};font-weight:bold;padding:0 0 6px;white-space:nowrap;">${esc(value)}</td>
+    </tr></table>
+    ${pctBar(pct, color)}
+  </td></tr>`;
+}
+
+// A categorical dimension: label + value, no bar (for letter/band codes).
+function labelRow(label, value) {
+  return `<tr><td style="padding:10px 0 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="font-size:14px;color:${INK};font-weight:bold;padding-right:8px;">${esc(label)}</td>
+      <td align="right" style="font-size:13px;color:${TEAL};font-weight:bold;white-space:nowrap;">${esc(value)}</td>
+    </tr></table></td></tr>`;
+}
+
+// A headline result + optional supporting line, for non-numeric outcomes.
+function statBlock(headline, sub) {
+  return `<div style="font-size:19px;line-height:1.3;font-weight:bold;color:${NAVY};margin:0 0 4px;">${esc(headline)}</div>
+    ${sub ? `<div style="font-size:14px;line-height:1.5;color:${MUTED};">${esc(sub)}</div>` : ""}`;
+}
+
+// The branded parchment card: thin gold rule on top, uppercase gold eyebrow,
+// then whatever inner content the scoring type produced.
+function resultsCard(eyebrow, inner) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:20px 0;background:${PAPER};border:1px solid ${CARD_BORDER};border-radius:14px;overflow:hidden;">
+    <tr><td style="height:3px;line-height:3px;font-size:0;background:${GOLD};padding:0;">&nbsp;</td></tr>
+    <tr><td style="padding:18px 22px 22px;">
+      <div style="font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:${GOLD};font-weight:bold;margin:0 0 10px;">${esc(eyebrow)}</div>
+      ${inner}
+    </td></tr></table>`;
+}
+
+const metricTable = (rows) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>`;
+
+// Build the designed, email-safe "results card" for a given scoring type.
+// Numbers are read straight from `scored` — nothing here invents a value.
+// Percentage bars only appear where a true denominator exists (max_per,
+// scale_max, or a 0–100 pct); categorical outcomes get a headline + labels.
 function inlineSummary(scored, assessment) {
   const type = scored.type;
-  const li = (a, b) =>
-    `<tr><td style="padding:6px 0;color:${INK};font-size:15px;">${esc(a)}</td><td align="right" style="padding:6px 0;color:${NAVY};font-weight:bold;">${esc(b)}</td></tr>`;
+
   if (type === "gift-rank" || type === "ranked-sum") {
-    const rows = scored.ranked.slice(0, 3);
-    const label = (r) => r.letter || r.key;
-    const body = rows.map((r) => li(label(r), `${r.score} / ${scored.max_per}`)).join("");
-    return `<table role="presentation" width="100%">${body}</table>`;
+    const max = scored.max_per || 0;
+    const rows = (scored.ranked || []).slice(0, 3);
+    const body = rows
+      .map((r, i) =>
+        metricRow(
+          r.letter || r.key,
+          `${r.score} / ${scored.max_per}`,
+          max ? (r.score / max) * 100 : 0,
+          BAR_COLORS[i % BAR_COLORS.length]
+        )
+      )
+      .join("");
+    return resultsCard("Your top strengths", metricTable(body));
   }
+
   if (type === "domain-bands") {
-    const top = scored.domains.slice(0, 2);
-    const body = top.map((d) => li(d.domain, `${d.average} · ${d.band}`)).join("");
-    return `<table role="presentation" width="100%">${body}</table>`;
+    const smax = scored.scale_max || 0;
+    const top = (scored.domains || []).slice(0, 3);
+    const body = top
+      .map((d, i) =>
+        metricRow(
+          d.domain,
+          d.band,
+          smax ? (d.average / smax) * 100 : 0,
+          BAR_COLORS[i % BAR_COLORS.length]
+        )
+      )
+      .join("");
+    return resultsCard("Where you stand", metricTable(body));
   }
+
   if (type === "level-matrix") {
-    const lvl = GROWTH_LEVELS[scored.winnerLevel];
-    return `<p style="font-size:16px;margin:0;color:${INK};"><strong>${esc(lvl.name)}</strong> — ${esc(lvl.message)}</p>`;
+    const lvl = GROWTH_LEVELS[scored.winnerLevel] || {};
+    return resultsCard("Your church's stage", statBlock(lvl.name || "", lvl.message || ""));
   }
+
   if (type === "disc-blend") {
-    const b = DISC_BLENDS[scored.blend];
-    const label = b ? `${scored.blend} · ${b.figure}, ${b.title}` : scored.blend;
-    return `<p style="font-size:16px;margin:0;color:${INK};"><strong>${esc(label)}</strong> (${esc(DISC_DIMS[scored.primary])} + ${esc(DISC_DIMS[scored.secondary])})</p>`;
+    const b = DISC_BLENDS[scored.blend] || {};
+    const head = b.figure ? `${b.figure} · ${b.title}` : scored.blend;
+    const sub = `${scored.blend} — ${DISC_DIMS[scored.primary] || ""} with ${DISC_DIMS[scored.secondary] || ""}`;
+    return resultsCard("Your leadership wiring", statBlock(head, sub));
   }
+
   if (type === "type-pick") {
     const t = ENNEAGRAM_TYPES[scored.primary] || {};
-    return `<p style="font-size:16px;margin:0;color:${INK};">Your core type: <strong>${esc(scored.primary)} · ${esc(t.name || "")}</strong></p>`;
+    return resultsCard(
+      "Your core type",
+      statBlock(`Type ${scored.primary} · ${t.name || ""}`, t.tagline || "")
+    );
   }
+
   if (type === "planter") {
-    return `<p style="font-size:16px;margin:0;color:${INK};"><strong>${esc(scored.tier_label || "Readiness")}</strong> · weighted score ${esc(scored.composite ?? "")} / ${esc(scored.scale_max || 5)}</p>`;
+    const smax = scored.scale_max || 5;
+    const bar = metricTable(
+      metricRow(
+        "Weighted readiness",
+        `${scored.composite ?? ""} / ${smax}`,
+        (Number(scored.composite) / smax) * 100,
+        NAVY
+      )
+    );
+    return resultsCard("Your readiness", statBlock(scored.tier_label || "Readiness", "") + bar);
   }
+
   if (type === "big-five") {
     const NAMES = { O: "Openness", C: "Conscientiousness", E: "Extraversion", A: "Agreeableness", ES: "Emotional Stability" };
     const rows = [...(scored.traits || [])].sort((a, b) => b.pct - a.pct).slice(0, 3);
-    const body = rows.map((t) => li(NAMES[t.key] || t.key, `${t.pct} / 100`)).join("");
-    return `<table role="presentation" width="100%">${body}</table>`;
+    const body = rows
+      .map((t, i) => metricRow(NAMES[t.key] || t.key, `${t.pct}`, t.pct, BAR_COLORS[i % BAR_COLORS.length]))
+      .join("");
+    return resultsCard("Your strongest traits", metricTable(body));
   }
+
   if (type === "kingdom-design") {
-    const rows = (scored.scales || []).map((s) => li(s.key.split("").join("/"), `${s.letter} · ${(s.clarity || "").replace("-", " ")}`)).join("");
-    return `<p style="font-size:18px;margin:0 0 8px;color:${NAVY};font-weight:bold;">${esc(scored.code || "")}</p><table role="presentation" width="100%">${rows}</table>`;
+    const rows = (scored.scales || [])
+      .map((s) => labelRow(s.key.split("").join(" / "), `${s.letter} · ${(s.clarity || "").replace("-", " ")}`))
+      .join("");
+    return resultsCard(
+      "Your design code",
+      statBlock(scored.code || "", "Your Kingdom Design profile") + metricTable(rows)
+    );
   }
+
   if (type === "leadership-stool") {
     const LNAME = { SP: "Spirituality", CH: "Chemistry", ST: "Strategy" };
     const legs = scored.legs || {};
-    const rows = (scored.ranked || []).map((k) => li(LNAME[k] || k, `${legs[k]?.pct ?? ""} / 100`)).join("");
-    return `<p style="font-size:18px;margin:0 0 8px;color:${NAVY};font-weight:bold;">${esc(scored.style_name || "")} · ${esc(scored.style_code || "")}</p><table role="presentation" width="100%">${rows}</table>`;
+    const rows = (scored.ranked || [])
+      .map((k, i) => metricRow(LNAME[k] || k, `${legs[k]?.pct ?? ""}`, legs[k]?.pct ?? 0, BAR_COLORS[i % BAR_COLORS.length]))
+      .join("");
+    return resultsCard(
+      "Your leadership style",
+      statBlock(scored.style_name || "", scored.style_code || "") + metricTable(rows)
+    );
   }
+
   return "";
 }
 
@@ -273,35 +395,54 @@ export function buildResultEmail({ assessment, scored, resultToken, namesBySlug 
   const link = `${APP_URL}/results/${resultToken}`;
   const loginLink = `${APP_URL}/login`;
 
+  const heading = `Your ${esc(assessment.name)} results are ready`;
+  const subject = `Your ${assessment.name} results are ready`;
+
+  // A short, quiet "what's inside your report" note, shown above the promo.
+  const insideReport = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 0;">
+    <tr><td style="border-top:1px solid #EEF1F4;padding-top:18px;">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:${GOLD};font-weight:bold;margin-bottom:6px;">What's inside your report</div>
+      <div style="font-size:14px;line-height:1.6;color:${MUTED};">The full breakdown of every dimension, what your results mean for you, supporting Scripture, and practical next steps you can act on.</div>
+    </td></tr></table>`;
+
   // Link-only: personal assessments where the results shouldn't sit in an inbox.
-  // We send only a private link, never the scores themselves.
+  // We send only a private link, never the scores themselves. Clean single CTA.
   if (linkOnly) {
     const html = renderEmail({
-      heading: `Your ${esc(assessment.name)} results are ready`,
-      bodyHtml: `<p style="${P}">Hi ${esc(first)}, your reflection is complete. Because this one is personal, we've kept the results out of this email. Open your private report with the link below whenever you're ready.</p>`,
+      preheader: `Your ${assessment.name} reflection is complete — open it privately whenever you're ready.`,
+      heading,
+      bodyHtml: `<p style="${P}">Hi ${esc(first)}, your reflection is complete.</p>
+      <p style="${P}">Because this one is personal, we've kept the results out of this email. Open your private report with the link below whenever you're ready.</p>`,
       cta: { href: link, label: "View my private report" },
     });
-    return { subject: `Your ${assessment.name} results are ready`, html };
+    return { subject, html };
   }
 
+  // Sensitive: no scores in the inbox — emphasize the private, one-tap sign-in.
   if (sensitive) {
+    const privateNote = `<div style="font-size:14px;line-height:1.6;color:${MUTED};">Because this assessment includes sensitive, personal content, we've kept your results out of this email. Sign in with a one-tap magic link — no password — to read them privately, whenever you're ready.</div>`;
     const html = renderEmail({
-      heading: `Your ${esc(assessment.name)} results are ready`,
-      bodyHtml: `<p style="${P}">Hi ${esc(first)}, your results are saved securely. Because this assessment includes sensitive, personal content, results aren't included in email. Sign in with a one-tap magic link to view them privately.</p>`,
+      preheader: `Your ${assessment.name} results are saved securely and ready to view privately.`,
+      heading,
+      bodyHtml: `<p style="${P}">Hi ${esc(first)}, your results are saved securely.</p>
+      ${resultsCard("Kept private", privateNote)}`,
       cta: { href: loginLink, label: "Sign in to view results" },
       footNote: promoBlock(assessment.slug, namesBySlug),
     });
-    return { subject: `Your ${assessment.name} results are ready`, html };
+    return { subject, html };
   }
 
+  // Full variant: warm hero → designed results card → prominent CTA →
+  // "what's inside" → lighter promo footer.
   const html = renderEmail({
-    heading: `Your ${esc(assessment.name)} results are ready`,
-    bodyHtml: `<p style="${P}">Hi ${esc(first)}, here's a quick look. Open the full interactive report for the complete breakdown, Scripture, and next steps.</p>
-    <div style="background:#F6F8FA;border:1px solid #E7E9EC;border-radius:12px;padding:16px 18px;margin:16px 0;">${inlineSummary(scored, assessment)}</div>`,
-    cta: { href: link, label: "Open my full report" },
-    footNote: promoBlock(assessment.slug, namesBySlug),
+    preheader: `Your ${assessment.name} results are ready — here's what stood out.`,
+    heading,
+    bodyHtml: `<p style="${P};margin:0 0 6px;">Hi ${esc(first)}, your results are in — here's a first look at what stood out.</p>
+    ${inlineSummary(scored, assessment)}`,
+    cta: { href: link, label: "View your full report" },
+    footNote: `${insideReport}${promoBlock(assessment.slug, namesBySlug)}`,
   });
-  return { subject: `Your ${assessment.name} results are ready`, html };
+  return { subject, html };
 }
 
 // Church dashboard invite. One builder for both invite paths (church admin
