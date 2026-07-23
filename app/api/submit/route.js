@@ -315,6 +315,34 @@ export async function POST(req) {
       // swallow — email failure must not fail a completed assessment
     }
 
+    // 7b. Church notification: when a member took this through a church, email
+    // the church's results contact(s). Best-effort, never blocks completion.
+    try {
+      if (profile?.church_id) {
+        const { data: church } = await supabase
+          .from("churches")
+          .select("name,recipient_email,recipient_email_2")
+          .eq("id", profile.church_id)
+          .maybeSingle();
+        const recipients = [church?.recipient_email, church?.recipient_email_2].filter(Boolean);
+        if (church && recipients.length) {
+          const who = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "A member";
+          for (const to of recipients) {
+            await sendEmail({
+              to,
+              subject: `${assessment.name} completed — ${church.name}`,
+              html: `<p><strong>${who}</strong> just completed the <strong>${assessment.name}</strong> assessment through ${church.name}.</p>
+                <p>You can see all of your church's results in your dashboard:</p>
+                <p><a href="${APP_URL}/login?next=/church">${APP_URL}/church</a></p>
+                <p>Sign in with the email address Mission USA set up for your church.</p>`,
+            });
+          }
+        }
+      }
+    } catch {
+      // swallow — church notification must never fail a completed assessment
+    }
+
     return NextResponse.json({ result_token: session.result_token });
   } catch (e) {
     return NextResponse.json({ error: e.message || "Server error" }, { status: 500 });

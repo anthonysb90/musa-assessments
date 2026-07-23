@@ -21,6 +21,10 @@ import {
   rootedBand,
   domainBand,
   WELLBEING_CARE,
+  EFMI_SUBSCALES,
+  EFMI_ORDER,
+  efmiBand,
+  efmiTotalBand,
 } from "../lib/content";
 
 const GOLD = "#C4923E", TEAL = "#2E7D8A", GREY = "#8CA0B3", NAVY = "#1B3A57";
@@ -72,6 +76,16 @@ const SAMPLE = {
   "church-planter": {
     type: "planter", tier: "develop", composite: 3.8,
     domains: [["Exercises Faith", 4.6], ["Visioning Capacity", 4.4], ["Intrinsically Motivated", 4.2], ["Resilience", 4.0], ["Effectively Builds Relationships", 3.9], ["Committed to Church Growth", 3.8], ["Flexible and Adaptable", 3.7], ["Creates Ownership of Ministry", 3.5], ["Utilizes the Giftedness of Others", 3.4], ["Builds Group Cohesiveness", 3.2], ["Responsive to the Community", 3.0], ["Spousal Cooperation", 3.4], ["Reaches the Unchurched", 2.8]],
+  },
+  "forgiveness-profile": {
+    type: "forgiveness",
+    understanding: "accurate",
+    subscales: [
+      ["Forgiveness as Good in Itself", 17], ["Self-Healing", 16], ["Consistency with Your Beliefs", 15],
+      ["Community Harmony", 13], ["Self-Improvement", 12], ["Protection for Others Inside the Family", 12],
+      ["Healing for the Other", 10], ["Protection for Others Outside the Family", 9],
+      ["Improvement for the Other", 8], ["Improved Relationship", 7],
+    ],
   },
 };
 
@@ -128,8 +142,79 @@ function Report({ sample }) {
     case "sg-wheel": return <SgWheel s={sample} />;
     case "enneagram": return <Enneagram s={sample} />;
     case "planter": return <Planter s={sample} />;
+    case "forgiveness": return <Forgiveness s={sample} />;
     default: return null;
   }
+}
+
+function Forgiveness({ s }) {
+  const per = 18;
+  const subs = [...s.subscales].map(([key, score]) => ({ key, score })).sort((a, b) => b.score - a.score);
+  const total = subs.reduce((a, x) => a + x.score, 0);
+  const totalBand = efmiTotalBand(total);
+  const top3 = subs.slice(0, 3);
+  const bottom2 = [...subs].slice(-2).reverse();
+  const U = { accurate: ["A clear understanding of forgiveness", TEAL], near: ["A close understanding of forgiveness", GOLD], misconception: ["A common misunderstanding of forgiveness", GREY] }[s.understanding] || [];
+  return (
+    <>
+      <Section label="Your motivation to forgive">
+        <div style={{ ...card, borderLeft: `5px solid ${GOLD}` }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ ...bigScore, fontSize: 34 }}>{total}</span><span style={{ fontSize: 13, color: GREY }}>/ 180</span>
+          </div>
+          <div className="serif" style={{ fontSize: 20, color: "#1C2B3A", marginTop: 4 }}>{totalBand.label}</div>
+          <p style={{ ...defP, marginTop: 8 }}>Forgiveness grows from many motivations at once. This is a picture of what draws your heart toward it right now, not a grade on whether you&rsquo;ve arrived.</p>
+        </div>
+      </Section>
+      <Section label="Understanding of forgiveness" style={{ padding: "16px 0 4px" }}>
+        <div style={{ ...card, borderLeft: `5px solid ${U[1]}` }}>
+          <div className="serif" style={{ fontSize: 18, color: "#1C2B3A" }}>{U[0]}</div>
+          <p style={{ ...defP, marginTop: 6 }}>The person picks the best of eight definitions of forgiveness. Only two describe genuine forgiveness, so this shows whether their answers rest on the real thing or a common look-alike like reconciliation or simply moving on.</p>
+        </div>
+      </Section>
+      <Section label="What moves you most" style={{ padding: "16px 0 4px" }}>
+        {top3.map((x) => {
+          const m = EFMI_SUBSCALES[x.key] || {}; const b = efmiBand(x.score);
+          return (
+            <div key={x.key} style={{ ...card, marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div className="serif" style={{ fontSize: 18, color: "#1C2B3A" }}>{x.key}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: b.color }}>{x.score}/{per} · {b.label}</div>
+              </div>
+              <p style={{ ...defP, marginTop: 6 }}>{m.body}</p>
+              {m.verse && <div style={refLine}>{m.verse}</div>}
+            </div>
+          );
+        })}
+      </Section>
+      <Section label="All ten motivations" style={{ padding: "16px 0 4px" }}>
+        <div style={chart}>
+          {subs.map((x, i) => {
+            const b = efmiBand(x.score);
+            return (
+              <div key={x.key} style={{ ...rowGrid, gridTemplateColumns: "26px 1fr 2fr 40px" }}>
+                <span style={rRank}>{i + 1}</span>
+                <span style={rName}>{x.key}</span>
+                <Bar frac={x.score / per} color={b.color} />
+                <span style={{ ...rScore, color: b.color }}>{x.score}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+      <Section label="Where forgiveness is quieter" style={{ padding: "16px 0 4px" }}>
+        {bottom2.map((x) => {
+          const m = EFMI_SUBSCALES[x.key] || {};
+          return (
+            <div key={x.key} style={{ ...card, marginBottom: 12 }}>
+              <div className="serif" style={{ fontSize: 17, color: "#1C2B3A" }}>{x.key}</div>
+              <p style={{ ...defP, marginTop: 6 }}>{m.short}</p>
+            </div>
+          );
+        })}
+      </Section>
+    </>
+  );
 }
 
 function Planter({ s }) {

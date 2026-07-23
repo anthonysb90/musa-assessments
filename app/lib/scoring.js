@@ -110,9 +110,10 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
       score: (groups[String(lvl)] || []).reduce((a, b) => a + b, 0),
       max: maxPer,
     }));
-    // winner: highest score, tie broken toward the more mature (higher) level
+    // winner: highest score, tie broken toward the more mature (higher) level.
+    // levels are in ascending order, so `>=` lets a later (higher) level win a tie.
     let winner = levels[0];
-    for (const l of levels) if (l.score > winner.score) winner = l;
+    for (const l of levels) if (l.score >= winner.score) winner = l;
     // transition: an adjacent level within 4 points of the winner
     let transition = null;
     for (const adjLvl of [winner.level - 1, winner.level + 1]) {

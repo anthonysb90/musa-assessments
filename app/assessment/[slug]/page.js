@@ -84,7 +84,7 @@ export default async function AssessmentLanding({ params, searchParams }) {
           <p style={heroTag}>{land.tagline || a.subtitle}</p>
           <div style={chips}>
             <span style={chip}>About {a.estimated_minutes} min</span>
-            {count ? <span style={chip}>{count} questions</span> : null}
+            {count ? <span style={chip}>{slug === "forgiveness-profile" ? `${count} questions + a short reflection` : `${count} questions`}</span> : null}
             {paid
               ? <span style={{ ...chip, ...chipGold }}>Paid · {priceLabel}</span>
               : <span style={chip}>Free</span>}

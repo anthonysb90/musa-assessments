@@ -754,6 +754,14 @@ function Select({ label, v, on, opts, optional, disabled }) {
     </label>
   );
 }
+function RLabel({ n, text }) {
+  return (
+    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", margin: "16px 0 10px" }}>
+      {n != null ? <span style={{ color: "var(--teal-deep)", fontWeight: 700, marginRight: 4 }}>{n}.</span> : null}
+      {text}
+    </div>
+  );
+}
 function Centered({ children }) {
   return <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 24 }}>{children}</main>;
 }
