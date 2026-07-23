@@ -36,7 +36,7 @@ export default function AdminChurches() {
 
   return (
     <main className="wrap" style={{ maxWidth: 940, padding: "40px 24px 90px" }}>
-      <Link href="/admin" style={link}>← Admin</Link>
+      <div style={{ fontSize: 12, letterSpacing: ".16em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 }}>Partnerships</div>
       <h1 className="serif" style={h1}>Church Partnerships</h1>
       <p style={sub}>
         Onboard a church, choose which assessments they receive, and hand them a pre-filled link.

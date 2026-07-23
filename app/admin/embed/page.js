@@ -27,7 +27,7 @@ export default function AdminEmbed() {
 
   return (
     <main className="wrap" style={{ maxWidth: 780, padding: "40px 24px 80px" }}>
-      <Link href="/admin" style={link}>← Admin</Link>
+      <div style={{ fontSize: 12, letterSpacing: ".16em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 }}>Distribution</div>
       <h1 className="serif" style={h1}>Embed on any site</h1>
       <p style={sub}>Paste one of these snippets into any web page (church site, blog, email footer that supports HTML). Each shows a branded card that opens the assessment in a new tab, with pricing and login handled automatically.</p>
 

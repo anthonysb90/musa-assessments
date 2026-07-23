@@ -67,7 +67,7 @@ export default function AdminBundles() {
 
   return (
     <main className="wrap" style={{ maxWidth: 760, padding: "40px 24px 80px" }}>
-      <Link href="/admin" style={link}>← Admin</Link>
+      <div style={{ fontSize: 12, letterSpacing: ".16em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 }}>Commerce</div>
       <h1 className="serif" style={h1}>Bundles</h1>
       <p style={sub}>Group several assessments and sell them together at a discount. Churches can buy bundle seats from the bundle page.</p>
 

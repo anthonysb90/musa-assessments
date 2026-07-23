@@ -59,7 +59,7 @@ export default function AdminPricing() {
 
   return (
     <main className="wrap" style={{ maxWidth: 820, padding: "40px 24px 80px" }}>
-      <Link href="/admin" style={link}>← Admin</Link>
+      <div style={{ fontSize: 12, letterSpacing: ".16em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 }}>Commerce</div>
       <h1 className="serif" style={h1}>Pricing</h1>
       <p style={sub}>Mark an assessment paid and set its price. Free assessments show no badge. Changes take effect immediately, no deploy needed.</p>
 

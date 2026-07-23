@@ -67,9 +67,9 @@ export default async function PeoplePage() {
 
   return (
     <main style={{ background: "var(--mist)", minHeight: "100vh" }}>
-      <div style={{ maxWidth: 1160, margin: "0 auto", padding: "34px 24px 70px" }}>
-        <Link href="/admin" style={{ color: "var(--teal-deep)", fontSize: 14, fontWeight: 600, textDecoration: "none" }}>← Admin</Link>
-        <h1 className="serif" style={{ fontSize: 30, margin: "12px 0 4px", color: "var(--ink)" }}>People</h1>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 24px 70px" }}>
+        <div style={{ fontSize: 12, letterSpacing: ".16em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 }}>People &amp; CRM</div>
+        <h1 className="serif" style={{ fontSize: 30, margin: "4px 0 4px", color: "var(--ink)" }}>Everyone who has taken an assessment</h1>
         <p style={{ color: "var(--ink-soft)", margin: "0 0 22px" }}>
           Everyone who has completed an assessment. Search, filter, open any report, and export the whole list.
         </p>
