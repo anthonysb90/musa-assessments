@@ -99,47 +99,39 @@ export default function ResultsPage() {
   useEffect(() => {
     (async () => {
       const supabase = getSupabase();
-      const { data: session } = await supabase
-        .from("sessions").select("id,assessment_id").eq("result_token", token).single();
-      if (!session) { setState("notfound"); return; }
-      const { data: result } = await supabase
-        .from("results").select("scored_json,created_at").eq("session_id", session.id).single();
-      const { data: assessment } = await supabase
-        .from("assessments").select("name,subtitle,is_paid,price_cents").eq("id", session.assessment_id).single();
-      if (!result) { setState("notfound"); return; }
+      // One SECURITY DEFINER RPC (migration_33) resolves the whole report by
+      // token: session + result + assessment + church branding. Direct anon
+      // reads of sessions/results were removed (they allowed enumeration),
+      // and the church "withhold from taker" gate is now enforced
+      // server-side — a withheld report never sends scored_json at all.
+      const { data, error } = await supabase.rpc("result_by_token", { p_token: token });
+      if (error || !data) { setState("notfound"); return; }
+
+      const b = data.church || null;
+
+      // Signed-in / admin detection drives the report nav. The withhold
+      // override (admin / church leader) is computed by the RPC itself.
+      const { data: udata } = await supabase.auth.getUser();
+      if (udata?.user) setSignedIn(true);
+      setIsAdmin(data.is_admin === true);
+
+      // Withheld results: the taker cannot see their own report; only Mission USA
+      // admins or a leader of that church can. Others see a "held for you" note.
+      if (data.withheld) {
+        setBrand(b); setBlocked(true); setState("ready");
+        return;
+      }
+
       // Wellbeing (owner or Mission USA care/admin only, by RLS). Returns
       // nothing for anyone else, so the card simply doesn't render for them.
       const { data: wbRow } = await supabase
         .from("wellbeing_results")
         .select("total,max_total,band,elevated")
-        .eq("session_id", session.id)
+        .eq("session_id", data.session?.id)
         .maybeSingle();
-      // Church branding + withhold flag (if this was taken through a church).
-      const { data: brandRow } = await supabase.rpc("session_church_brand", { p_session: session.id });
-      const b = brandRow || null;
 
-      // Signed-in / admin detection drives the report nav and the withhold gate.
-      const { data: udata } = await supabase.auth.getUser();
-      let adm = false, churchAdmin = false;
-      if (udata?.user) {
-        setSignedIn(true);
-        const { data: a } = await supabase.rpc("is_admin");
-        adm = a === true; setIsAdmin(adm);
-        if (b?.church_id) {
-          const { data: ca } = await supabase.rpc("is_church_admin", { target: b.church_id });
-          churchAdmin = ca === true;
-        }
-      }
-
-      // Withheld results: the taker cannot see their own report; only Mission USA
-      // admins or a leader of that church can. Others see a "held for you" note.
-      if (b?.withhold && !adm && !churchAdmin) {
-        setBrand(b); setBlocked(true); setState("ready");
-        return;
-      }
-
-      setScored(result.scored_json);
-      setMeta({ ...assessment, created_at: result.created_at });
+      setScored(data.scored_json);
+      setMeta({ ...data.assessment, created_at: data.created_at });
       setWb(wbRow || null);
       setBrand(b);
       setState("ready");

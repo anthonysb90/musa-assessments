@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { getSupabase } from "../lib/supabase";
 
 // On-screen Stripe checkout using the Payment Element. Reused for single
 // assessments and bundles, individual or multi-seat (church) purchases.
@@ -56,19 +55,20 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
   const feeLabel = feeCfg?.fee_label || "Platform fee";
   const grandTotal = afterDiscount + feeCents;
 
-  const supaRef = useRef(null);
   const [applying, setApplying] = useState(false);
   const [couponMsg, setCouponMsg] = useState(""); // "" | "applied" | "invalid"
   async function applyCoupon() {
     if (!coupon.trim()) return;
     setApplying(true); setCouponMsg("");
     try {
-      const supabase = supaRef.current || (supaRef.current = getSupabase());
-      const { data, error } = await supabase.rpc("validate_coupon", {
-        p_code: coupon.trim(), p_slug: slug, p_bundle: kind === "bundle" ? slug : null, p_subtotal_cents: amount,
+      // Validated through a server route (the validate_coupon RPC is no
+      // longer callable with the anon key since migration_32).
+      const res = await fetch("/api/checkout/validate-coupon", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coupon: coupon.trim(), slug, kind, subtotal_cents: amount }),
       });
-      if (error) throw error;
-      if (data?.ok) { setDiscount(Number(data.discount_cents) || 0); setCouponLabel(data.label || "Discount"); setCouponMsg("applied"); }
+      const data = await res.json();
+      if (res.ok && data?.ok) { setDiscount(Number(data.discount_cents) || 0); setCouponLabel(data.label || "Discount"); setCouponMsg("applied"); }
       else { setDiscount(0); setCouponLabel(""); setCouponMsg("invalid"); }
     } catch { setDiscount(0); setCouponLabel(""); setCouponMsg("invalid"); }
     setApplying(false);
@@ -99,10 +99,12 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [busy, setBusy] = useState(false);
   async function toPayment(e) {
     e?.preventDefault();
+    if (busy) return; // double-click guard: one PaymentIntent per intent
     if (!PUBK) { setErr("Payments aren't set up yet. Please check back soon."); setPhase("error"); return; }
-    setErr("");
+    setErr(""); setBusy(true);
     try {
       const payload = options
         ? { kind, slug, email, name: buyer, first_name: firstName, last_name: lastName, phone, coupon, group_name: groupName || null, tier_qty: tierQty > 1 ? tierQty : undefined, seats: 1 }
@@ -126,9 +128,18 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
       });
       elementsRef.current = elements;
       setPhase("pay");
-      setTimeout(() => { const pe = elements.create("payment"); pe.mount("#payment-element"); }, 60);
     } catch (e2) { setErr(e2.message); setPhase("error"); }
+    finally { setBusy(false); }
   }
+
+  // Mount the Payment Element once the pay phase has rendered its container
+  // (replaces the old setTimeout race).
+  useEffect(() => {
+    if (phase !== "pay" || !elementsRef.current) return;
+    const pe = elementsRef.current.create("payment");
+    pe.mount("#payment-element");
+    return () => { try { pe.unmount(); } catch { /* already gone */ } };
+  }, [phase]);
 
   async function pay() {
     setPhase("working"); setErr("");
@@ -255,24 +266,26 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
               assessments free for the whole CHC family.
             </p>
           )}
-          <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
-            {grandTotal < 50 && discount > 0 ? "Get it free →" : "Continue to payment →"}
+          <button className="btn btn-primary" disabled={busy} style={{ width: "100%", justifyContent: "center", marginTop: 8, opacity: busy ? 0.6 : 1 }}>
+            {busy ? "One moment…" : grandTotal < 50 && discount > 0 ? "Get it free →" : "Continue to payment →"}
           </button>
           <p style={{ fontSize: 12, color: "#8CA0B3", marginTop: 12, textAlign: "center" }}>Secure payment by Stripe. Your card never touches our servers.</p>
         </form>
       )}
       {phase === "pay" && (
         <div>
-          <div style={subRow}><span>Subtotal</span><span>{dollars(bd ? bd.subtotal / 100 : amount)}</span></div>
+          {/* bd values are CENTS from the API; dollars() does the only /100.
+              (The old code divided twice and showed 1/100th of the price.) */}
+          <div style={subRow}><span>Subtotal</span><span>{dollars(bd ? bd.subtotal : amount)}</span></div>
           {bd && bd.discount > 0 && (
-            <div style={subRow}><span style={{ color: "#1F7A4D" }}>Discount{couponLabel ? ` (${couponLabel})` : ""}</span><span style={{ color: "#1F7A4D" }}>−{dollars(bd.discount / 100)}</span></div>
+            <div style={subRow}><span style={{ color: "#1F7A4D" }}>Discount{couponLabel ? ` (${couponLabel})` : ""}</span><span style={{ color: "#1F7A4D" }}>−{dollars(bd.discount)}</span></div>
           )}
-          {bd && bd.fee > 0 && <div style={subRow}><span>{feeLabel}</span><span>{dollars(bd.fee / 100)}</span></div>}
+          {bd && bd.fee > 0 && <div style={subRow}><span>{feeLabel}</span><span>{dollars(bd.fee)}</span></div>}
           {!bd && feeCents > 0 && <div style={subRow}><span>{feeLabel}</span><span>{dollars(feeCents)}</span></div>}
-          <div style={totalRow}><span>Total</span><strong>{dollars(bd ? bd.total / 100 : grandTotal)}</strong></div>
+          <div style={totalRow}><span>Total</span><strong>{dollars(bd ? bd.total : grandTotal)}</strong></div>
           <div id="payment-element" style={{ margin: "16px 0" }} />
           <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={pay}>
-            Pay {dollars(bd ? bd.total / 100 : grandTotal)}
+            Pay {dollars(bd ? bd.total : grandTotal)}
           </button>
           {err && <p style={{ color: "#B4443A", fontSize: 13, marginTop: 8 }}>{err}</p>}
         </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildMagicLinkEmail, sendEmail } from "../../../lib/email";
 import { APP_URL } from "../../../lib/config";
+import { rateLimit, requestIp } from "../../../lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -19,17 +20,39 @@ export async function POST(req) {
     if (!email) return NextResponse.json({ error: "Email is required." }, { status: 400 });
     if (!SERVICE_ROLE || !EMAILIT) return NextResponse.json({ fallback: true });
 
-    const redirect_to = `${APP_URL}/auth/callback?next=${encodeURIComponent(next || "/welcome")}`;
+    // Abuse guards: this endpoint creates users and sends email via the
+    // service-role key, so it must not be free to hammer. Per-email and
+    // per-IP fixed windows.
+    const ip = requestIp(req);
+    const emailKey = String(email).trim().toLowerCase();
+    const [byEmail, byIp] = await Promise.all([
+      rateLimit(`magiclink:email:${emailKey}`, 3, 3600),
+      rateLimit(`magiclink:ip:${ip}`, 10, 3600),
+    ]);
+    if (!byEmail.ok || !byIp.ok) {
+      return NextResponse.json(
+        { error: "Too many sign-in requests. Please try again in a little while." },
+        { status: 429 }
+      );
+    }
+
+    // Only allow same-site relative next paths (open-redirect guard).
+    const safeNext =
+      typeof next === "string" && next.startsWith("/") && !next.startsWith("//")
+        ? next
+        : "/welcome";
+
+    const redirect_to = `${APP_URL}/auth/callback?next=${encodeURIComponent(safeNext)}`;
     const headers = { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" };
 
     // Ensure the user exists so magic-link generation works for new emails too.
     await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
-      method: "POST", headers, body: JSON.stringify({ email, email_confirm: true }),
+      method: "POST", headers, body: JSON.stringify({ email: emailKey, email_confirm: true }),
     }).catch(() => {});
 
     // Generate the one-tap link.
     const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
-      method: "POST", headers, body: JSON.stringify({ type: "magiclink", email, redirect_to }),
+      method: "POST", headers, body: JSON.stringify({ type: "magiclink", email: emailKey, redirect_to }),
     });
     const data = await res.json().catch(() => ({}));
     const props = data?.properties || data || {};
@@ -41,14 +64,14 @@ export async function POST(req) {
     const vtype = props.verification_type || "magiclink";
     let link;
     if (hashed) {
-      link = `${APP_URL}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=${encodeURIComponent(vtype)}&next=${encodeURIComponent(next || "/welcome")}`;
+      link = `${APP_URL}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=${encodeURIComponent(vtype)}&next=${encodeURIComponent(safeNext)}`;
     } else {
       link = data?.action_link || props.action_link;
     }
     if (!res.ok || !link) return NextResponse.json({ fallback: true });
 
     const em = buildMagicLinkEmail({ link });
-    const sent = await sendEmail({ to: email, subject: em.subject, html: em.html });
+    const sent = await sendEmail({ to: emailKey, subject: em.subject, html: em.html, template: "magic_link" });
     if (!sent?.ok) return NextResponse.json({ fallback: true });
     return NextResponse.json({ ok: true });
   } catch {

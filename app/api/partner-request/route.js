@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSupabase } from "../../lib/supabaseServer";
-import { sendEmail } from "../../lib/email";
-import { ASSESSOR_EMAIL, APP_URL } from "../../lib/config";
+import { buildPartnerRequestEmail, sendEmail } from "../../lib/email";
+import { ASSESSOR_EMAIL } from "../../lib/config";
+import { rateLimit, requestIp } from "../../lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,9 @@ export const runtime = "nodejs";
 // SECURITY DEFINER function, so anon can submit) and notifies Mission USA.
 export async function POST(req) {
   try {
+    const rl = await rateLimit(`partner:${requestIp(req)}`, 3, 3600);
+    if (!rl.ok) return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+
     const b = await req.json();
     if (!b?.name?.trim() || !b?.email?.trim()) {
       return NextResponse.json({ error: "Church name and email are required." }, { status: 400 });
@@ -21,24 +25,19 @@ export async function POST(req) {
     });
     if (error) return NextResponse.json({ error: error.message || "Could not submit your request." }, { status: 400 });
 
-    // Notify Mission USA (best-effort).
+    // Notify Mission USA (best-effort). All fields escaped in the builder.
     try {
-      const slugs = (b.slugs || []).join(", ") || "none selected";
-      await sendEmail({
-        to: ASSESSOR_EMAIL,
-        subject: `New church partnership request — ${b.name}`,
-        html: `<p><strong>${b.name}</strong> has requested a partnership.</p>
-          <ul>
-            <li>District: ${b.district || "—"}</li>
-            <li>Email: ${b.email}</li>
-            <li>Phone: ${b.phone || "—"}</li>
-            <li>Extra admin email: ${b.admin_email || "—"}</li>
-            <li>Assessments requested: ${slugs}</li>
-            <li>Reveal results in person: ${b.gate ? "Yes" : "No"}</li>
-            <li>Logo provided: ${b.logo_color || b.logo_white ? "Yes" : "No"}</li>
-          </ul>
-          <p>Review and approve it under the Churches tab in the admin: <a href="${APP_URL}/admin/churches">${APP_URL}/admin/churches</a></p>`,
+      const em = buildPartnerRequestEmail({
+        name: b.name,
+        district: b.district,
+        email: b.email,
+        phone: b.phone,
+        slugs: b.slugs,
+        gate: !!b.gate,
+        adminEmail: b.admin_email,
+        logoProvided: !!(b.logo_color || b.logo_white),
       });
+      await sendEmail({ to: ASSESSOR_EMAIL, subject: em.subject, html: em.html, template: "partner_request" });
     } catch { /* non-fatal */ }
 
     return NextResponse.json({ ok: true });

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSupabase } from "../../../lib/supabaseServer";
-import { sendEmail } from "../../../lib/email";
-import { APP_URL } from "../../../lib/config";
+import { buildChurchInviteEmail, sendEmail } from "../../../lib/email";
 
 export const runtime = "nodejs";
 
@@ -21,13 +20,8 @@ export async function POST(req) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     const { data: church } = await supabase.from("churches").select("name").eq("id", church_id).maybeSingle();
-    await sendEmail({
-      to: email,
-      subject: `You've been given access to ${church?.name || "your church"}'s assessment dashboard`,
-      html: `<p>Mission USA has set you up with access to <strong>${church?.name || "your church"}</strong>'s assessment dashboard.</p>
-        <p>There you can see the assessments your members have taken. Sign in with a one-tap magic link, using this same email address:</p>
-        <p><a href="${APP_URL}/login?next=/church">${APP_URL}/login</a></p>`,
-    });
+    const em = buildChurchInviteEmail({ churchName: church?.name, invitedBy: "Mission USA", next: "/church" });
+    await sendEmail({ to: email, subject: em.subject, html: em.html, template: "church_invite" });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: e.message || "Server error" }, { status: 500 });

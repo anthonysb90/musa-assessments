@@ -3,7 +3,9 @@ import { useState } from "react";
 
 // Small text-or-email invite widget. Sends a personal link via Clearstream
 // (SMS) or Emailit (email). Used by the circle, team, and couple flows.
-export default function InviteSender({ link, context, fromName, roleLabel }) {
+// The server builds the link and message from { kind, code, role }; this
+// widget never sends a raw URL (see /api/invite/send).
+export default function InviteSender({ kind, code, role, roleLabel }) {
   const [method, setMethod] = useState("sms");
   const [to, setTo] = useState("");
   const [name, setName] = useState("");
@@ -15,7 +17,7 @@ export default function InviteSender({ link, context, fromName, roleLabel }) {
     try {
       const res = await fetch("/api/invite/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method, to, name, link, context, fromName }),
+        body: JSON.stringify({ method, to, name, kind, code, role }),
       });
       const out = await res.json();
       if (!res.ok) throw new Error(out.error || "Could not send.");

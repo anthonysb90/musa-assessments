@@ -18,7 +18,11 @@ export async function verifyTurnstile(token, ip) {
     const data = await res.json();
     return { ok: !!data.success };
   } catch (e) {
-    // Fail open on network error to avoid blocking real users.
-    return { ok: true, error: e.message };
+    // Fail CLOSED on network error: a verification we cannot perform is a
+    // failed verification. The client widget lets the user retry immediately,
+    // and Cloudflare outages are rare and short. (Previously this failed open,
+    // which let bots submit freely whenever the check errored.)
+    console.error("turnstile verify error:", e.message);
+    return { ok: false, error: e.message };
   }
 }

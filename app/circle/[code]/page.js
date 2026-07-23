@@ -69,7 +69,7 @@ export default function CircleReport() {
               const link = `${APP_URL}/observe/${code}?role=${r.key}`;
               return (
                 <div key={r.key} style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-                  <InviteSender link={link} context={`a review for ${agg.subject_name || "a leader"}`} fromName={agg.subject_name} roleLabel={`Invite: ${r.label}`} />
+                  <InviteSender kind="circle" code={code} role={r.key} roleLabel={`Invite: ${r.label}`} />
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <input readOnly value={link} onFocus={(e) => e.target.select()} style={{ ...codeInp }} />
                     <CopyBtn value={link} />

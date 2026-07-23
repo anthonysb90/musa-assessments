@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSupabase } from "../../lib/supabaseServer";
+import { getServerSupabase, getAdminSupabase } from "../../lib/supabaseServer";
+import { rateLimit, requestIp } from "../../lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -33,9 +34,16 @@ export async function GET() {
 export async function POST(req) {
   if (!STRIPE_SECRET) return NextResponse.json({ error: "Checkout is not configured yet." }, { status: 503 });
   try {
+    const rl = await rateLimit(`checkout:${requestIp(req)}`, 20, 3600);
+    if (!rl.ok) return NextResponse.json({ error: "Too many attempts. Please try again shortly." }, { status: 429 });
+
     const { kind, slug, email, name, first_name, last_name, phone, seats, tier_qty, coupon, group_name } = await req.json();
     let nSeats = Math.max(1, Math.min(1000, Number(seats) || 1));
     const supabase = getServerSupabase();
+    // Commerce RPCs (validate_coupon, redeem_free_order) require the
+    // service-role client since migration_32 revoked anon EXECUTE on them.
+    const admin = getAdminSupabase();
+    if (!admin) return NextResponse.json({ error: "Checkout is not fully configured." }, { status: 503 });
 
     let amount = 0, slugs = [], desc = "", bundle = "";
     if (kind === "bundle") {
@@ -63,7 +71,7 @@ export async function POST(req) {
     // the subtotal; the platform fee is then computed on the discounted amount.
     let discount = 0, couponLabel = "", couponCode = "";
     if (coupon && String(coupon).trim()) {
-      const { data: cv } = await supabase.rpc("validate_coupon", {
+      const { data: cv } = await admin.rpc("validate_coupon", {
         p_code: String(coupon).trim(), p_slug: slug, p_bundle: bundle || null, p_subtotal_cents: subtotal,
       });
       if (cv?.ok) { discount = Number(cv.discount_cents) || 0; couponLabel = cv.label || "Discount"; couponCode = String(coupon).trim().toUpperCase(); }
@@ -92,7 +100,7 @@ export async function POST(req) {
     // Free order (a full-discount coupon): skip Stripe entirely and issue the
     // access code directly. This is also the safe end-to-end test path.
     if (amount < 50) {
-      const { data: freeCode, error: fe } = await supabase.rpc("redeem_free_order", {
+      const { data: freeCode, error: fe } = await admin.rpc("redeem_free_order", {
         p_email: email || null, p_name: name || null, p_slug: kind === "bundle" ? null : slug,
         p_bundle: kind === "bundle" ? (bundle || slug) : null, p_seats: nSeats, p_kind: kind || "assessment",
         p_code: couponCode,

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSupabase } from "../../../lib/supabaseServer";
-import { sendEmail } from "../../../lib/email";
-import { APP_URL } from "../../../lib/config";
+import { buildChurchInviteEmail, sendEmail } from "../../../lib/email";
 
 export const runtime = "nodejs";
 
@@ -29,13 +28,8 @@ export async function POST(req) {
     }
 
     const { data: church } = await supabase.from("churches").select("name").eq("id", church_id).maybeSingle();
-    await sendEmail({
-      to: email,
-      subject: `You've been invited to ${church?.name || "your church"}'s dashboard`,
-      html: `<p>You've been invited to view ${church?.name || "your church"}'s assessment dashboard on Mission USA Ministry Assessments.</p>
-        <p>Sign in with a one-tap magic link here: <a href="${APP_URL}/login?next=/church">${APP_URL}/login</a></p>
-        <p>Use this same email address when you sign in.</p>`,
-    });
+    const em = buildChurchInviteEmail({ churchName: church?.name, next: "/church" });
+    await sendEmail({ to: email, subject: em.subject, html: em.html, template: "church_invite" });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

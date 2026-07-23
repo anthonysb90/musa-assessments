@@ -75,6 +75,23 @@ function AssessmentFlow() {
   const isCouple = slug === "called-together" && !!coupleCode;
   const codeParam = params.get("code") || null;
 
+  // ---- Local progress autosave ----------------------------------------------
+  // Progress is mirrored to localStorage so a refresh, back-swipe, or mobile
+  // tab eviction doesn't lose answers. Keyed per slug and per special mode so
+  // a team/couple link never collides with an individual take of the same slug.
+  const storageKey = `musa_progress_${slug}:${teamCode || coupleCode || "solo"}`;
+  const [resume, setResume] = useState(null); // saved blob offered for restore
+  const [submitError, setSubmitError] = useState(false); // error came from submit(); retry is possible
+  const [tsRetry, setTsRetry] = useState(false); // Turnstile rejected; re-verify before retrying
+  const resumeChecked = useRef(false);
+  const submitBusy = useRef(false);
+  const submittedOk = useRef(false);
+  const saveTimer = useRef(null);
+
+  const clearSavedProgress = () => {
+    try { localStorage.removeItem(storageKey); } catch {}
+  };
+
   useEffect(() => {
     (async () => {
       const { data: a, error: ae } = await supabase
@@ -85,9 +102,8 @@ function AssessmentFlow() {
       // to team setup. Rater sessions are anonymous, no login or intake.
       if (a.is_multi_rater) {
         if (!teamCode) { setAssessment(a); setPhase("teamredirect"); return; }
-        const { data: g } = await supabase
-          .from("rater_groups").select("team_code,church_name").eq("team_code", teamCode).maybeSingle();
-        if (!g) { setErr("That team link isn't valid. Ask your leader for the correct link."); setPhase("error"); return; }
+        const { data: g } = await supabase.rpc("team_exists", { p_code: teamCode });
+        if (!g?.ok) { setErr("That team link isn't valid. Ask your leader for the correct link."); setPhase("error"); return; }
         const { data: its } = await supabase
           .from("items").select("id,text,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
         setAssessment(a); setItems(its || []); setTeamName(g.church_name || ""); setPhase("intro");
@@ -98,9 +114,8 @@ function AssessmentFlow() {
       // link. Without a link, send them to couple setup. No login required.
       if (slug === "called-together") {
         if (!coupleCode) { setAssessment(a); setPhase("coupleredirect"); return; }
-        const { data: cp } = await supabase
-          .from("couples").select("couple_code").eq("couple_code", coupleCode).maybeSingle();
-        if (!cp) { setErr("That couple link isn't valid. Ask your spouse for the correct link, or start a new one."); setPhase("error"); return; }
+        const { data: cp } = await supabase.rpc("couple_exists", { p_code: coupleCode });
+        if (!cp?.ok) { setErr("That couple link isn't valid. Ask your spouse for the correct link, or start a new one."); setPhase("error"); return; }
         const { data: its } = await supabase
           .from("items").select("id,text,option_b_text,stem,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
         setAssessment(a); setItems(its || []); setPhase("intro");
@@ -168,9 +183,12 @@ function AssessmentFlow() {
   }, [slug, supabase, assignmentToken]);
 
   // Turnstile widget (only when a site key is configured) — shown on the
-  // details step, since that's where the contact info is submitted.
+  // details step, since that's where the contact info is submitted. Also
+  // re-mounted on the submit-error screen when the failure was a Turnstile
+  // rejection, so the taker can pass a fresh check before retrying.
   useEffect(() => {
-    if (phase !== "details" || !TURNSTILE_SITE_KEY) return;
+    const wantWidget = phase === "details" || (phase === "error" && tsRetry);
+    if (!wantWidget || !TURNSTILE_SITE_KEY) return;
     let widgetId;
     function render() {
       if (!window.turnstile) return false;
@@ -195,7 +213,62 @@ function AssessmentFlow() {
     return () => {
       try { if (widgetId && window.turnstile) window.turnstile.remove(widgetId); } catch {}
     };
-  }, [phase]);
+  }, [phase, tsRetry]);
+
+  // Once the intro is reachable (items loaded), check for saved progress from a
+  // previous visit: v1, under 7 days old, with at least one answer.
+  useEffect(() => {
+    if (phase !== "intro" || resumeChecked.current) return;
+    resumeChecked.current = true;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const b = JSON.parse(raw);
+      if (!b || b.v !== 1 || typeof b.savedAt !== "number") return;
+      if (Date.now() - b.savedAt > 7 * 24 * 60 * 60 * 1000) return;
+      if (!b.answers || Object.keys(b.answers).length < 1) return;
+      setResume(b);
+    } catch {}
+  }, [phase, storageKey]);
+
+  // Debounced (~400ms) autosave of everything the taker has typed: answers,
+  // page, the forgiveness reflection, the details-gate fields, and the mode
+  // choices (marital / role / couple name) that shape the question list.
+  useEffect(() => {
+    const touched =
+      Object.keys(answers).length > 0 || Object.values(reflection).some((v) => v !== "");
+    if (!touched || submittedOk.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({
+          v: 1,
+          answers,
+          pageIndex: page,
+          reflection,
+          details: {
+            first_name: form.first_name, last_name: form.last_name,
+            email: form.email, phone: form.phone, age_band: form.age_band,
+          },
+          marital, leadRole, coupleName,
+          savedAt: Date.now(),
+        }));
+      } catch {}
+    }, 400);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+  }, [answers, page, reflection, form, marital, leadRole, coupleName, storageKey]);
+
+  // Warn before leaving while there are unsubmitted answers.
+  useEffect(() => {
+    if (Object.keys(answers).length === 0) return;
+    const warn = (e) => {
+      if (submittedOk.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [answers]);
 
   const isPastor = slug === "pastor-profile";
   const isPlanter = slug === "church-planter";
@@ -232,6 +305,36 @@ function AssessmentFlow() {
     window.scrollTo(0, 0);
   }
 
+  // Restore saved progress and jump straight to the questions at the saved page.
+  function restoreProgress() {
+    const b = resume;
+    if (!b) return;
+    setAnswers(b.answers || {});
+    if (b.reflection) setReflection((r) => ({ ...r, ...b.reflection }));
+    if (b.details)
+      setForm((f) => ({ ...f, ...Object.fromEntries(Object.entries(b.details).filter(([, v]) => v)) }));
+    if (b.marital) setMarital(b.marital);
+    if (b.leadRole) setLeadRole(b.leadRole);
+    if (b.coupleName && !coupleName) setCoupleName(b.coupleName);
+    // Clamp the saved page against the item list as it will be after the saved
+    // marital status is applied (marriage-linked domains drop for singles).
+    const m = b.marital || marital;
+    let list = items;
+    if (isPastor && m === "single") list = items.filter((it) => it.domain !== "Marriage & Family");
+    else if (isPlanter && m === "single") list = items.filter((it) => it.domain !== "Spousal Cooperation");
+    const pc = Math.max(1, Math.ceil(list.length / perPage));
+    setPage(Math.min(Math.max(0, Number(b.pageIndex) || 0), pc - 1));
+    setResume(null);
+    startedAt.current = Date.now();
+    setPhase("questions");
+    window.scrollTo(0, 0);
+  }
+
+  function startOver() {
+    clearSavedProgress();
+    setResume(null);
+  }
+
   function continueFromReflection() {
     setPhase("questions");
     window.scrollTo(0, 0);
@@ -251,6 +354,8 @@ function AssessmentFlow() {
     (!TURNSTILE_SITE_KEY || tsToken);
 
   async function submit() {
+    if (submitBusy.current) return;
+    submitBusy.current = true;
     setPhase("submitting");
     try {
       if (isRater) {
@@ -261,6 +366,8 @@ function AssessmentFlow() {
         });
         const out = await res.json();
         if (!res.ok) throw new Error(out.error || "Submission failed");
+        submittedOk.current = true;
+        clearSavedProgress();
         setPhase("thanks");
         window.scrollTo(0, 0);
         return;
@@ -275,6 +382,8 @@ function AssessmentFlow() {
         const out = await res.json();
         if (!res.ok) throw new Error(out.error || "Submission failed");
         setSafetyFlagged(!!out.safety_flag);
+        submittedOk.current = true;
+        clearSavedProgress();
         setPhase("couplethanks");
         window.scrollTo(0, 0);
         return;
@@ -306,9 +415,18 @@ function AssessmentFlow() {
       });
       const out = await res.json();
       if (!res.ok) throw new Error(out.error || "Submission failed");
+      submittedOk.current = true;
+      clearSavedProgress();
       router.push(`/results/${out.result_token}`);
     } catch (e) {
-      setErr(e.message); setPhase("error");
+      // Keep every answer in state (and on this device) so the taker can retry.
+      const msg = e.message || "Submission failed";
+      setErr(msg);
+      setSubmitError(true);
+      if (/turnstile|captcha|verif|human/i.test(msg)) { setTsToken(""); setTsRetry(true); }
+      setPhase("error");
+    } finally {
+      submitBusy.current = false;
     }
   }
 
@@ -354,9 +472,30 @@ function AssessmentFlow() {
   if (phase === "error")
     return (
       <Centered>
-        <div style={{ textAlign: "center" }}>
+        <div style={{ textAlign: "center", maxWidth: 480 }}>
           <p style={{ color: "var(--ink-soft)" }}>{err}</p>
-          <a className="btn btn-ghost" href="/" style={{ marginTop: 16 }}>Back to assessments</a>
+          {submitError ? (
+            <>
+              <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>
+                Your answers are saved on this device.
+              </p>
+              {tsRetry && TURNSTILE_SITE_KEY && (
+                <div id="ts-widget" style={{ margin: "12px auto", display: "inline-block" }} />
+              )}
+              <div>
+                <button className="btn btn-primary" onClick={submit}
+                  disabled={tsRetry && !!TURNSTILE_SITE_KEY && !tsToken}
+                  style={{ marginTop: 12 }}>
+                  Try again
+                </button>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <a href="/" style={back}>← Back to assessments</a>
+              </div>
+            </>
+          ) : (
+            <a className="btn btn-ghost" href="/" style={{ marginTop: 16 }}>Back to assessments</a>
+          )}
         </div>
       </Centered>
     );
@@ -368,6 +507,20 @@ function AssessmentFlow() {
           {!isEmbed && <a href="/" style={back}>← All assessments</a>}
           <h1 className="serif" style={h1}>{assessment.name}</h1>
           <p style={introSub}>{assessment.subtitle}</p>
+          {resume && (
+            <div style={{ ...wellNotice, marginBottom: 18 }}>
+              <div style={{ fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>Welcome back</div>
+              <p style={{ margin: "0 0 12px" }}>
+                You'd answered {Object.keys(resume.answers || {}).length} of {activeItems.length} questions.
+              </p>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button className="btn btn-primary" onClick={restoreProgress}>
+                  Pick up where you left off
+                </button>
+                <button className="btn btn-ghost" onClick={startOver}>Start over</button>
+              </div>
+            </div>
+          )}
           <div style={card}>
             {isRater ? (
               <p style={{ marginTop: 0, color: "var(--ink-soft)" }}>

@@ -32,8 +32,10 @@ function Observe() {
 
   useEffect(() => {
     (async () => {
-      const { data: c } = await supabase.from("review_circles").select("base_slug,subject_name").eq("circle_code", code).maybeSingle();
-      if (!c) { setErr("That invite link isn't valid."); setPhase("error"); return; }
+      // Code-gated RPC (review_circles has no anon SELECT policy): returns only
+      // the instrument slug and the subject's name — never email or self scores.
+      const { data: c } = await supabase.rpc("circle_by_code", { p_code: code });
+      if (!c?.ok) { setErr("That invite link isn't valid."); setPhase("error"); return; }
       const slug = `${c.base_slug}-${role}`;
       const { data: a } = await supabase.from("assessments").select("id").eq("slug", slug).maybeSingle();
       if (!a) { setErr("This invite isn't set up correctly."); setPhase("error"); return; }

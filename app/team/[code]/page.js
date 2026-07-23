@@ -15,14 +15,11 @@ export default function TeamResults() {
 
   useEffect(() => {
     (async () => {
-      const { data: g } = await supabase
-        .from("rater_groups")
-        .select("team_code,church_name,rater_count,min_raters,aggregate_json,assessment_id")
-        .eq("team_code", code).maybeSingle();
-      if (!g) { setState("notfound"); return; }
-      const { data: a } = await supabase
-        .from("assessments").select("name,slug,subtitle").eq("id", g.assessment_id).maybeSingle();
-      setGroup(g); setAssessment(a); setState("ready");
+      // Code-gated RPC (rater_groups has no anon SELECT policy): returns group
+      // metadata plus the aggregate only once the min-raters floor is met.
+      const { data } = await supabase.rpc("team_by_code", { p_code: code });
+      if (!data?.ok) { setState("notfound"); return; }
+      setGroup(data.group); setAssessment(data.assessment); setState("ready");
     })();
   }, [code, supabase]);
 

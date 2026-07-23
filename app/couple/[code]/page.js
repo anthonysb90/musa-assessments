@@ -14,14 +14,11 @@ export default function CoupleReport() {
 
   useEffect(() => {
     (async () => {
-      const { data: c } = await supabase
-        .from("couples")
-        .select("couple_code,spouse1_name,spouse1_json,spouse1_done_at,spouse2_name,spouse2_json,spouse2_done_at,assessment_id")
-        .eq("couple_code", code).maybeSingle();
-      if (!c) { setState("notfound"); return; }
-      const { data: a } = await supabase
-        .from("assessments").select("name,slug,subtitle").eq("id", c.assessment_id).maybeSingle();
-      setCouple(c); setAssessment(a); setState("ready");
+      // Code-gated RPC (couples has no anon SELECT policy): returns names and
+      // progress always, spouse domain JSONs only once both are done.
+      const { data } = await supabase.rpc("couple_by_code", { p_code: code });
+      if (!data?.ok) { setState("notfound"); return; }
+      setCouple(data.couple); setAssessment(data.assessment); setState("ready");
     })();
   }, [code, supabase]);
 

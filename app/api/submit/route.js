@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import { getServerSupabase } from "../../lib/supabaseServer";
+import { getServerSupabase, getAdminSupabase } from "../../lib/supabaseServer";
+import { rateLimit, requestIp } from "../../lib/ratelimit";
 import { scoreAssessment, scoreWellbeing } from "../../lib/scoring";
-import { buildResultEmail, sendEmail } from "../../lib/email";
+import {
+  buildResultEmail,
+  buildCareAlertEmail,
+  buildChurchCompletionEmail,
+  sendEmail,
+} from "../../lib/email";
 import { verifyTurnstile } from "../../lib/turnstile";
-import { CONSENT_VERSION, CARE_CONTACT_EMAIL, APP_URL } from "../../lib/config";
+import { CONSENT_VERSION, CARE_CONTACT_EMAIL } from "../../lib/config";
 import { efmiUnderstanding } from "../../lib/content";
 
 export const runtime = "nodejs";
@@ -16,6 +22,13 @@ export async function POST(req) {
     // Honeypot: a hidden field only bots fill. Pretend success, do nothing.
     if (honeypot) return NextResponse.json({ ok: true });
 
+    // Per-IP rate limit covers every submission path, including the team and
+    // couple branches below (which do not carry a Turnstile token).
+    const rl = await rateLimit(`submit:${requestIp(req)}`, 15, 3600);
+    if (!rl.ok) {
+      return NextResponse.json({ error: "Too many submissions from this connection. Please try again later." }, { status: 429 });
+    }
+
     if (!slug || !answers || !Object.keys(answers).length) {
       return NextResponse.json({ error: "Missing data" }, { status: 400 });
     }
@@ -25,10 +38,18 @@ export async function POST(req) {
     // the aggregate is recomputed by a SECURITY DEFINER function.
     if (body.team_code) {
       const supabase = getServerSupabase();
-      const { data: group } = await supabase
+      // Session/response writes use the service-role client: migration_33
+      // dropped the anonymous SELECT policies on sessions/results, so an
+      // anon-role INSERT ... RETURNING (.insert().select()) can no longer read
+      // back the row it just created. Falls back to the request client if the
+      // service key isn't configured.
+      const db = getAdminSupabase() || supabase;
+      // Group lookup also needs the privileged client: migration_34 removed
+      // the public SELECT policy on rater_groups.
+      const { data: group } = await db
         .from("rater_groups").select("id,assessment_id,team_code").eq("team_code", body.team_code).maybeSingle();
       if (!group) return NextResponse.json({ error: "Invalid team link." }, { status: 400 });
-      const { data: session, error: se } = await supabase
+      const { data: session, error: se } = await db
         .from("sessions")
         .insert({
           assessment_id: group.assessment_id,
@@ -44,7 +65,7 @@ export async function POST(req) {
       const rrows = Object.entries(answers).map(([item_id, value]) => ({
         session_id: session.id, item_id, value: Number(value),
       }));
-      const { error: rre } = await supabase.from("responses").insert(rrows);
+      const { error: rre } = await db.from("responses").insert(rrows);
       if (rre) return NextResponse.json({ error: "Could not save answers." }, { status: 500 });
       await supabase.rpc("recompute_rater_group", { p_code: group.team_code });
       return NextResponse.json({ ok: true, team_code: group.team_code });
@@ -57,7 +78,12 @@ export async function POST(req) {
     // they don't feel safe.
     if (body.couple_code) {
       const supabase = getServerSupabase();
-      const { data: couple } = await supabase
+      // Same as the team branch: session/response writes need the service-role
+      // client after migration_33 (anon RETURNING reads are gone).
+      const db = getAdminSupabase() || supabase;
+      // Couple lookup also needs the privileged client: migration_34 removed
+      // the public SELECT policy on couples.
+      const { data: couple } = await db
         .from("couples").select("id,assessment_id,couple_code").eq("couple_code", body.couple_code).maybeSingle();
       if (!couple) return NextResponse.json({ error: "Invalid couple link." }, { status: 400 });
 
@@ -74,13 +100,13 @@ export async function POST(req) {
       }
 
       // Record a session + responses (Safety excluded), for data completeness.
-      const { data: session } = await supabase
+      const { data: session } = await db
         .from("sessions")
         .insert({ assessment_id: couple.assessment_id, mode: "couple", cohort: couple.couple_code, status: "completed", completed_at: new Date().toISOString(), source_tag: "couple" })
         .select("id").single();
       if (session) {
         const rrows = Object.entries(scoredAnswers).map(([item_id, value]) => ({ session_id: session.id, item_id, value: Number(value) }));
-        if (rrows.length) await supabase.from("responses").insert(rrows);
+        if (rrows.length) await db.from("responses").insert(rrows);
       }
 
       // Per-domain averages for this spouse.
@@ -103,15 +129,23 @@ export async function POST(req) {
       const safetyFlag = safetyVal != null && safetyVal <= 2;
       if (safetyFlag && CARE_CONTACT_EMAIL) {
         try {
+          const em = buildCareAlertEmail({
+            kind: "couple_safety",
+            details: { name: body.name, coupleCode: couple.couple_code },
+          });
           await sendEmail({
             to: CARE_CONTACT_EMAIL,
-            subject: "Called Together — a private safety concern",
-            html: `<p>Someone just completed the Called Together assessment and indicated on the confidential safety question that they do <strong>not</strong> feel physically or emotionally safe in their marriage right now.</p>
-              <p>First name given: <strong>${body.name || "(not given)"}</strong>. This was taken through the couple link <strong>${couple.couple_code}</strong>.</p>
-              <p>Individual answers are private, so this note carries only what's needed to reach out with care. Please handle it gently and confidentially, and follow your safeguarding process.</p>`,
+            subject: em.subject,
+            html: em.html,
+            template: "care_alert_couple_safety",
           });
         } catch { /* never block completion on the alert */ }
       }
+
+      // Note: when both spouses are done (rec.both_done) we do NOT email a
+      // "both done" notice — the couples table stores names only, no
+      // per-spouse email addresses, so there is no one to send it to. The
+      // completion screen surfaces the side-by-side report link instead.
 
       return NextResponse.json({ ok: true, couple_code: couple.couple_code, both_done: !!rec?.both_done, safety_flag: safetyFlag });
     }
@@ -123,6 +157,13 @@ export async function POST(req) {
     }
 
     const supabase = getServerSupabase();
+    // Writes to sessions/responses/results/events go through the service-role
+    // client. Migration_33 dropped the anonymous SELECT policies on
+    // sessions/results, which the anon role needed both to read back the
+    // inserted session (INSERT ... RETURNING applies SELECT policies) and to
+    // stamp delivered_at. Reads below stay on the request-bound client so RLS
+    // still applies to them. Falls back gracefully if the key isn't set.
+    const db = getAdminSupabase() || supabase;
     const { data: userData } = await supabase.auth.getUser();
     const user = userData?.user || null;
 
@@ -148,6 +189,28 @@ export async function POST(req) {
       .eq("assessment_id", assessment.id);
     const itemMap = Object.fromEntries((items || []).map((it) => [it.id, it]));
 
+    // Church attribution is resolved ONLY from a valid assignment token that
+    // matches this assessment. A client-supplied church_id is never trusted:
+    // it let anyone stamp fake completions onto any church's dashboard and
+    // trigger notification emails to that church's leaders.
+    let resolvedChurchId = null;
+    let resolvedAssignmentToken = null;
+    let churchWithhold = false;
+    if (profile?.assignment_token) {
+      try {
+        const { data: ca } = await supabase
+          .from("church_assessments")
+          .select("church_id,assessment_id,assignment_token,withhold_from_taker")
+          .eq("assignment_token", profile.assignment_token)
+          .maybeSingle();
+        if (ca && ca.assessment_id === assessment.id) {
+          resolvedChurchId = ca.church_id;
+          resolvedAssignmentToken = ca.assignment_token;
+          churchWithhold = ca.withhold_from_taker === true;
+        }
+      } catch { /* treated as no church attribution */ }
+    }
+
     // Wellbeing answers are quarantined: split them out so they never enter the
     // shared responses/results tables. They go only to wellbeing_results (owner-only).
     const wellbeingAnswers = {};
@@ -169,7 +232,7 @@ export async function POST(req) {
           age_band: profile?.age_band || null,
           ministry_role: profile?.ministry_role || null,
           is_chc: profile?.is_chc ?? null,
-          church_id: profile?.church_id || null,
+          church_id: resolvedChurchId,
           consent_statement_version: profile?.consent_statement_version || CONSENT_VERSION,
           consent_agreed_at: new Date().toISOString(),
           last_seen_at: new Date().toISOString(),
@@ -179,14 +242,14 @@ export async function POST(req) {
     }
 
     // 2. Create session
-    const { data: session, error: se } = await supabase
+    const { data: session, error: se } = await db
       .from("sessions")
       .insert({
         assessment_id: assessment.id,
         profile_id: user ? user.id : null,
-        mode: profile?.church_id ? "church" : "individual",
-        church_id: profile?.church_id || null,
-        assignment_token: profile?.assignment_token || null,
+        mode: resolvedChurchId ? "church" : "individual",
+        church_id: resolvedChurchId,
+        assignment_token: resolvedAssignmentToken,
         status: "completed",
         completed_at: new Date().toISOString(),
         duration_seconds: duration_seconds || null,
@@ -206,7 +269,7 @@ export async function POST(req) {
       value: Number(value),
     }));
     if (rows.length) {
-      const { error: re } = await supabase.from("responses").insert(rows);
+      const { error: re } = await db.from("responses").insert(rows);
       if (re) return NextResponse.json({ error: "Could not save answers" }, { status: 500 });
     }
 
@@ -236,7 +299,7 @@ export async function POST(req) {
     }
 
     // 5. Store results
-    const { error: rse } = await supabase.from("results").insert({
+    const { error: rse } = await db.from("results").insert({
       session_id: session.id,
       scored_json: scored,
     });
@@ -260,21 +323,27 @@ export async function POST(req) {
       if (wb.band === "significant" && CARE_CONTACT_EMAIL) {
         const c = profile || {};
         try {
+          const em = buildCareAlertEmail({
+            kind: "wellbeing",
+            details: {
+              firstName: c.first_name,
+              lastName: c.last_name,
+              email: c.email || user.email,
+              phone: c.phone,
+            },
+          });
           await sendEmail({
             to: CARE_CONTACT_EMAIL,
-            subject: "Pastor Profile — please reach out to a pastor",
-            html: `<p>A pastor just completed the Pastor Profile and their confidential wellbeing check came back in the heaviest range. This is a prompt to reach out personally and check on them, gently and soon.</p>
-              <p><strong>${c.first_name || ""} ${c.last_name || ""}</strong><br>
-              ${c.email || user.email || ""}<br>
-              ${c.phone || ""}</p>
-              <p>Please handle this with care and confidentiality. This note is for pastoral support, not a diagnosis.</p>`,
+            subject: em.subject,
+            html: em.html,
+            template: "care_alert_wellbeing",
           });
         } catch { /* never block completion on the alert */ }
       }
     }
 
     // 6. Log completion event
-    await supabase.from("events").insert({
+    await db.from("events").insert({
       profile_id: user ? user.id : null,
       session_id: session.id,
       event_type: "assessment_completed",
@@ -282,24 +351,25 @@ export async function POST(req) {
     });
 
     // 6b. Consume a seat when a paid assessment was taken with an access code.
+    // Idempotent per (code, session) since migration_35, and callable only
+    // with the service-role key since migration_32.
     if (body.access_code) {
-      try { await supabase.rpc("consume_seat", { p_code: body.access_code }); } catch { /* non-fatal */ }
+      try {
+        const admin = getAdminSupabase();
+        if (admin) {
+          const { error: cse } = await admin.rpc("consume_seat", {
+            p_code: body.access_code, p_session_id: session.id,
+          });
+          if (cse) console.error("consume_seat failed:", cse.message);
+        } else {
+          console.error("consume_seat skipped: SUPABASE_SERVICE_ROLE_KEY not set");
+        }
+      } catch (e) { console.error("consume_seat error:", e.message); }
     }
 
-    // Withheld results: per church + assessment. When the church gated THIS
-    // assessment, the taker never receives their own report (revealed in person).
-    let churchWithhold = false;
-    if (profile?.church_id) {
-      try {
-        const { data: cw } = await supabase
-          .from("church_assessments")
-          .select("withhold_from_taker")
-          .eq("church_id", profile.church_id)
-          .eq("assessment_id", assessment.id)
-          .maybeSingle();
-        churchWithhold = cw?.withhold_from_taker === true;
-      } catch { /* non-fatal */ }
-    }
+    // Withheld results were resolved above from the validated assignment
+    // token (churchWithhold). When the church gated THIS assessment, the
+    // taker never receives their own report (revealed in person).
 
     // 7. Email delivery (best-effort, env-gated). Never blocks the response.
     try {
@@ -318,9 +388,9 @@ export async function POST(req) {
           sensitive: assessment.sensitivity === "sensitive",
           linkOnly: assessment.email_link_only === true,
         });
-        const sent = await sendEmail({ to, subject: email.subject, html: email.html });
+        const sent = await sendEmail({ to, subject: email.subject, html: email.html, template: "result" });
         if (sent?.ok) {
-          await supabase
+          await db
             .from("results")
             .update({ delivered_at: new Date().toISOString() })
             .eq("session_id", session.id);
@@ -332,25 +402,25 @@ export async function POST(req) {
 
     // 7b. Church notification: when a member took this through a church, email
     // the church's results contact(s). Best-effort, never blocks completion.
+    // Only fires for completions attributed through a VALIDATED assignment
+    // token, so outsiders cannot spam a church's leaders.
     try {
-      if (profile?.church_id) {
+      if (resolvedChurchId) {
         const { data: church } = await supabase
           .from("churches")
           .select("name,recipient_email,recipient_email_2")
-          .eq("id", profile.church_id)
+          .eq("id", resolvedChurchId)
           .maybeSingle();
         const recipients = [church?.recipient_email, church?.recipient_email_2].filter(Boolean);
         if (church && recipients.length) {
           const who = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "A member";
+          const em = buildChurchCompletionEmail({
+            memberName: who,
+            assessmentName: assessment.name,
+            churchName: church.name,
+          });
           for (const to of recipients) {
-            await sendEmail({
-              to,
-              subject: `${assessment.name} completed — ${church.name}`,
-              html: `<p><strong>${who}</strong> just completed the <strong>${assessment.name}</strong> assessment through ${church.name}.</p>
-                <p>You can see all of your church's results in your dashboard:</p>
-                <p><a href="${APP_URL}/login?next=/church">${APP_URL}/church</a></p>
-                <p>Sign in with the email address Mission USA set up for your church.</p>`,
-            });
+            await sendEmail({ to, subject: em.subject, html: em.html, template: "church_completion" });
           }
         }
       }

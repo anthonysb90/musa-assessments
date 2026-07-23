@@ -14,7 +14,10 @@ export async function GET(request) {
   const code = url.searchParams.get("code");
   const token_hash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") || "magiclink";
-  const next = url.searchParams.get("next") || "/welcome";
+  // Only allow same-site relative paths. "https://evil.com" or "//evil.com"
+  // would otherwise become an open redirect on our trusted domain.
+  const rawNext = url.searchParams.get("next") || "/welcome";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/welcome";
 
   const res = NextResponse.redirect(new URL(next, url.origin));
   const store = cookies();

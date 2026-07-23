@@ -30,13 +30,14 @@ export default function CoupleSetup() {
     e.preventDefault();
     setState("loading");
     try {
-      const { data, error } = await supabase
-        .from("couples")
-        .insert({ assessment_id: assessment.id, initiator_name: name })
-        .select("couple_code")
-        .single();
+      // Code-generating RPC (couples has no anon INSERT policy): the server
+      // creates the row and returns only the secret couple code.
+      const { data, error } = await supabase.rpc("create_couple", {
+        p_assessment_id: assessment.id, p_initiator_name: name,
+      });
       if (error) throw error;
-      setCouple(data);
+      if (!data?.ok) throw new Error(data?.error || "Could not set this up.");
+      setCouple({ couple_code: data.couple_code });
       setState("done");
     } catch (e2) {
       setErr(e2.message || "Could not set this up.");
@@ -83,7 +84,7 @@ export default function CoupleSetup() {
             <Copyable label="Both of you take it here" value={takeLink} />
             <div style={{ marginBottom: 16 }}>
               <div style={fl}>Or send your spouse their link</div>
-              <InviteSender link={takeLink} context="the Called Together assessment" fromName={name} />
+              <InviteSender kind="couple" code={couple?.couple_code} />
             </div>
             <Copyable label="Your couple report (bookmark this)" value={reportLink} />
             <div style={note}>

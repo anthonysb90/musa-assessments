@@ -32,13 +32,15 @@ export default function TeamSetup() {
     e.preventDefault();
     setState("loading");
     try {
-      const { data, error } = await supabase
-        .from("rater_groups")
-        .insert({ assessment_id: assessment.id, church_name: church, target_count: target ? Number(target) : null })
-        .select("team_code,church_name,min_raters")
-        .single();
+      // Code-generating RPC (rater_groups has no anon INSERT policy): the
+      // server creates the row and returns only the secret team code.
+      const { data, error } = await supabase.rpc("create_rater_group", {
+        p_assessment_id: assessment.id, p_church_name: church,
+        p_target_count: target ? Number(target) : null,
+      });
       if (error) throw error;
-      setGroup(data);
+      if (!data?.ok) throw new Error(data?.error || "Could not create the team.");
+      setGroup({ team_code: data.team_code, church_name: data.church_name, min_raters: data.min_raters });
       setState("done");
     } catch (e2) {
       setErr(e2.message || "Could not create the team.");
@@ -87,7 +89,7 @@ export default function TeamSetup() {
             <Copyable label="Share with your team" value={raterLink} />
             <div style={{ marginBottom: 16 }}>
               <div style={fl}>Or text/email each leader their link</div>
-              <InviteSender link={raterLink} context={`the ${assessment.name} team review`} fromName={church} />
+              <InviteSender kind="team" code={group?.team_code} />
             </div>
             <Copyable label="Team code" value={group.team_code} />
             <Copyable label="Your results page (bookmark this)" value={resultsLink} />
