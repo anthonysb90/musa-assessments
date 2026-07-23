@@ -39,6 +39,7 @@ import {
   BIG5_FACETS,
   big5Boundary,
 } from "../../lib/bigfive";
+import { big5Interactions, giftConstellation, enneagramDynamics, discDimensions } from "../../lib/interactions";
 import {
   KDP_TYPES,
   KDP_NAMES,
@@ -372,6 +373,30 @@ function GiftRank({ scored }) {
           gift to read where it serves and how to grow in it. Your full report prints all twenty-five.
         </p>
       </section>
+
+      {/* Your gift constellation — what the top gifts form together */}
+      {(() => {
+        const c = giftConstellation(ranked.map((r) => r.letter));
+        return (
+          <section style={{ padding: "20px 0 4px" }} className="avoid-break">
+            <div style={{ ...sectionLabel, color: "#B07C2E" }}>Your gift constellation</div>
+            <div style={{ background: PARCH, border: "1px solid #E7D6B4", borderRadius: 16, padding: "22px 22px 20px", breakInside: "avoid" }}>
+              <div className="serif" style={{ fontSize: 23, color: "#3A2E18", lineHeight: 1.15 }}>{c.name}</div>
+              <p style={{ fontSize: 14.5, color: "#6B5B3E", lineHeight: 1.6, margin: "10px 0 14px" }}>{c.body}</p>
+              <div style={{ fontSize: 10.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 6 }}>Where this fits</div>
+              <ul style={{ margin: "0 0 14px", paddingLeft: 18 }}>
+                {c.fits.map((f, i) => (
+                  <li key={i} style={{ fontSize: 13.5, color: "#6B5B3E", lineHeight: 1.5, marginBottom: 4 }}>{f}</li>
+                ))}
+              </ul>
+              <p style={{ fontSize: 13.5, color: "#6B5B3E", lineHeight: 1.55, margin: "0 0 12px" }}>
+                <strong style={{ color: "#8A6D3B" }}>Watch for:</strong> {c.watch}
+              </p>
+              <div style={{ fontSize: 11.5, color: "#8A6D3B", fontWeight: 600, fontStyle: "italic", borderTop: "1px solid #E7D6B4", paddingTop: 10 }}>{c.verse}</div>
+            </div>
+          </section>
+        );
+      })()}
     </>
   );
 }
@@ -388,10 +413,10 @@ const gfVerse = { fontSize: 11.5, color: "#8A6D3B", fontWeight: 600, borderTop: 
 const gfScale = { display: "flex", alignItems: "center", gap: 14, padding: "8px 16px 2px" };
 const gfScaleName = { width: 172 };
 const gfRow = { display: "flex", alignItems: "center", gap: 14, width: "100%", padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
-const gfRank = { width: 22, fontSize: 13, fontWeight: 700, textAlign: "center", flexShrink: 0 };
+const gfRank = { width: 22, fontSize: 13, fontWeight: 700, textAlign: "center", flexShrink: 0, fontVariantNumeric: "tabular-nums" };
 const gfRowName = { width: 150, fontSize: 14.5, fontWeight: 600, color: "#1C2B3A", flexShrink: 0 };
 const gfTrack = { position: "relative", flex: 1, height: 12, background: "#EEF1F4", borderRadius: 999, overflow: "hidden" };
-const gfRowScore = { width: 34, textAlign: "right", fontSize: 14, fontWeight: 700, flexShrink: 0 };
+const gfRowScore = { width: 34, textAlign: "right", fontSize: 14, fontWeight: 700, flexShrink: 0, fontVariantNumeric: "tabular-nums" };
 const gfStudy = { padding: "0 16px 16px 58px" };
 const gfVerseCallout = { background: PARCH, border: "1px solid #E7D6B4", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#6B5B3E", lineHeight: 1.5, margin: "4px 0 12px" };
 const gfTwoCol = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 18 };
@@ -790,6 +815,28 @@ function BigFiveReport({ scored }) {
         })}
       </section>
 
+      {/* How your traits work together */}
+      {(() => {
+        const pairs = big5Interactions(traits);
+        if (pairs.length === 0) return null;
+        return (
+          <section style={{ padding: "20px 0 4px" }} className="avoid-break">
+            <div style={sectionLabel}>How your traits work together</div>
+            {pairs.map((p) => (
+              <div key={p.pairName} style={{ ...growCard, breakInside: "avoid" }}>
+                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{p.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#8CA0B3", marginTop: 2 }}>{p.aName} + {p.bName}</div>
+                <p style={{ ...detailP, margin: "10px 0 0" }}>{p.body}</p>
+              </div>
+            ))}
+            <p style={helper}>
+              No single trait tells the whole story. These are the places two of your traits combine and shape
+              each other, for better and for watching. Read them as a mirror for growth, never a verdict.
+            </p>
+          </section>
+        );
+      })()}
+
       {/* Facets */}
       <section style={{ padding: "20px 0 4px" }}>
         <div style={sectionLabel}>Six expanded facets</div>
@@ -1129,18 +1176,16 @@ function EnneagramReport({ scored }) {
                   <span style={{ ...rScore, color }}>{r.score}</span>
                   <span className="no-print" style={chevron(isOpen)}>›</span>
                 </button>
-                {isOpen && (
-                  <div style={detail}>
-                    <p style={detailP}>{t.essence}</p>
-                    <Block h="Your gift to the body" t={t.gift} />
-                    <Block h="Watch for" t={t.watch} />
-                    <Block h="Where you grow" t={t.grows} />
-                    <div style={devotionBox}>
-                      <div style={{ ...blockH, color: "#B07C2E", marginBottom: 6 }}>A devotion · {t.verse}</div>
-                      <p style={{ fontSize: 14, color: "#3A4A5A", lineHeight: 1.65, margin: 0 }}>{t.devotion}</p>
-                    </div>
+                <div className={`ennea-study${isOpen ? " is-open" : ""}`} style={detail}>
+                  <p style={detailP}>{t.essence}</p>
+                  <Block h="Your gift to the body" t={t.gift} />
+                  <Block h="Watch for" t={t.watch} />
+                  <Block h="Where you grow" t={t.grows} />
+                  <div style={devotionBox}>
+                    <div style={{ ...blockH, color: "#B07C2E", marginBottom: 6 }}>A devotion · {t.verse}</div>
+                    <p style={{ fontSize: 14, color: "#3A4A5A", lineHeight: 1.65, margin: 0 }}>{t.devotion}</p>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}
@@ -1151,6 +1196,36 @@ function EnneagramReport({ scored }) {
           chosen, and being made new.
         </p>
       </section>
+
+      {/* Wings and growth — always rendered so it prints, never gated on a click */}
+      {(() => {
+        const dyn = enneagramDynamics(scored.primary);
+        if (!dyn) return null;
+        return (
+          <section style={{ padding: "20px 0 8px" }} className="avoid-break">
+            <div style={sectionLabel}>Wings and growth</div>
+            <div style={topGrid}>
+              {Object.values(dyn.wings).map((w) => (
+                <div key={w.label} style={{ ...topCard, breakInside: "avoid" }}>
+                  <div className="serif" style={{ ...topName, fontSize: 18 }}>{w.label}</div>
+                  <p style={{ ...topDef, marginTop: 8 }}>{w.body}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{ ...growCard, marginTop: 16, breakInside: "avoid" }}>
+              <div style={blockH}>In growth (toward {dyn.arrows.growth.toward})</div>
+              <p style={{ ...detailP, margin: "0 0 14px" }}>{dyn.arrows.growth.body}</p>
+              <div style={blockH}>Under stress (toward {dyn.arrows.stress.toward})</div>
+              <p style={{ ...detailP, margin: 0 }}>{dyn.arrows.stress.body}</p>
+            </div>
+            <p style={helper}>
+              Your wings are the two types beside yours that color how your core shows up. The arrows show
+              where you tend to move when you are growing and when you are under strain, so you can lean into
+              one and watch for the other.
+            </p>
+          </section>
+        );
+      })()}
     </>
   );
 }
@@ -1257,13 +1332,11 @@ function ForgivenessReport({ scored }) {
                   <span style={{ ...rScore, color: band.color }}>{s.score}</span>
                   <span className="no-print" style={chevron(isOpen)}>›</span>
                 </button>
-                {isOpen && (
-                  <div style={detail}>
-                    <p style={detailP}>{m.short}</p>
-                    <p style={{ ...detailP, margin: 0 }}>{m.body}</p>
-                    {m.verse && <div style={refLine}>{m.verse}</div>}
-                  </div>
-                )}
+                <div className={`ennea-study${isOpen ? " is-open" : ""}`} style={detail}>
+                  <p style={detailP}>{m.short}</p>
+                  <p style={{ ...detailP, margin: 0 }}>{m.body}</p>
+                  {m.verse && <div style={refLine}>{m.verse}</div>}
+                </div>
               </div>
             );
           })}
@@ -1338,8 +1411,8 @@ function PlanterReport({ scored }) {
 
       <section style={{ padding: "20px 0 4px" }}>
         <div style={sectionLabel}>All 13 characteristics</div>
-        <div style={{ ...chart, padding: "18px 12px", display: "flex", justifyContent: "center" }}>
-          <svg viewBox="0 0 350 344" width="100%" style={{ maxWidth: 460 }} role="img" aria-label="Readiness radar">
+        <div style={{ ...chart, padding: "18px 12px", display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 24 }}>
+          <svg viewBox="0 0 350 344" width="100%" style={{ maxWidth: 380 }} role="img" aria-label="Readiness radar">
             {[1, 2, 3, 4, 5].map((v) => <polygon key={v} points={ringPoly(v)} fill="none" stroke="#E7E9EC" strokeWidth="1" />)}
             {order.map((_, i) => { const [x, y] = pt(i, per); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#E7E9EC" strokeWidth="1" />; })}
             <polygon points={dataPoly} fill="rgba(46,125,138,.20)" stroke="#2E7D8A" strokeWidth="2" strokeLinejoin="round" />
@@ -1348,7 +1421,28 @@ function PlanterReport({ scored }) {
               const isP = PLANTER_PRIMARY.includes(n);
               return <circle key={n} cx={px} cy={py} r={isP ? 4.5 : 3.2} fill={isP ? "#C4923E" : "#1F5E68"} />;
             })}
+            {/* Numbered spoke labels (keyed to the legend); names are too long to sit at the tips. */}
+            {order.map((n, i) => {
+              const [lx, ly] = pt(i, per + 0.6);
+              const isP = PLANTER_PRIMARY.includes(n);
+              return (
+                <text key={`num-${n}`} x={lx.toFixed(1)} y={ly.toFixed(1)} textAnchor="middle" dominantBaseline="central"
+                  fontSize="9.5" fontWeight="700" fill={isP ? "#B07C2E" : "#5E7183"}
+                  style={{ fontFamily: "Inter,system-ui,sans-serif", fontVariantNumeric: "tabular-nums" }}>{i + 1}</text>
+              );
+            })}
           </svg>
+          <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gridTemplateColumns: "1fr", gap: 5, minWidth: 190 }}>
+            {order.map((n, i) => {
+              const isP = PLANTER_PRIMARY.includes(n);
+              return (
+                <li key={`leg-${n}`} style={{ display: "flex", gap: 9, alignItems: "baseline", fontSize: 11.5, color: "#4A5B6D", lineHeight: 1.35 }}>
+                  <span style={{ flexShrink: 0, width: 17, height: 17, borderRadius: 999, background: isP ? "#F0E4CB" : "#EEF1F4", color: isP ? "#B07C2E" : "#5E7183", fontWeight: 700, fontSize: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
+                  <span>{n}{isP && <span style={{ color: "#C4923E" }}> ★</span>}</span>
+                </li>
+              );
+            })}
+          </ol>
         </div>
         <div style={chart}>
           {domains.map((d) => {
@@ -1522,6 +1616,12 @@ function DiscReport({ scored }) {
   const per = scored.max_per || 35;
   const order = { D: 0, I: 1, S: 2, C: 3 };
   const dims = [...scored.dims].sort((a, b2) => order[a.key] - order[b2.key]);
+  // Close-call check: if the top two dimension scores land within ~5% of each
+  // other, the blend was a near tie and both dimensions shape them.
+  const byScore = [...scored.dims].sort((a, b2) => b2.score - a.score);
+  const discClose =
+    byScore[1] && per > 0 &&
+    ((byScore[0].score - byScore[1].score) / per) * 100 <= 5;
   return (
     <>
       <section style={{ padding: "8px 0" }}>
@@ -1532,6 +1632,13 @@ function DiscReport({ scored }) {
             {b.figure}, {b.title}
           </div>
         </div>
+        {discClose && (
+          <div style={transitionBox}>
+            Your top two dimensions came out very close, so this blend was a close call. Both{" "}
+            {DISC_DIMS[scored.primary]} and {DISC_DIMS[scored.secondary]} shape how you are wired, and you
+            will likely see yourself in each.
+          </div>
+        )}
       </section>
       <section style={{ padding: "18px 0" }}>
         <div style={sectionLabel}>Your four dimensions</div>
@@ -1551,6 +1658,28 @@ function DiscReport({ scored }) {
           })}
         </div>
       </section>
+
+      {/* Your DISC dimensions — each dimension read at its own level */}
+      {(() => {
+        const scales = dims.map((d) => ({ key: d.key, pct: Math.round((d.score / per) * 100) }));
+        const rows = discDimensions(scales);
+        const LEVEL = { high: "High", moderate: "Moderate", low: "Low" };
+        const LEVEL_COLOR = { high: "#2E7D8A", moderate: "#C4923E", low: "#8CA0B3" };
+        return (
+          <section style={{ padding: "4px 0 8px" }} className="avoid-break">
+            <div style={sectionLabel}>Your DISC dimensions</div>
+            {rows.map((r) => (
+              <div key={r.key} style={{ ...growCard, breakInside: "avoid" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                  <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{r.name} · {r.title}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: LEVEL_COLOR[r.level], whiteSpace: "nowrap" }}>{LEVEL[r.level]}</div>
+                </div>
+                <p style={{ ...detailP, margin: "8px 0 0" }}>{r.body}</p>
+              </div>
+            ))}
+          </section>
+        );
+      })()}
       <section style={{ padding: "4px 0 8px" }}>
         <div style={chart}>
           <div style={{ padding: "18px 20px" }}>
@@ -1757,10 +1886,10 @@ const helper = { fontSize: 13.5, color: "#4A5B6D", marginTop: 20, lineHeight: 1.
 const chart = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 16, padding: "6px 10px", overflow: "hidden" };
 const barBtn = { width: "100%", display: "grid", gridTemplateColumns: "26px 150px 1fr 46px 16px", alignItems: "center", gap: 12, padding: "13px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const rowGrid = { display: "grid", gridTemplateColumns: "1fr 2fr auto", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: "1px solid #F0F2F4" };
-const rRank = { fontSize: 13, color: "#8CA0B3", fontWeight: 600 };
+const rRank = { fontSize: 13, color: "#8CA0B3", fontWeight: 600, fontVariantNumeric: "tabular-nums" };
 const rName = { fontSize: 14.5, fontWeight: 600, color: "#1C2B3A" };
 const track = { height: 10, background: "#EEF1F4", borderRadius: 999, overflow: "hidden", width: "100%" };
-const rScore = { fontSize: 15, fontWeight: 700, textAlign: "right" };
+const rScore = { fontSize: 15, fontWeight: 700, textAlign: "right", fontVariantNumeric: "tabular-nums" };
 const detail = { padding: "4px 16px 22px 52px" };
 const detailP = { fontSize: 14.5, color: "#2B3A4A", margin: "0 0 14px", lineHeight: 1.55 };
 const blockH = { fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, marginBottom: 5 };
@@ -2272,6 +2401,9 @@ const PRINT_CSS = `
 /* Spiritual Gifts per-gift study: collapsed on screen, fully expanded in print. */
 .gift-study { display:none; }
 .gift-study.is-open { display:block; }
+/* Enneagram type profiles & Forgiveness (EFMI) subscale detail: same technique. */
+.ennea-study { display:none; }
+.ennea-study.is-open { display:block; }
 @media print {
   /* US Letter with the report's margin geometry (reportTokens.PRINT). */
   @page { size: letter; margin: 18mm 16mm 20mm; }
@@ -2284,6 +2416,8 @@ const PRINT_CSS = `
   .no-print, .no-pdf { display:none !important; }
   /* Every gift study prints, whether or not it was expanded on screen. */
   .gift-study { display:block !important; }
+  /* Enneagram type profiles & Forgiveness subscale details print fully expanded. */
+  .ennea-study { display:block !important; }
 
   /* The report fills the printable width; drop the on-screen max-width and
      padding so the page margins alone define the text block. */
