@@ -93,8 +93,9 @@ export default function Home() {
   const anyPaid = assessments.some(isPaid);
   const costOk = (a) => cost === "all" || (cost === "paid" ? isPaid(a) : !isPaid(a));
 
-  // Homepage card order: admin-set sort_order, then name. Featured cards are
-  // pulled into their own section at the top (only in the unfiltered view).
+  // Homepage card order: admin-set sort_order, then name. Featured cards get an
+  // extra highlight strip at the top (only in the unfiltered view) AND still
+  // appear in their normal category spot below.
   const byOrder = (a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100) || a.name.localeCompare(b.name);
   const showFeatured = filter === "all";
   const featuredItems = assessments.filter((a) => a.is_featured && costOk(a)).sort(byOrder);
@@ -106,7 +107,7 @@ export default function Home() {
     .map((g) => ({
       ...g,
       items: assessments
-        .filter((a) => a.category === g.cat && costOk(a) && !(showFeatured && a.is_featured))
+        .filter((a) => a.category === g.cat && costOk(a))
         .sort(byOrder),
     }))
     .filter((g) => g.items.length);
