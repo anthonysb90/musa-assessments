@@ -32,7 +32,19 @@ export async function POST(req) {
       method: "POST", headers, body: JSON.stringify({ type: "magiclink", email, redirect_to }),
     });
     const data = await res.json().catch(() => ({}));
-    const link = data?.action_link || data?.properties?.action_link;
+    const props = data?.properties || data || {};
+    // Build our OWN callback link using the hashed token. This lets the server
+    // callback complete the sign-in with verifyOtp (the raw action_link would
+    // return the session in the URL hash, which a server route can't read, so
+    // the user got bounced back to the login page).
+    const hashed = props.hashed_token;
+    const vtype = props.verification_type || "magiclink";
+    let link;
+    if (hashed) {
+      link = `${APP_URL}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=${encodeURIComponent(vtype)}&next=${encodeURIComponent(next || "/dashboard")}`;
+    } else {
+      link = data?.action_link || props.action_link;
+    }
     if (!res.ok || !link) return NextResponse.json({ fallback: true });
 
     const em = buildMagicLinkEmail({ link });

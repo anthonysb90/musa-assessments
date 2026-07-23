@@ -69,7 +69,10 @@ export default function Home() {
             <img src="/musa-logo-white-h.png" alt="Mission USA" className="brand-logo" />
             <span className="brand-txt">Assessments</span>
           </span>
-          <Link href="/dashboard" className="topbar-link">Sign in / My results →</Link>
+          <span className="topbar-links">
+            <Link href="/partner" className="topbar-link">For churches</Link>
+            <Link href="/dashboard" className="topbar-link">Sign in / My results →</Link>
+          </span>
         </div>
       </header>
 
@@ -237,7 +240,8 @@ const CSS = `
 .topbar{background:#122A44;border-bottom:1px solid rgba(255,255,255,.08);}
 .topbar-in{display:flex;justify-content:space-between;align-items:center;padding-top:14px;padding-bottom:14px;}
 .brand{color:#fff;font-weight:700;font-size:14px;}
-.topbar-link{color:rgba(255,255,255,.82);font-size:13.5px;font-weight:600;text-decoration:none;}
+.topbar-links{display:flex;align-items:center;gap:20px;}
+.topbar-link{color:rgba(255,255,255,.82);font-size:13.5px;font-weight:600;text-decoration:none;white-space:nowrap;}
 .topbar-link:hover{color:#fff;}
 .btn{font-family:var(--sans,'Inter');font-weight:600;font-size:15px;border-radius:10px;padding:15px 28px;text-decoration:none;display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:1.5px solid transparent;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;}
 .btn-primary{background:var(--navy);color:#fff;box-shadow:0 6px 18px rgba(27,58,87,.18);}
