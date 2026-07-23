@@ -76,8 +76,13 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     const counts = Object.values(groups).map((a) => a.length);
     const maxCount = counts.length ? Math.max(...counts) : 5;
     const ranked = Object.entries(groups)
-      .map(([letter, vals]) => ({ letter, score: vals.reduce((a, b) => a + b, 0) }))
-      .sort((a, b) => b.score - a.score || a.letter.localeCompare(b.letter));
+      .map(([letter, vals]) => {
+        const score = vals.reduce((a, b) => a + b, 0);
+        const count = vals.length;
+        const avg = count > 0 ? score / count : 0;
+        return { letter, score, count, avg };
+      })
+      .sort((a, b) => b.avg - a.avg || a.letter.localeCompare(b.letter));
 
     // Answer playback for the #1 gift (for the "top gift, up close" deep dive):
     // the scored items belonging to the top gift letter, strongest response first.
@@ -91,7 +96,7 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     top_items.sort((a, b) => b.value - a.value);
 
     return {
-      ...base, type: "gift-rank", max_per: maxCount * smax, ranked,
+      ...base, type: "gift-rank", max_per: maxCount * smax, smax, ranked,
       top_letter, playback: { top_items: top_items.slice(0, 6) },
     };
   }
@@ -101,9 +106,14 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     const counts = Object.values(groups).map((a) => a.length);
     const maxCount = counts.length ? Math.max(...counts) : 5;
     const ranked = Object.entries(groups)
-      .map(([key, vals]) => ({ key, score: vals.reduce((a, b) => a + b, 0) }))
-      .sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
-    return { ...base, type: "ranked-sum", max_per: maxCount * smax, ranked };
+      .map(([key, vals]) => {
+        const score = vals.reduce((a, b) => a + b, 0);
+        const count = vals.length;
+        const avg = count > 0 ? score / count : 0;
+        return { key, score, count, avg };
+      })
+      .sort((a, b) => b.avg - a.avg || a.key.localeCompare(b.key));
+    return { ...base, type: "ranked-sum", max_per: maxCount * smax, smax, ranked };
   }
 
   if (type === "domain-bands") {
@@ -130,22 +140,32 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
       score: (groups[String(lvl)] || []).reduce((a, b) => a + b, 0),
       max: maxPer,
     }));
-    // winner: highest score, tie broken toward the more mature (higher) level.
-    // levels are in ascending order, so `>=` lets a later (higher) level win a tie.
+    // winner: strict highest score. On an exact tie, prefer the LOWER level —
+    // levels are ascending and we replace only on strictly greater score, so the
+    // first (lower) of any tied pair is kept (claiming higher maturity is the
+    // harmful error).
     let winner = levels[0];
-    for (const l of levels) if (l.score >= winner.score) winner = l;
+    for (const l of levels) if (l.score > winner.score) winner = l;
+    // Near-tie disclosure: the highest-scoring level other than the winner, and
+    // whether it sits within the transition margin (4 points).
+    const CLOSE_MARGIN = 4;
+    const others = levels.filter((l) => l.level !== winner.level);
+    const runnerUp = others.reduce((a, b) => (b.score > a.score ? b : a));
+    const margin = winner.score - runnerUp.score;
+    const level_close = margin <= CLOSE_MARGIN;
+    const alt_level = level_close ? runnerUp.level : null;
     // transition: an adjacent level within 4 points of the winner
     let transition = null;
     for (const adjLvl of [winner.level - 1, winner.level + 1]) {
       const other = levels.find((l) => l.level === adjLvl);
-      if (other && Math.abs(winner.score - other.score) <= 4) {
+      if (other && Math.abs(winner.score - other.score) <= CLOSE_MARGIN) {
         const a = Math.min(winner.level, adjLvl);
         const b = Math.max(winner.level, adjLvl);
         transition = { a, b };
         break;
       }
     }
-    return { ...base, type: "level-matrix", levels, winnerLevel: winner.level, transition };
+    return { ...base, type: "level-matrix", levels, winnerLevel: winner.level, transition, level_close, alt_level, margin };
   }
 
   if (type === "type-pick") {
@@ -165,7 +185,19 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     const ranked = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
       .map((t) => ({ type: t, score: counts[t] || 0 }))
       .sort((a, b) => b.score - a.score || Number(a.type) - Number(b.type));
-    return { ...base, type: "type-pick", total, ranked, primary: ranked[0]?.type };
+    // Real bar denominator: for each type, count answered items that could
+    // contribute to it (its type appears as option A or option B); take the max.
+    const appear = {};
+    for (const [itemId, value] of Object.entries(answers)) {
+      const it = itemMap[itemId];
+      if (!it || it.is_scored === false) continue;
+      const types = new Set();
+      if (it.gift_letter) types.add(it.gift_letter);
+      if (it.option_b_letter) types.add(it.option_b_letter);
+      for (const t of types) appear[t] = (appear[t] || 0) + 1;
+    }
+    const max_per = Math.max(0, ...["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((t) => appear[t] || 0));
+    return { ...base, type: "type-pick", total, ranked, primary: ranked[0]?.type, max_per };
   }
 
   if (type === "subscale-sum") {
@@ -234,7 +266,8 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     const esPct = 100 - nStat.pct;
     traits.push({
       key: "ES", pct: esPct, raw: nStat.sum, count: nStat.n,
-      band: big5Band(esPct).key, n_pct: nStat.pct, n_band: big5Band(nStat.pct).key,
+      band: ({ low: "high", moderate: "moderate", high: "low" })[big5Band(nStat.pct).key],
+      n_pct: nStat.pct, n_band: big5Band(nStat.pct).key,
     });
     const facets = ["creative-expression", "vision", "kindness", "innovation", "humor", "purpose"]
       .map((k) => {

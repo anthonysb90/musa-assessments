@@ -399,6 +399,29 @@ function GiftRank({ scored }) {
   const topThree = ranked.slice(0, 3);
   const per = scored.max_per || 15;
   const ticks = [0, Math.round(per / 3), Math.round((2 * per) / 3), per];
+  // Per-gift denominator: each gift's own max (its item count times the max
+  // score per item) so bars are comparable even when gifts have different
+  // numbers of items. Falls back to the shared `per` whenever count/smax
+  // aren't available yet (older scoring), so nothing crashes.
+  const smax = scored.smax;
+  const counts = ranked.map((g) => g.count).filter((c) => typeof c === "number");
+  const maxCount = counts.length ? Math.max(...counts) : undefined;
+  const denomFor = (g) => {
+    const c = g.count ?? maxCount;
+    return (typeof c === "number" && typeof smax === "number") ? c * smax : per;
+  };
+  // Tie disclosure for the top of the ladder (ranks 1-4): equal scores are
+  // equal strengths, so we say so rather than implying a strict order.
+  const tiePairs = [];
+  for (let i = 0; i < Math.min(3, ranked.length - 1); i++) {
+    if (ranked[i] && ranked[i + 1] && ranked[i].score === ranked[i + 1].score) {
+      tiePairs.push([i + 1, i + 2]);
+    }
+  }
+  const tieClauses = tiePairs.map(([a, b]) => `${ordinal(a)} and ${ordinal(b)}`);
+  const tieNote = tieClauses.length
+    ? `Your ${tieClauses.join(", and your ")} gifts scored the same, so hold them as equal strengths rather than a strict order.`
+    : null;
 
   return (
     <>
@@ -415,13 +438,16 @@ function GiftRank({ scored }) {
               <div className="serif" style={gfName}>{g.name}</div>
               <div style={gfScoreRow}>
                 <span style={gfScore}>{g.score}</span>
-                <span style={{ fontSize: 13, color: "#A9895A", fontWeight: 600 }}>/ {per}</span>
+                <span style={{ fontSize: 13, color: "#A9895A", fontWeight: 600 }}>/ {denomFor(g)}</span>
               </div>
               <p style={gfPanelDef}>{g.def}</p>
               <div style={gfVerse}>{firstRef(g.refs)}</div>
             </div>
           ))}
         </div>
+        {tieNote && (
+          <div style={transitionBox}>{tieNote}</div>
+        )}
         <p style={helper}>
           These are the places you are most clearly wired to serve. Every gift you carry is ranked
           below, on a single scale, so you can see your whole profile at a glance.
@@ -450,7 +476,7 @@ function GiftRank({ scored }) {
                   <span style={{ ...gfRank, color: g.tier === "top" ? "#B07C2E" : "#8CA0B3" }}>{g.rank + 1}</span>
                   <span style={gfRowName}>{g.name}{g.tier === "top" && <span style={{ color: "#C4923E", marginLeft: 6 }}>★</span>}</span>
                   <span style={gfTrack}>
-                    <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, (g.score / per) * 100)}%`, background: color, borderRadius: 999 }} />
+                    <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, (g.score / denomFor(g)) * 100)}%`, background: color, borderRadius: 999 }} />
                   </span>
                   <span style={{ ...gfRowScore, color }}>{g.score}</span>
                   <span className="no-print" style={chevron(isOpen)}>›</span>
@@ -634,13 +660,21 @@ function RankedSum({ scored }) {
       <section style={{ padding: "24px 0 8px" }}>
         <div style={sectionLabel}>All five callings</div>
         <div style={chart}>
-          {ranked.map((r, i) => {
-            const color = i === 0 ? "#C4923E" : i === 1 ? "#2E7D8A" : "#8CA0B3";
+          {(() => {
+            // Rank by score tie-group, not array index, so co-primaries (equal
+            // score) share the same rank number and colour instead of being
+            // split into gold #1 / teal #2. Falls back to index if a score is
+            // missing.
+            const uniqueScores = [...new Set(ranked.map((r) => r.score))].sort((a, b) => b - a);
+            return ranked.map((r, i) => {
+            const rk = uniqueScores.indexOf(r.score);
+            const rank = rk < 0 ? i : rk;
+            const color = rank === 0 ? "#C4923E" : rank === 1 ? "#2E7D8A" : "#8CA0B3";
             const m = FIVEFOLD[r.key] || {};
             return (
               <div key={r.key} style={{ borderBottom: "1px solid #F0F2F4", padding: "6px 4px" }}>
                 <div style={barBtn}>
-                  <span style={rRank}>{i + 1}</span>
+                  <span style={rRank}>{rank + 1}</span>
                   <span style={rName}>{r.key}</span>
                   <BarTrack frac={r.score / per} color={color} refs={[1 / 3, 2 / 3]} />
                   <span style={{ ...rScore, color, display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
@@ -656,7 +690,8 @@ function RankedSum({ scored }) {
                 </div>
               </div>
             );
-          })}
+            });
+          })()}
         </div>
       </section>
     </>
@@ -1116,6 +1151,23 @@ function KingdomReport({ scored }) {
   const emblem = KDP_EMBLEMS[scored.temperament];
   const byKey = Object.fromEntries((scored.scales || []).map((s) => [s.key, s]));
   if (!t) return null;
+  // A "slight" clarity means a near 50/50 lean that could flip the whole
+  // 4-letter type. Name each slight preference and the type it would read as
+  // if that one letter went the other way.
+  const slightNotes = (scored.scales || [])
+    .filter((s) => s && s.clarity === "slight")
+    .map((s) => {
+      const p = KDP_PAIRS.find((pp) => pp.key === s.key);
+      if (!p) return null;
+      const cur = s.letter;
+      const alt = cur === p.a ? p.b : p.a;
+      const flippedCode = String(code).split("").map((ch) => (ch === cur ? alt : ch)).join("");
+      const curName = cur === p.a ? p.a_name : p.b_name;
+      const altName = alt === p.a ? p.a_name : p.b_name;
+      const altType = KDP_NAMES[flippedCode] || KDP_TYPES[flippedCode]?.name || flippedCode;
+      return { label: p.label, curName, altName, flippedCode, altType };
+    })
+    .filter(Boolean);
   return (
     <>
       {/* Type hero */}
@@ -1135,6 +1187,22 @@ function KingdomReport({ scored }) {
             {emblem && <img src={emblem} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 78, height: 78, borderRadius: 15, objectFit: "cover", border: "1px solid rgba(255,255,255,.15)" }} />}
           </div>
         </div>
+        {slightNotes.length > 0 && (
+          <div style={transitionBox}>
+            {slightNotes.length === 1 ? (
+              <>Your <strong>{slightNotes[0].label}</strong> preference is a slight lean, so your type could
+              read differently there. You leaned {slightNotes[0].curName}, but {slightNotes[0].altName} is
+              almost as strong, which would read as <strong>{slightNotes[0].flippedCode}</strong>{" "}
+              ({slightNotes[0].altType}). Hold both.</>
+            ) : (
+              <>A few of your preferences are slight leans, so your type could read differently on them:{" "}
+              {slightNotes.map((sn, i) => (
+                <span key={sn.label}>{i > 0 ? "; " : ""}<strong>{sn.label}</strong> could flip to {sn.altName}{" "}
+                ({sn.flippedCode}, {sn.altType})</span>
+              ))}. Hold each lightly.</>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Four preferences — spectrum bars */}
@@ -1309,8 +1377,13 @@ function EnneagramReport({ scored }) {
   const [open, setOpen] = useState(scored.primary);
   const ranked = scored.ranked; // [{type, score}] sorted desc
   const total = scored.total || 36;
-  const per = 8; // each type appears in 8 pairs
+  const per = scored.max_per ?? 8; // each type appears in this many pairs
   const top3 = ranked.slice(0, 3);
+  // Adjacent equal scores in the top three are ties, not distinct ordinals.
+  const tiedAt = (idx) => {
+    const s = top3[idx]?.score;
+    return (top3[idx - 1] && top3[idx - 1].score === s) || (top3[idx + 1] && top3[idx + 1].score === s);
+  };
   const primaryType = ENNEAGRAM_TYPES[scored.primary] || {};
   const close = ranked[1] && ranked[0] && ranked[0].score - ranked[1].score <= 1;
   return (
@@ -1339,7 +1412,7 @@ function EnneagramReport({ scored }) {
             const t = ENNEAGRAM_TYPES[r.type] || {};
             return (
               <div key={r.type} style={topCard}>
-                <div style={topRank}>{i === 0 ? "Core" : ordinal(i + 1)}</div>
+                <div style={topRank}>{i === 0 ? "Core" : tiedAt(i) ? "Tied" : ordinal(i + 1)}</div>
                 <div className="serif" style={{ ...topName, fontSize: 20 }}>{r.type} · {t.name}</div>
                 <div style={{ ...scoreRow, marginTop: 4 }}>
                   <span style={{ ...topScore, fontSize: 26 }}>{r.score}</span>
@@ -1588,6 +1661,13 @@ function PlanterReport({ scored }) {
   const top3 = domains.slice(0, 3);
   const weakPrimaries = domains.filter((d) => d.primary && d.average < 3.5);
   const watch = (weakPrimaries.length ? weakPrimaries : [...domains].slice(-3).reverse()).slice(0, 3);
+  // Derive every count from the data. A single (unmarried) candidate drops
+  // "Spousal Cooperation", so the totals shift; never hardcode them.
+  const totalCount = order.length;
+  const primaryCount = domains.filter((d) => d.primary).length
+    || order.filter((n) => PLANTER_PRIMARY.includes(n)).length;
+  // Near-tie among the top-3 "excel" characteristics: equal averages aren't a rank.
+  const excelTie = top3.some((d, i) => i > 0 && top3[i - 1] && d.average === top3[i - 1].average);
 
   // Readiness radar — shared RadarChart with a numbered legend (names are too
   // long for the tips). Gold vertices mark the five primary characteristics;
@@ -1608,13 +1688,13 @@ function PlanterReport({ scored }) {
           <p style={{ ...topDef, fontSize: 15, marginTop: 10 }}>{tier.body}</p>
           <div style={{ marginTop: 12, fontSize: 13.5, color: "#4A5B6D" }}>
             Weighted readiness score: <strong style={{ color: "#1B3A57" }}>{scored.composite?.toFixed(1)}</strong> / {per}
-            <span style={{ color: "#8CA0B3" }}> · the five primary characteristics count double.</span>
+            <span style={{ color: "#8CA0B3" }}> · the {primaryCount} primary characteristics count double.</span>
           </div>
         </div>
       </section>
 
       <section style={{ padding: "20px 0 4px" }}>
-        <div style={sectionLabel}>All 13 characteristics</div>
+        <div style={sectionLabel}>All {totalCount} characteristics</div>
         <div style={{ ...chart, padding: "18px 12px", display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 24 }}>
           <RadarChart axes={planterAxes} max={per} cx={175} cy={172} radius={108}
             viewBox="0 0 350 344" maxWidth={380} numbered reference={4} referenceLabel="Strength"
@@ -1643,7 +1723,7 @@ function PlanterReport({ scored }) {
           })}
         </div>
         <p style={helper}>
-          The five gold points are the primary characteristics that carry the readiness decision. A strong
+          The {primaryCount} gold points are the primary characteristics that carry the readiness decision. A strong
           plant leans hardest on those.
         </p>
       </section>
@@ -1663,6 +1743,9 @@ function PlanterReport({ scored }) {
             </div>
           );
         })}
+        {excelTie && (
+          <p style={helper}>Some of these scored the same, so treat them as equally strong rather than a strict order.</p>
+        )}
       </section>
 
       <section style={{ padding: "16px 0 4px" }}>
@@ -1727,6 +1810,14 @@ function GrowthReport({ scored }) {
   const winner = GROWTH_LEVELS[scored.winnerLevel];
   const per = scored.levels[0]?.max || 30;
   const t = scored.transition;
+  // When the scorer flags a close level (near 50/50), present the verdict
+  // honestly as "between two levels" rather than one confident answer. Falls
+  // back to the existing transition box when the new field is absent.
+  const altLevel = scored.alt_level != null ? GROWTH_LEVELS[scored.alt_level] : null;
+  const showClose = scored.level_close === true && !!altLevel;
+  const marginText = typeof scored.margin === "number"
+    ? ` (only ${scored.margin} point${scored.margin === 1 ? "" : "s"} apart)`
+    : "";
   return (
     <>
       <section style={{ padding: "8px 0" }}>
@@ -1738,7 +1829,14 @@ function GrowthReport({ scored }) {
           </div>
           <p style={{ ...topDef, fontSize: 15 }}>{winner.desc}</p>
         </div>
-        {t && (
+        {showClose && (
+          <div style={transitionBox}>
+            This reading is close. Your church sits between {winner.name} and {altLevel.name}
+            {marginText}, so both descriptions apply. Read them together and talk it through with your
+            leadership team rather than settling on one.
+          </div>
+        )}
+        {t && !showClose && (
           <div style={transitionBox}>
             Your church may be in transition between {GROWTH_LEVELS[t.a].name} and{" "}
             {GROWTH_LEVELS[t.b].name}. That's worth discussing with your leadership team, not a sign
@@ -1921,6 +2019,11 @@ function PastorReport({ scored }) {
   const domains = scored.domains;
   const top2 = domains.slice(0, 2);
   const bottom2 = [...domains].slice(-2).reverse();
+  // The 2nd pick (strong or focus) is only a real pick when it clears the next
+  // domain by a margin. Within ~0.2 on the 1-5 scale, say it was close.
+  const n = domains.length;
+  const strongClose = domains[1] && domains[2] && Math.abs(domains[1].average - domains[2].average) <= 0.2;
+  const focusClose = domains[n - 2] && domains[n - 3] && Math.abs(domains[n - 2].average - domains[n - 3].average) <= 0.2;
   return (
     <>
       <section style={{ padding: "8px 0" }}>
@@ -1981,6 +2084,9 @@ function PastorReport({ scored }) {
             </div>
           ))}
         </div>
+        {strongClose && (
+          <p style={helper}>The next domain scored nearly as high, so this second pick was close.</p>
+        )}
       </section>
 
       <section style={{ padding: "20px 0 8px" }}>
@@ -1997,6 +2103,9 @@ function PastorReport({ scored }) {
             </div>
           );
         })}
+        {focusClose && (
+          <p style={helper}>The next domain scored nearly as low, so this second pick was close.</p>
+        )}
         <p style={helper}>
           This is developmental, never a verdict on your calling. No score here confirms or denies that
           God has called you. It simply shows where the next bit of growth is.
@@ -2356,6 +2465,19 @@ function LeadershipReport({ scored }) {
   const pair = pairingsFor(style.code);
   const pairName = pair[0] ? STYLES[pair[0].code].name : "a complementary leader";
 
+  // Style archetype near-tie disclosure (mirrors the DISC "honest note"): the
+  // fixed SP>CH>ST tie-break can decide the whole style on a razor-thin gap.
+  // If the top two or bottom two legs are within ~6 points, flip the tied legs
+  // to name the alternate archetype that also applies.
+  const legPct = (k) => (legs[k]?.pct ?? 0);
+  const [r0, r1, r2] = ranked;
+  const topClose = ranked.length === 3 && Math.abs(legPct(r0) - legPct(r1)) <= 6;
+  const botClose = ranked.length === 3 && Math.abs(legPct(r1) - legPct(r2)) <= 6;
+  let altOrder = null, tiedPair = null;
+  if (topClose) { altOrder = [r1, r0, r2]; tiedPair = [r0, r1]; }
+  else if (botClose) { altOrder = [r0, r2, r1]; tiedPair = [r1, r2]; }
+  const altStyle = altOrder ? STYLES[altOrder.join("-")] : null;
+
   const activeLeg = active ? legs[active] : null;
   const activeMeta = active ? LEGS[active] : null;
 
@@ -2381,6 +2503,14 @@ function LeadershipReport({ scored }) {
             {roleLabelStr && <div style={{ fontSize: 13, color: "#8CA0B3", marginTop: 10 }}>Role version: {roleLabelStr}</div>}
           </div>
         </div>
+        {altStyle && tiedPair && LEGS[tiedPair[0]] && LEGS[tiedPair[1]] && (
+          <div style={transitionBox}>
+            One honest note: your <strong>{LEGS[tiedPair[0]].name}</strong> and{" "}
+            <strong>{LEGS[tiedPair[1]].name}</strong> legs scored almost the same
+            ({legPct(tiedPair[0])} and {legPct(tiedPair[1])}), so which style leads was a close call.
+            You may also recognize yourself in <strong>{altStyle.name}</strong>. Read both and keep what fits.
+          </div>
+        )}
       </section>
 
       {/* The stool */}
