@@ -578,9 +578,20 @@ const CSS = `
 .group-head h3{font-family:var(--display,'Fraunces');font-weight:500;font-size:24px;color:var(--ink);margin:0;white-space:nowrap;}
 .group-head .gh-sub{font-size:14px;color:var(--ink-soft);font-style:italic;white-space:nowrap;}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:24px;}
-/* Featured cards pack tighter so up to 4 fit across on wide screens; responsive down to 1. */
-.g-featured .cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,232px),1fr));gap:18px;}
-.card{background:#fff;border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;transition:box-shadow .25s ease, border-color .25s ease, transform .25s ease;}
+/* Featured cards are a compact highlight strip: smaller and more spaced, up to
+   4 across on wide screens, responsive down to 1. */
+.g-featured .cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:26px;}
+.g-featured .card-top{padding:16px 16px 0;}
+.g-featured .logo-plate{width:46px;height:46px;border-radius:12px;}
+.g-featured .logo-plate svg{width:27px;height:27px;}
+.g-featured .card-body{padding:12px 16px 6px;}
+.g-featured .card h4{font-size:16.5px;line-height:1.25;margin-bottom:5px;}
+.g-featured .tag{font-size:10.5px;}
+.g-featured .desc{font-size:12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;}
+.g-featured .card-foot{padding:12px 16px 14px;margin-top:8px;}
+.g-featured .foot-min,.g-featured .link-go{font-size:12px;}
+.g-featured .featured-badge{top:10px;left:10px;font-size:9.5px;padding:3px 9px;}
+.card{position:relative;background:#fff;border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;transition:box-shadow .25s ease, border-color .25s ease, transform .25s ease;}
 .card:hover{box-shadow:0 22px 50px rgba(27,58,87,.12);border-color:transparent;transform:translateY(-5px);}
 .card-top{padding:28px 26px 0;display:flex;align-items:flex-start;}
 .logo-plate{width:76px;height:76px;border-radius:18px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);}

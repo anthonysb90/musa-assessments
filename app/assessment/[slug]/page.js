@@ -117,6 +117,16 @@ export default async function AssessmentLanding({ params, searchParams }) {
         <section style={{ padding: "48px 0 8px" }}>
           <div style={eyebrow}>About this assessment</div>
           <p style={aboutP}>{land.about || a.subtitle}</p>
+          {land.credit && (
+            <div style={creditCard}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11.5, letterSpacing: ".12em", textTransform: "uppercase", color: "#8CA0B3", fontWeight: 700 }}>{land.credit.text}</div>
+                <div className="serif" style={{ fontSize: 19, color: "var(--ink)", margin: "6px 0 3px", lineHeight: 1.25 }}>{land.credit.book}</div>
+                {land.credit.publisher && <div style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>{land.credit.publisher}</div>}
+              </div>
+              <a href={land.credit.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ whiteSpace: "nowrap", alignSelf: "center" }}>Get the book →</a>
+            </div>
+          )}
         </section>
 
         {/* Measures + You'll get */}
@@ -182,6 +192,7 @@ const ctaPrimary = { display: "inline-flex", alignItems: "center", background: "
 const ctaStart = { display: "inline-flex", alignItems: "center", background: "#C4923E", color: "#fff", fontWeight: 800, fontSize: 17, letterSpacing: ".01em", padding: "17px 36px", borderRadius: 12, textDecoration: "none" };
 const eyebrow = { fontSize: 12.5, letterSpacing: ".14em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 };
 const aboutP = { fontSize: "clamp(18px,2.2vw,22px)", lineHeight: 1.55, color: "var(--ink)", margin: "14px 0 0", fontWeight: 400 };
+const creditCard = { display: "flex", justifyContent: "space-between", gap: 20, alignItems: "center", flexWrap: "wrap", background: "linear-gradient(180deg,#FCFAF6,#F6F1E7)", border: "1px solid #EADFC9", borderRadius: 14, padding: "18px 22px", marginTop: 22 };
 const twoCol = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 18, padding: "34px 0 8px" };
 const infoCard = { background: "#fff", border: "1px solid var(--line)", borderRadius: 18, padding: "26px 26px 20px" };
 const infoHead = { fontSize: 12.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, marginBottom: 14 };
