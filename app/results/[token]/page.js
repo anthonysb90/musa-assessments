@@ -214,7 +214,7 @@ export default function ResultsPage() {
             </div>
             <div style={hdRow}>
               <div>
-                <div style={kicker}>{meta?.name}</div>
+                <div style={kicker}>{meta?.name}{meta?.subtitle && meta.subtitle.length <= 16 ? ` · ${meta.subtitle}` : ""}</div>
                 <h1 className="serif" style={hName}>
                   {contact.first_name} {contact.last_name}
                 </h1>
@@ -232,8 +232,11 @@ export default function ResultsPage() {
 
         <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px 60px" }}>
           <div className="no-print no-pdf" style={actions}>
-            <button className="btn btn-primary" onClick={() => window.print()}>
-              ⬇ Save as PDF / Print
+            <button className="btn btn-primary" onClick={downloadPdf} disabled={dl}>
+              {dl ? "Preparing PDF…" : "Save PDF"}
+            </button>
+            <button className="btn btn-ghost" onClick={() => window.print()}>
+              Print
             </button>
             {isAdmin ? (
               <a className="btn btn-ghost" href="/admin">← Back to Admin</a>
@@ -245,10 +248,8 @@ export default function ResultsPage() {
             )}
           </div>
           <div className="no-print no-pdf" style={{ fontSize: 12.5, color: "#8CA0B3", margin: "-4px 0 16px", lineHeight: 1.5 }}>
-            Opens your print dialog — choose <strong>Save as PDF</strong> as the destination for a crisp, shareable copy.{" "}
-            <button onClick={downloadPdf} disabled={dl} style={{ background: "none", border: "none", padding: 0, color: "var(--teal-deep)", textDecoration: "underline", cursor: "pointer", font: "inherit" }}>
-              {dl ? "Preparing…" : "Trouble printing? Download a simple copy."}
-            </button>
+            <strong>Save PDF</strong> downloads a ready-made copy. <strong>Print</strong> opens your browser's dialog — where choosing
+            {" "}<strong>Save as PDF</strong> as the destination gives the sharpest, text-selectable result.
           </div>
 
           <div className="no-print no-pdf" style={savedNote}>
@@ -1851,47 +1852,97 @@ function GrowthReport({ scored }) {
 }
 
 /* ---------------- Wired to Lead (DISC blend) ---------------- */
+const discTag = (c) => ({
+  fontSize: 10, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase",
+  color: c, background: `${c}1A`, border: `1px solid ${c}55`, borderRadius: 999, padding: "2px 8px",
+});
 function DiscReport({ scored }) {
   const b = DISC_BLENDS[scored.blend] || {};
   const per = scored.max_per || 35;
-  const order = { D: 0, I: 1, S: 2, C: 3 };
-  const dims = [...scored.dims].sort((a, b2) => order[a.key] - order[b2.key]);
-  // Close-call check: if the top two dimension scores land within ~5% of each
-  // other, the blend was a near tie and both dimensions shape them.
+  const pct = (s) => Math.round((s / per) * 100);
+  // Rank the four dimensions by score, highest first, so the blend reads
+  // top-down. Percentages make intensity clearer than a raw /35 sum.
   const byScore = [...scored.dims].sort((a, b2) => b2.score - a.score);
-  const discClose =
-    byScore[1] && per > 0 &&
-    ((byScore[0].score - byScore[1].score) / per) * 100 <= 5;
+  const gapPct = (i, j) => (byScore[i] && byScore[j] ? pct(byScore[i].score) - pct(byScore[j].score) : 0);
+
+  // How clear is each part of the blend?
+  const primaryGap = gapPct(0, 1);      // #1 vs #2
+  const secondaryGap = gapPct(1, 2);    // #2 vs #3 — this is what makes the
+                                        // SECONDARY letter ambiguous (the real
+                                        // story when a blend "doesn't feel obvious").
+  const primaryClear = primaryGap >= 12;
+  const secondaryAmbiguous = secondaryGap <= 8;
+
+  const primaryName = DISC_DIMS[scored.primary];
+  const secondaryName = DISC_DIMS[scored.secondary];
+  const altSecondaryKey = secondaryAmbiguous ? byScore[2].key : null;
+  const altBlendKey = altSecondaryKey ? scored.primary + altSecondaryKey : null;
+  const altBlend = altBlendKey ? DISC_BLENDS[altBlendKey] : null;
+
   return (
     <>
       <section style={{ padding: "8px 0" }}>
         <div style={sectionLabel}>Your blend</div>
         <div style={{ ...topCard, borderLeft: "5px solid #C4923E" }}>
-          <div style={topRank}>{scored.blend} · {DISC_DIMS[scored.primary]} + {DISC_DIMS[scored.secondary]}</div>
-          <div className="serif" style={{ fontSize: 27, color: "#1C2B3A", marginTop: 4 }}>
-            {b.figure}, {b.title}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+            <div className="serif" style={{ fontSize: 44, lineHeight: 1, color: "#C4923E", letterSpacing: "0.02em", fontVariantNumeric: "tabular-nums" }}>
+              {scored.blend}
+            </div>
+            <div>
+              <div style={topRank}>{primaryName} + {secondaryName}</div>
+              <div className="serif" style={{ fontSize: 27, color: "#1C2B3A", marginTop: 2 }}>
+                {b.figure}, {b.title}
+              </div>
+            </div>
           </div>
+          <p style={{ ...detailP, margin: "12px 0 0" }}>
+            Your <strong>{primaryName}</strong> ({pct(byScore[0].score)}%) leads the way
+            {primaryClear
+              ? ", clearly out front,"
+              : `, with ${secondaryName} close behind,`}{" "}
+            and <strong>{secondaryName}</strong> ({pct(scored.dims.find((d) => d.key === scored.secondary).score)}%) backs it up. That combination is what shapes the {b.title} blend.
+          </p>
         </div>
-        {discClose && (
+
+        {secondaryAmbiguous && altBlend && (
           <div style={transitionBox}>
-            Your top two dimensions came out very close, so this blend was a close call. Both{" "}
-            {DISC_DIMS[scored.primary]} and {DISC_DIMS[scored.secondary]} shape how you are wired, and you
-            will likely see yourself in each.
+            One honest note: your <strong>{secondaryName}</strong> and <strong>{DISC_DIMS[altSecondaryKey]}</strong>{" "}
+            scored almost the same ({pct(byScore[1].score)}% and {pct(byScore[2].score)}%), so your secondary
+            style is close to a tie. {primaryName} is clearly your lead, but the trait riding alongside it could
+            read as either. You may also recognize yourself in the <strong>{altBlendKey}</strong> blend
+            ({altBlend.figure}, {altBlend.title}) — read both and keep what fits.
+          </div>
+        )}
+        {!secondaryAmbiguous && primaryGap <= 6 && (
+          <div style={transitionBox}>
+            Your top two dimensions came out very close, so which one leads was a near call. Both{" "}
+            {primaryName} and {secondaryName} strongly shape how you are wired.
           </div>
         )}
       </section>
+
       <section style={{ padding: "18px 0" }}>
         <div style={sectionLabel}>Your four dimensions</div>
+        <p style={{ ...helper, margin: "0 0 12px" }}>
+          Ranked strongest to weakest. Each dimension is scored against itself, 0 to 100, never against other people.
+        </p>
         <div style={chart}>
-          {dims.map((d) => {
-            const isTop = d.key === scored.primary || d.key === scored.secondary;
-            const color = d.key === scored.primary ? "#C4923E" : d.key === scored.secondary ? "#2E7D8A" : "#8CA0B3";
+          {byScore.map((d, i) => {
+            const isPrimary = d.key === scored.primary;
+            const isSecondary = d.key === scored.secondary;
+            const isTop = isPrimary || isSecondary;
+            const color = isPrimary ? "#C4923E" : isSecondary ? "#2E7D8A" : "#8CA0B3";
+            const p = pct(d.score);
             return (
-              <div key={d.key} style={rowGrid}>
-                <span style={{ ...rName, fontWeight: isTop ? 700 : 600 }}>{DISC_DIMS[d.key]}</span>
+              <div key={d.key} style={{ ...rowGrid, opacity: isTop ? 1 : 0.72 }}>
+                <span style={{ ...rName, fontWeight: isTop ? 800 : 600, display: "flex", alignItems: "center", gap: 8 }}>
+                  {DISC_DIMS[d.key]}
+                  {isPrimary && <span style={discTag("#C4923E")}>Primary</span>}
+                  {isSecondary && <span style={discTag("#2E7D8A")}>Secondary</span>}
+                </span>
                 <span style={track}><span style={fill(d.score / per, color)} /></span>
-                <span style={{ ...rScore, color }}>
-                  {d.score}<span style={{ color: "#B4BEC9", fontWeight: 400 }}>/{per}</span>
+                <span style={{ ...rScore, color, fontVariantNumeric: "tabular-nums" }}>
+                  {p}<span style={{ color: "#B4BEC9", fontWeight: 400, fontSize: 12 }}>%</span>
                 </span>
               </div>
             );

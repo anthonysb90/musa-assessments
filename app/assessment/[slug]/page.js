@@ -94,7 +94,7 @@ export default async function AssessmentLanding({ params, searchParams }) {
         <div style={{ ...heroImg, backgroundImage: `url("${image}")` }} />
         <div style={heroOverlay} />
         <div style={heroInner}>
-          <div style={kicker}>{CAT_LABEL[a.category] || "Ministry Assessment"}</div>
+          <div style={kicker}>{a.subtitle && a.subtitle.length <= 16 ? a.subtitle : (CAT_LABEL[a.category] || "Ministry Assessment")}</div>
           <h1 className="serif" style={heroTitle}>{a.name}</h1>
           <p style={heroTag}>{land.tagline || a.subtitle}</p>
           <div style={chips}>
