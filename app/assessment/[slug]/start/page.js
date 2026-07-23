@@ -64,6 +64,7 @@ function AssessmentFlow() {
     reflection.have_forgiven !== "" && reflection.degree !== "" && reflection.definition_index !== "";
 
   const assignmentToken = params.get("a") || null;
+  const isEmbed = params.get("embed") === "1";
   const sourceTag = params.get("source") || null;
   const cohort = params.get("cohort") || null;
   const teamCode = params.get("team") || null;
@@ -320,7 +321,7 @@ function AssessmentFlow() {
             Sign in to continue
           </a>
           <div style={{ marginTop: 14 }}>
-            <a href="/" style={back}>← All assessments</a>
+            {!isEmbed && <a href="/" style={back}>← All assessments</a>}
           </div>
         </div>
       </Centered>
@@ -357,7 +358,7 @@ function AssessmentFlow() {
     <main className="wrap" style={{ padding: "40px 24px 80px", maxWidth: 720 }}>
       {phase === "intro" && (
         <>
-          <a href="/" style={back}>← All assessments</a>
+          {!isEmbed && <a href="/" style={back}>← All assessments</a>}
           <h1 className="serif" style={h1}>{assessment.name}</h1>
           <p style={introSub}>{assessment.subtitle}</p>
           <div style={card}>
@@ -412,7 +413,7 @@ function AssessmentFlow() {
 
       {phase === "reflection" && (
         <>
-          <a href="/" style={back}>← All assessments</a>
+          {!isEmbed && <a href="/" style={back}>← All assessments</a>}
           <h1 className="serif" style={h1}>First, bring one experience to mind</h1>
           <div style={{ ...wellNotice, marginBottom: 18 }}>{EFMI_INTRO}</div>
 

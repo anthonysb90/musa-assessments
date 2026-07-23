@@ -286,10 +286,20 @@ export async function POST(req) {
       try { await supabase.rpc("consume_seat", { p_code: body.access_code }); } catch { /* non-fatal */ }
     }
 
+    // Withheld churches: the taker never receives their own report (it's
+    // revealed in person). Look this up once; it gates the taker email below.
+    let churchWithhold = false;
+    if (profile?.church_id) {
+      try {
+        const { data: cw } = await supabase.from("churches").select("withhold_from_taker").eq("id", profile.church_id).maybeSingle();
+        churchWithhold = cw?.withhold_from_taker === true;
+      } catch { /* non-fatal */ }
+    }
+
     // 7. Email delivery (best-effort, env-gated). Never blocks the response.
     try {
       const to = profile?.email || user?.email;
-      if (to) {
+      if (to && !churchWithhold) {
         const { data: others } = await supabase
           .from("assessments")
           .select("slug,name")

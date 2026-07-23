@@ -44,6 +44,8 @@ export default function ResultsPage() {
   const [dl, setDl] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [brand, setBrand] = useState(null); // { name, logo_url, withhold }
+  const [blocked, setBlocked] = useState(false); // withheld from this viewer
   const reportRef = useRef(null);
 
   // Save as PDF: capture the report region and auto-download. Loads html2pdf
@@ -93,24 +95,59 @@ export default function ResultsPage() {
         .select("total,max_total,band,elevated")
         .eq("session_id", session.id)
         .maybeSingle();
+      // Church branding + withhold flag (if this was taken through a church).
+      const { data: brandRow } = await supabase.rpc("session_church_brand", { p_session: session.id });
+      const b = brandRow || null;
+
+      // Signed-in / admin detection drives the report nav and the withhold gate.
+      const { data: udata } = await supabase.auth.getUser();
+      let adm = false, churchAdmin = false;
+      if (udata?.user) {
+        setSignedIn(true);
+        const { data: a } = await supabase.rpc("is_admin");
+        adm = a === true; setIsAdmin(adm);
+        if (b?.church_id) {
+          const { data: ca } = await supabase.rpc("is_church_admin", { target: b.church_id });
+          churchAdmin = ca === true;
+        }
+      }
+
+      // Withheld results: the taker cannot see their own report; only Mission USA
+      // admins or a leader of that church can. Others see a "held for you" note.
+      if (b?.withhold && !adm && !churchAdmin) {
+        setBrand(b); setBlocked(true); setState("ready");
+        return;
+      }
+
       setScored(result.scored_json);
       setMeta({ ...assessment, created_at: result.created_at });
       setWb(wbRow || null);
+      setBrand(b);
       setState("ready");
-      // Signed-in / admin detection drives the report nav. Admins get a
-      // "Back to Admin" shortcut in place of the public nav links.
-      const { data: udata } = await supabase.auth.getUser();
-      if (udata?.user) {
-        setSignedIn(true);
-        const { data: adm } = await supabase.rpc("is_admin");
-        setIsAdmin(adm === true);
-      }
     })();
   }, [token]);
 
   if (state === "loading") return <Centered>Loading your results…</Centered>;
   if (state === "notfound")
     return <Centered>We couldn't find those results. The link may be incomplete.</Centered>;
+
+  if (blocked)
+    return (
+      <Centered>
+        <div style={{ textAlign: "center", maxWidth: 480 }}>
+          {brand?.logo_url && <img src={brand.logo_url} alt={brand.name} style={{ maxHeight: 60, marginBottom: 18 }} />}
+          <h1 className="serif" style={{ fontSize: 28, color: "var(--ink)", marginBottom: 10 }}>Your results are ready.</h1>
+          <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.6 }}>
+            Thank you for completing this assessment. Your results have been sent to{" "}
+            <strong>{brand?.name || "your church"}</strong>, who asked to go over them with you in person.
+            Reach out to your church leader to review them together.
+          </p>
+          <p style={{ color: "#8CA0B3", fontSize: 13.5, marginTop: 16 }}>
+            Assessment by Mission USA of the Congregational Holiness Church.
+          </p>
+        </div>
+      </Centered>
+    );
 
   const contact = scored.contact || {};
   const suppressDonation = ["mip", "church-class"].includes(contact.source_tag);
@@ -121,7 +158,14 @@ export default function ResultsPage() {
       <div ref={reportRef} id="report-capture">
         <header style={hd}>
           <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px" }}>
-            <img src="/musa-logo-white-h.png" alt="Mission USA Assessments" style={{ height: 46, width: "auto", display: "block", marginBottom: 18 }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, gap: 16 }}>
+              <img src="/musa-logo-white-h.png" alt="Mission USA Assessments" style={{ height: 46, width: "auto", display: "block" }} />
+              {brand?.logo_url && (
+                <span style={{ background: "#fff", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}>
+                  <img src={brand.logo_url} alt={brand.name} style={{ height: 34, width: "auto", display: "block" }} />
+                </span>
+              )}
+            </div>
             <div style={hdRow}>
               <div>
                 <div style={kicker}>{meta?.name}</div>

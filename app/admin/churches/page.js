@@ -97,6 +97,7 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
   const [f, setF] = useState({
     name: c.name, city: c.city || "", state: c.state || "", district: c.district || "",
     email: c.recipient_email || "", email2: c.recipient_email_2 || "", visibility: c.results_visibility,
+    withhold: !!c.withhold_from_taker, logo: c.logo_url || "",
   });
   const [assigned, setAssigned] = useState(new Set(c.assigned_slugs || []));
   const [invite, setInvite] = useState("");
@@ -108,6 +109,7 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
       p_id: c.id, p_name: f.name, p_city: f.city, p_state: f.state, p_district: f.district,
       p_email: f.email, p_email2: f.email2, p_visibility: f.visibility,
     });
+    await supabase.rpc("admin_set_church_branding", { p_church_id: c.id, p_withhold: f.withhold, p_logo: f.logo });
     setBusy(""); setEdit(false); onChange();
   }
   async function toggleAssessment(slug) {
@@ -146,6 +148,10 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
           <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 2 }}>
             Results to: {c.recipient_email || "—"}{c.recipient_email_2 ? `, ${c.recipient_email_2}` : ""}
           </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+            {c.withhold_from_taker && <span style={badge}>Results withheld from taker</span>}
+            {c.logo_url && <span style={{ ...badge, background: "#EAF3F4", color: "#1F5E68", borderColor: "#CFE3E5" }}>Church-branded reports</span>}
+          </div>
         </div>
         <button className="btn btn-ghost" style={{ padding: "6px 14px" }} onClick={() => setEdit(!edit)}>{edit ? "Close" : "Edit"}</button>
       </div>
@@ -167,6 +173,16 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
               <option value="aggregate_only">Aggregate only</option>
             </select>
           </label>
+          <label style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13.5, color: "var(--ink)", background: "#F7F9FA", borderRadius: 10, padding: "12px 14px", margin: "0 0 12px" }}>
+            <input type="checkbox" checked={f.withhold} onChange={(e) => setF({ ...f, withhold: e.target.checked })} style={{ marginTop: 3 }} />
+            <span>
+              <strong>Withhold results from the taker.</strong> The person does not see their own report. Only the church and Mission USA can, so a leader can reveal and discuss results in person.
+            </span>
+          </label>
+          <div style={{ marginBottom: 12 }}>
+            <Field label="Church logo URL (brands this church's reports)" v={f.logo} on={(v) => setF({ ...f, logo: v })} />
+            <div style={{ fontSize: 12, color: "#8CA0B3", marginTop: 4 }}>Paste a public image URL (PNG/JPG). It appears on the reports of members who take assessments through this church.</div>
+          </div>
           <button className="btn btn-primary" disabled={busy === "info"} onClick={saveInfo}>{busy === "info" ? "Saving…" : "Save church"}</button>
         </div>
       )}
@@ -250,3 +266,4 @@ const chip = { fontSize: 13, fontWeight: 600, padding: "7px 12px", borderRadius:
 const chipOn = { background: "var(--navy)", borderColor: "var(--navy)", color: "#fff" };
 const code = { fontSize: 12, color: "#4A5B6D", wordBreak: "break-all", background: "#F6F8FA", padding: "6px 8px", borderRadius: 8, flex: 1 };
 const linkBtn = { background: "transparent", border: "none", color: "#B4703A", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline" };
+const badge = { fontSize: 11, fontWeight: 700, color: "#B07C2E", background: "#F5EFE6", border: "1px solid #EADFC9", padding: "3px 9px", borderRadius: 999, letterSpacing: ".02em" };
