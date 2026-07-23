@@ -19,7 +19,7 @@ export async function POST(req) {
     if (!email) return NextResponse.json({ error: "Email is required." }, { status: 400 });
     if (!SERVICE_ROLE || !EMAILIT) return NextResponse.json({ fallback: true });
 
-    const redirect_to = `${APP_URL}/auth/callback?next=${encodeURIComponent(next || "/dashboard")}`;
+    const redirect_to = `${APP_URL}/auth/callback?next=${encodeURIComponent(next || "/welcome")}`;
     const headers = { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" };
 
     // Ensure the user exists so magic-link generation works for new emails too.
@@ -41,7 +41,7 @@ export async function POST(req) {
     const vtype = props.verification_type || "magiclink";
     let link;
     if (hashed) {
-      link = `${APP_URL}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=${encodeURIComponent(vtype)}&next=${encodeURIComponent(next || "/dashboard")}`;
+      link = `${APP_URL}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=${encodeURIComponent(vtype)}&next=${encodeURIComponent(next || "/welcome")}`;
     } else {
       link = data?.action_link || props.action_link;
     }

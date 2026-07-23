@@ -20,9 +20,13 @@ export default async function Dashboard() {
     .select("church_id,status,churches(name)")
     .eq("status", "active");
 
+  // Scope strictly to THIS user's own sessions. Without this, an admin (whose
+  // RLS can see all sessions) would see everyone's results on their personal
+  // dashboard. The personal dashboard is always just the signed-in person's.
   const { data: sessions } = await supabase
     .from("sessions")
     .select("id,result_token,status,completed_at,started_at,assessments(name,slug,subtitle)")
+    .eq("profile_id", user.id)
     .order("started_at", { ascending: false });
 
   const ids = (sessions || []).map((s) => s.id);

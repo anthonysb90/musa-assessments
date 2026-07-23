@@ -71,7 +71,7 @@ export default function Home() {
           </span>
           <span className="topbar-links">
             <Link href="/partner" className="topbar-link">For churches</Link>
-            <Link href="/dashboard" className="topbar-link">Sign in / My results →</Link>
+            <Link href="/welcome" className="topbar-link">Sign in / My results →</Link>
           </span>
         </div>
       </header>

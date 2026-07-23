@@ -14,7 +14,7 @@ export async function GET(request) {
   const code = url.searchParams.get("code");
   const token_hash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") || "magiclink";
-  const next = url.searchParams.get("next") || "/dashboard";
+  const next = url.searchParams.get("next") || "/welcome";
 
   const res = NextResponse.redirect(new URL(next, url.origin));
   const store = cookies();
