@@ -25,6 +25,10 @@ import {
   PLANTER_TIERS,
   PLANTER_PRAY,
   PLANTER_SCRIPTURES,
+  EFMI_SUBSCALES,
+  efmiBand,
+  EFMI_CREDIT,
+  EFMI_REFERENCES,
 } from "../../lib/content";
 import DonationCard from "../../components/DonationCard";
 import CircleInvite from "../../components/CircleInvite";
@@ -36,6 +40,8 @@ export default function ResultsPage() {
   const [wb, setWb] = useState(null);
   const [state, setState] = useState("loading");
   const [dl, setDl] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const reportRef = useRef(null);
 
   // Save as PDF: capture the report region and auto-download. Loads html2pdf
@@ -89,6 +95,14 @@ export default function ResultsPage() {
       setMeta({ ...assessment, created_at: result.created_at });
       setWb(wbRow || null);
       setState("ready");
+      // Signed-in / admin detection drives the report nav. Admins get a
+      // "Back to Admin" shortcut in place of the public nav links.
+      const { data: udata } = await supabase.auth.getUser();
+      if (udata?.user) {
+        setSignedIn(true);
+        const { data: adm } = await supabase.rpc("is_admin");
+        setIsAdmin(adm === true);
+      }
     })();
   }, [token]);
 
@@ -105,7 +119,7 @@ export default function ResultsPage() {
       <div ref={reportRef} id="report-capture">
         <header style={hd}>
           <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px" }}>
-            <img src="/musa-logo-white.png" alt="Mission USA" style={{ height: 40, width: "auto", display: "block", marginBottom: 18 }} />
+            <img src="/musa-logo-white-h.png" alt="Mission USA Assessments" style={{ height: 46, width: "auto", display: "block", marginBottom: 18 }} />
             <div style={hdRow}>
               <div>
                 <div style={kicker}>{meta?.name}</div>
@@ -130,7 +144,14 @@ export default function ResultsPage() {
               {dl ? "Preparing PDF…" : "⬇ Save as PDF"}
             </button>
             <button className="btn btn-ghost" onClick={() => window.print()}>🖨 Print</button>
-            <a className="btn btn-ghost" href="/">Take another →</a>
+            {isAdmin ? (
+              <a className="btn btn-ghost" href="/admin">← Back to Admin</a>
+            ) : (
+              <>
+                <a className="btn btn-ghost" href="/">← All assessments</a>
+                <a className="btn btn-ghost" href="/dashboard">See all my results →</a>
+              </>
+            )}
           </div>
 
           <div className="no-print no-pdf" style={savedNote}>
@@ -149,6 +170,7 @@ export default function ResultsPage() {
                 ? <SpiritualGrowthReport scored={scored} />
                 : <DomainBandsReport scored={scored} />)}
             {scored.type === "type-pick" && <EnneagramReport scored={scored} />}
+            {scored.type === "subscale-sum" && <ForgivenessReport scored={scored} />}
             {scored.type === "planter" && <PlanterReport scored={scored} />}
             {scored.type === "level-matrix" && <GrowthReport scored={scored} />}
             {scored.type === "disc-blend" && <DiscReport scored={scored} />}
@@ -608,6 +630,110 @@ function EnneagramReport({ scored }) {
           Christ, never the final word on who you are. In Him your truest identity is settled: loved,
           chosen, and being made new.
         </p>
+      </section>
+    </>
+  );
+}
+
+/* ---------------- The Forgiveness Profile (EFMI subscale-sum) ---------------- */
+function ForgivenessReport({ scored }) {
+  const [open, setOpen] = useState(null);
+  const per = scored.max_per || 18;
+  const subs = scored.subscales || [];
+  const top3 = subs.slice(0, 3);
+  const bottom2 = [...subs].slice(-2).reverse();
+  return (
+    <>
+      <section style={{ padding: "8px 0" }}>
+        <div style={sectionLabel}>Your motivation to forgive</div>
+        <div style={{ ...topCard, borderLeft: "5px solid #C4923E" }}>
+          <div style={scoreRow}>
+            <span style={{ ...topScore, fontSize: 40 }}>{scored.total}</span>
+            <span style={{ fontSize: 15, color: "#8CA0B3" }}>/ {scored.max_total || 180}</span>
+          </div>
+          <div className="serif" style={{ fontSize: 22, color: "#1C2B3A", marginTop: 2 }}>{scored.total_label}</div>
+          <p style={{ ...topDef, fontSize: 14.5, marginTop: 10 }}>
+            Forgiveness is rarely a single decision, it grows from many motivations at once. This is a picture
+            of what draws your heart toward forgiveness right now, not a grade on whether you&rsquo;ve arrived.
+          </p>
+        </div>
+      </section>
+
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>What moves you most</div>
+        {top3.map((s) => {
+          const m = EFMI_SUBSCALES[s.key] || {};
+          const band = efmiBand(s.score);
+          return (
+            <div key={s.key} style={growCard}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{s.key}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: band.color }}>{s.score}/{per} · {band.label}</div>
+              </div>
+              <p style={{ ...detailP, margin: "8px 0 0" }}>{m.body}</p>
+              {m.verse && <div style={refLine}>{m.verse}</div>}
+            </div>
+          );
+        })}
+      </section>
+
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>All ten motivations</div>
+        <div style={chart}>
+          {subs.map((s, i) => {
+            const band = efmiBand(s.score);
+            const isOpen = open === s.key;
+            const m = EFMI_SUBSCALES[s.key] || {};
+            return (
+              <div key={s.key} style={{ borderBottom: "1px solid #F0F2F4" }}>
+                <button onClick={() => setOpen(isOpen ? null : s.key)} style={barBtn} className="bar">
+                  <span style={rRank}>{i + 1}</span>
+                  <span style={rName}>{s.key}</span>
+                  <span style={track}><span style={fill(s.score / per, band.color)} /></span>
+                  <span style={{ ...rScore, color: band.color }}>{s.score}</span>
+                  <span className="no-print" style={chevron(isOpen)}>›</span>
+                </button>
+                {isOpen && (
+                  <div style={detail}>
+                    <p style={detailP}>{m.short}</p>
+                    <p style={{ ...detailP, margin: 0 }}>{m.body}</p>
+                    {m.verse && <div style={refLine}>{m.verse}</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>Where forgiveness is quieter</div>
+        {bottom2.map((s) => {
+          const m = EFMI_SUBSCALES[s.key] || {};
+          return (
+            <div key={s.key} style={growCard}>
+              <div className="serif" style={{ fontSize: 18, color: "#1C2B3A" }}>{s.key}</div>
+              <p style={{ ...detailP, margin: "6px 0 0" }}>{m.short}</p>
+            </div>
+          );
+        })}
+        <p style={helper}>
+          A quieter motivation isn&rsquo;t a failure. Some reasons to forgive simply carry more weight for you
+          in this season. Forgiveness is a journey, and it&rsquo;s okay to still be on the road.
+        </p>
+      </section>
+
+      <section style={{ padding: "10px 0 4px" }}>
+        <div style={{ ...chart, padding: "18px 20px" }}>
+          <div style={{ ...blockH, marginBottom: 8 }}>About this profile</div>
+          <p style={{ fontSize: 13, color: "#4A5B6D", lineHeight: 1.55, margin: "0 0 12px" }}>{EFMI_CREDIT}</p>
+          <div style={{ ...blockH, marginBottom: 8 }}>Research foundation</div>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {EFMI_REFERENCES.map((r, i) => (
+              <li key={i} style={{ fontSize: 12, color: "#7C8A9C", lineHeight: 1.5, marginBottom: 6 }}>{r}</li>
+            ))}
+          </ul>
+        </div>
       </section>
     </>
   );

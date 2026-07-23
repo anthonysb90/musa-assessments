@@ -19,6 +19,8 @@ import {
   PLANTER_PRIMARY,
   PLANTER_CHARACTERISTICS,
   PLANTER_TIERS,
+  efmiBand,
+  efmiTotalBand,
 } from "./content";
 import { CONSENT_VERSION } from "./config";
 
@@ -143,6 +145,21 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
       .map((t) => ({ type: t, score: counts[t] || 0 }))
       .sort((a, b) => b.score - a.score || Number(a.type) - Number(b.type));
     return { ...base, type: "type-pick", total, ranked, primary: ranked[0]?.type };
+  }
+
+  if (type === "subscale-sum") {
+    // The Forgiveness Profile (EFMI): 10 subscales, each the sum of 3 items
+    // (range 3-18). Total 30-180. Ranked highest-to-lowest motivation.
+    const groups = groupBy(itemMap, answers, (it) => it.domain, smin, smax);
+    const subscales = Object.entries(groups)
+      .map(([key, vals]) => {
+        const score = vals.reduce((a, b) => a + b, 0);
+        return { key, score, count: vals.length, band: efmiBand(score).label };
+      })
+      .sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
+    const total = subscales.reduce((a, s) => a + s.score, 0);
+    const tb = efmiTotalBand(total);
+    return { ...base, type: "subscale-sum", subscales, total, max_total: 180, max_per: 18, total_band: tb.key, total_label: tb.label };
   }
 
   if (type === "planter") {

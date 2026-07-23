@@ -30,6 +30,7 @@ const CARD = {
   "leadership-health": { tag: "A self & team assessment", desc: "Self-awareness is where strong leadership starts. Read yourself across eight essential areas, then invite trusted voices to show you what you can't see about yourself.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1B3A57" stroke-width="2.2"/><path d="M30 18l-4.5 8.5L17 30l4.5-8.5z" fill="#C4923E"/><circle cx="24" cy="24" r="2" fill="#1B3A57"/></svg>` },
   "spiritual-growth": { tag: "How is your walk, honestly?", desc: "Six disciplines every follower of Christ grows in, from abiding in Christ to ministering to others. Reflect on each, then see your walk drawn as a Discipleship Wheel, with your strengths and next steps.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><circle cx="24" cy="24" r="9" stroke="#2E7D8A" stroke-width="1.4" opacity=".55"/><g stroke="#1F5E68" stroke-width="1.7" stroke-linecap="round"><path d="M24 9v30"/><path d="M11 16.5l26 15"/><path d="M11 31.5l26-15"/></g><path d="M24 24l15 0A15 15 0 0 1 31.5 37z" fill="#C4923E" opacity=".85"/><circle cx="24" cy="24" r="2.6" fill="#1B3A57"/></svg>` },
   enneagram: { tag: "Understand how you're wired", desc: "Nine ways of seeing the world, narrowed to your core type through 36 quick either-or choices. Then a redemptive read to grow by: your gift, your blind spot, and a Scripture and devotion for your type.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><path d="M24 9L37 31.5H11z" stroke="#1B3A57" stroke-width="1.7" stroke-linejoin="round"/><path d="M33.6 12.5L29.1 38.1L38.8 21.4L14.4 12.5L18.9 38.1L9.2 21.4z" stroke="#2E7D8A" stroke-width="1.3" opacity=".5" stroke-linejoin="round"/><g fill="#C4923E"><circle cx="24" cy="9" r="2"/><circle cx="33.6" cy="12.5" r="1.7"/><circle cx="38.8" cy="21.4" r="1.7"/><circle cx="37" cy="31.5" r="1.7"/><circle cx="29.1" cy="38.1" r="1.7"/><circle cx="18.9" cy="38.1" r="1.7"/><circle cx="11" cy="31.5" r="1.7"/><circle cx="9.2" cy="21.4" r="1.7"/><circle cx="14.4" cy="12.5" r="1.7"/></g></svg>` },
+  "forgiveness-profile": { tag: "What moves you to forgive", desc: "Forgiveness is hard, and freeing. Bring to mind someone who hurt you, then discover which of ten motivations draw your heart toward forgiveness, from your own peace to your faith. A gentle, private reflection built on established forgiveness research.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M8 32c8 3 17 1 23-6 2.4-2.8 5.6-4 9-3.4-1 6-6 12-14 13-6.6.8-13-.6-18-3.6z" fill="#2E7D8A"/><path d="M31 22.6c1.4-3.6 4.6-6 9-6.2-.6 3.6-3.2 6.2-6.6 6.6z" fill="#C4923E"/><circle cx="37.8" cy="17.2" r="1.3" fill="#1B3A57"/><path d="M14 33c-2 2.6-2.2 5.4-.4 8" stroke="#1F5E68" stroke-width="2.2" stroke-linecap="round"/><path d="M20 34c-1.6 2.4-1.8 4.8-.4 7.2" stroke="#3E7C63" stroke-width="2" stroke-linecap="round"/></svg>` },
 };
 
 export default function Home() {
@@ -64,7 +65,10 @@ export default function Home() {
 
       <header className="topbar">
         <div className="hwrap topbar-in">
-          <img src="/musa-logo.png" alt="Mission USA" className="brand-logo" />
+          <span className="brand-lockup">
+            <img src="/musa-logo-white-h.png" alt="Mission USA" className="brand-logo" />
+            <span className="brand-txt">Assessments</span>
+          </span>
           <Link href="/dashboard" className="topbar-link">Sign in / My results →</Link>
         </div>
       </header>
@@ -149,7 +153,7 @@ export default function Home() {
                       </div>
                       <div className="card-body">
                         {isPaid(a) && <span className="paid-badge">Paid · ${(a.price_cents / 100).toFixed(2)}</span>}
-                        <h4>{a.name}</h4>
+                        <h4>{a.name}{a.slug === "wired-to-lead" ? " (DISC Assessment)" : ""}</h4>
                         <p className="tag">{c.tag}</p>
                         <p className="desc">{c.desc}</p>
                       </div>
@@ -298,7 +302,9 @@ const CSS = `
 .card h4{font-family:var(--display,'Fraunces');font-weight:500;font-size:23px;color:var(--ink);margin:0 0 6px;letter-spacing:-.3px;}
 .card .tag{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:0 0 16px;}
 .card p.desc{font-size:14.5px;color:var(--ink-soft);margin:0;}
-.brand-logo{height:30px;width:auto;display:block;}
+.brand-lockup{display:flex;align-items:center;gap:11px;}
+.brand-logo{height:26px;width:auto;display:block;}
+.brand-txt{color:#fff;font-size:12.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.92;}
 .paid-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#B07C2E;background:#F5EFE6;border:1px solid #EADFC9;padding:3px 9px;border-radius:999px;margin-bottom:10px;}
 .filter-cost{margin-top:-10px;margin-bottom:10px;}
 .filter-cost .filter-btn{font-size:13px;padding:7px 16px;}

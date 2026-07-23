@@ -128,7 +128,7 @@ export async function POST(req) {
     // 1. Load assessment + items (public read on published assessments)
     const { data: assessment, error: ae } = await supabase
       .from("assessments")
-      .select("id,slug,name,category,scale_min,scale_max,sensitivity")
+      .select("id,slug,name,category,scale_min,scale_max,sensitivity,email_link_only")
       .eq("slug", slug)
       .eq("is_published", true)
       .single();
@@ -278,6 +278,7 @@ export async function POST(req) {
           resultToken: session.result_token,
           namesBySlug,
           sensitive: assessment.sensitivity === "sensitive",
+          linkOnly: assessment.email_link_only === true,
         });
         const sent = await sendEmail({ to, subject: email.subject, html: email.html });
         if (sent?.ok) {

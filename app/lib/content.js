@@ -30,6 +30,9 @@ export const SCORING_TYPE = {
   // (primary five weighted 2x), with a validity layer. Spouse/assessor layers
   // are a later phase; this scores and reports the candidate self-assessment.
   "church-planter": "planter",
+  // The Forgiveness Profile (licensed EFMI): 30 items, 10 motivation subscales
+  // (3 items each, summed 3-18), total 30-180. Ranks the motivations.
+  "forgiveness-profile": "subscale-sum",
   // seeded but unpublished (dedicated flows pending)
   "called-together": "couple-lower",
   "church-health": "multi-rater",
@@ -67,6 +70,10 @@ export const SCALE_OPTIONS = {
   ],
   "spiritual-growth": [
     [1, "Never"], [2, "Seldom"], [3, "Occasionally"], [4, "Frequent"], [5, "Always"],
+  ],
+  "forgiveness-profile": [
+    [1, "Strongly Disagree"], [2, "Disagree"], [3, "Slightly Disagree"],
+    [4, "Slightly Agree"], [5, "Agree"], [6, "Strongly Agree"],
   ],
 };
 
@@ -586,6 +593,105 @@ export const PLANTER_SCRIPTURES = [
   ["Nehemiah 2", "Vision, honest assessment, and a plan before the building starts."],
 ];
 
+/* ------------------------------------------------------------------ */
+/* The Forgiveness Profile (licensed EFMI). 10 motivation subscales,    */
+/* each summed 3-18. Descriptions below are Mission USA's own warm,      */
+/* Scripture-anchored write-ups of each motivation. Credit + the        */
+/* research base are shown in the report.                               */
+/* ------------------------------------------------------------------ */
+export const EFMI_ORDER = [
+  "Self-Healing",
+  "Self-Improvement",
+  "Healing for the Other",
+  "Improvement for the Other",
+  "Improved Relationship",
+  "Protection for Others Outside the Family",
+  "Protection for Others Inside the Family",
+  "Forgiveness as Good in Itself",
+  "Community Harmony",
+  "Consistency with Your Beliefs",
+];
+
+export const EFMI_SUBSCALES = {
+  "Self-Healing": {
+    short: "You forgive to find peace and be free of resentment yourself.",
+    body: "Much of what moves you toward forgiveness is your own healing. You'd rather not carry the weight of anger, and you want peace inside more than you want to hold on to the hurt. That's a healthy, honest starting place.",
+    verse: "Ephesians 4:31-32",
+  },
+  "Self-Improvement": {
+    short: "You forgive so the hurt makes you a better person.",
+    body: "You're motivated to let this experience grow you, not shrink you. Forgiveness, for you, is tied to becoming a stronger, better person and improving how you live. Hard things become the soil for character.",
+    verse: "Romans 5:3-4",
+  },
+  "Healing for the Other": {
+    short: "You want the one who hurt you to find peace and be well.",
+    body: "This is a tender, generous motivation. Even toward the person who hurt you, you carry a desire for their peace and well-being. That is close to the heart of what forgiveness actually is: mercy offered for the other's sake.",
+    verse: "Luke 6:27-28",
+  },
+  "Improvement for the Other": {
+    short: "You want the one who hurt you to grow and become better.",
+    body: "You don't just want the offense overlooked, you want the person to genuinely grow from it. Wanting good for someone who wronged you, including their growth in character, is a strong and mature motivation.",
+    verse: "Galatians 6:1",
+  },
+  "Improved Relationship": {
+    short: "You hope to mend and rebuild the relationship.",
+    body: "Part of what moves you is the hope of repair, of being able to come together again. Forgiveness and reconciliation are not the same thing, and reconciliation takes both people and rebuilt trust. But the desire to mend is a good and human longing.",
+    verse: "Matthew 5:23-24",
+  },
+  "Protection for Others Outside the Family": {
+    short: "You forgive so your hurt doesn't spill onto others around you.",
+    body: "You're aware that unhealed anger leaks. You'd rather not let what happened to you spill over onto friends, coworkers, or others. Forgiving, for you, is partly an act of care for the people in your wider world.",
+    verse: "Hebrews 12:15",
+  },
+  "Protection for Others Inside the Family": {
+    short: "You forgive to protect the peace of your home and family.",
+    body: "You feel the pull to keep your home a place of peace. You'd rather not carry conflict into the family or let your anger land on the people closest to you. Forgiveness becomes a way of guarding those you love.",
+    verse: "Colossians 3:13-14",
+  },
+  "Forgiveness as Good in Itself": {
+    short: "You forgive because forgiveness itself is good and loving.",
+    body: "For you, forgiveness needs no other payoff. It is good in and of itself, an expression of love, worth doing regardless of the outcome. This is one of the purest motivations there is, and it echoes the heart of the gospel.",
+    verse: "Colossians 3:13",
+  },
+  "Community Harmony": {
+    short: "You forgive for the sake of a peaceful community.",
+    body: "You see past yourself to the wider good. A community is healthier when its people aren't ruled by anger, and you're willing to forgive with that bigger peace in mind. That's a generous, outward-looking motivation.",
+    verse: "Romans 12:18",
+  },
+  "Consistency with Your Beliefs": {
+    short: "You forgive because your faith calls you to it.",
+    body: "Your convictions move you. Forgiveness, for you, is part of being faithful, of living consistently with what you believe. When our deepest beliefs shape how we treat those who hurt us, forgiveness has a firm foundation.",
+    verse: "Matthew 6:14-15",
+  },
+};
+
+// Subscale bands (score 3-18): strong 15-18, moderate 9-14, quiet <=8.
+export const EFMI_BANDS = [
+  { min: 15, label: "Strong", color: "#2E7D8A" },
+  { min: 9, label: "Moderate", color: "#C4923E" },
+  { min: 0, label: "Quiet", color: "#8CA0B3" },
+];
+export function efmiBand(score) {
+  return EFMI_BANDS.find((b) => score >= b.min) || EFMI_BANDS[EFMI_BANDS.length - 1];
+}
+
+// Total bands (30-180, midpoint 105). Framed gently.
+export function efmiTotalBand(total) {
+  if (total >= 135) return { key: "strong", label: "A strong, broad heart to forgive", color: "#2E7D8A" };
+  if (total >= 75) return { key: "growing", label: "A genuine and growing motivation", color: "#C4923E" };
+  return { key: "early", label: "Forgiveness may feel far off right now, and that's okay", color: "#8CA0B3" };
+}
+
+export const EFMI_CREDIT =
+  "Based on the Enright Forgiveness Motivation Inventory (EFMI), © 2026 Robert Enright, Jacqueline Song, Yan Li, and Jichan Kim, International Forgiveness Institute (internationalforgiveness.com). Used by license.";
+
+export const EFMI_REFERENCES = [
+  "Enright, R. D., & Fitzgibbons, R. P. (2015). Forgiveness Therapy: An Empirical Guide for Resolving Anger and Restoring Hope. American Psychological Association.",
+  "Enright, R. D., & Fitzgibbons, R. P. (2000). Helping Clients Forgive: An Empirical Guide for Resolving Anger and Restoring Hope. American Psychological Association.",
+  "Rique, J., et al. (2022). Validating the Enright Forgiveness Inventory – 30 (EFI-30): International Studies. European Journal of Psychological Assessment, 38(2).",
+  "Enright, R. D., Song, J., Li, Y., & Kim, J. (2026). Enright Forgiveness Motivation Inventory (EFMI). International Forgiveness Institute.",
+];
+
 // Which metadata + report copy a domain-bands assessment uses, keyed by slug.
 export const DOMAIN_META = {
   rooted: ROOTED_MARKERS,
@@ -871,6 +977,7 @@ export const ASSESSMENT_IMAGE = {
   "pastor-profile": pexels(18999688),
   "spiritual-growth": pexels(1112048),
   enneagram: pexels(3771069),
+  "forgiveness-profile": pexels(6303590),
 };
 
 export function assessmentImage(slug) {
@@ -1081,5 +1188,22 @@ export const ASSESSMENT_LANDING = {
     ],
     demo: { headline: "Your type: 2 · The Helper", sub: "Top three of nine types",
       bars: [["2 · Helper", 7, 8], ["9 · Peacemaker", 6, 8], ["6 · Loyalist", 5, 8]] },
+  },
+  "forgiveness-profile": {
+    tagline: "What moves you toward forgiveness?",
+    about:
+      "Forgiveness is one of the hardest and most freeing things we do. This reflective profile brings to mind someone who hurt you, then looks at the many reasons that draw a person to forgive, from your own peace, to care for the other, to your faith. Over 30 short statements, it shows which motivations are strongest in you right now. Built on the research-based Enright Forgiveness Motivation Inventory.",
+    measures: [
+      "10 motivations, from Self-Healing to Consistency with Your Beliefs",
+      "Your overall motivation to forgive",
+      "Your unique profile: which reasons pull hardest on your heart",
+    ],
+    youGet: [
+      "Your strongest motivations, named and described with Scripture",
+      "All ten motivations, ranked",
+      "A gentle, private, personal read, yours alone",
+    ],
+    demo: { headline: "Strongest: Forgiveness as Good in Itself", sub: "10 motivations to forgive",
+      bars: [["Good in Itself", 17, 18], ["Self-Healing", 15, 18], ["Community Harmony", 11, 18], ["Improved Relationship", 8, 18]] },
   },
 };

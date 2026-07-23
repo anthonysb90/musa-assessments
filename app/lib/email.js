@@ -161,10 +161,20 @@ export function buildAccessEmail({ code, seats = 1, slugs = [], isBundle, name }
 }
 
 // resultToken: the tokenized link; namesBySlug: { slug: name } for cross-promo.
-export function buildResultEmail({ assessment, scored, resultToken, namesBySlug = {}, sensitive }) {
+export function buildResultEmail({ assessment, scored, resultToken, namesBySlug = {}, sensitive, linkOnly }) {
   const first = scored.contact?.first_name || "there";
   const link = `${APP_URL}/results/${resultToken}`;
   const loginLink = `${APP_URL}/login`;
+
+  // Link-only: personal assessments where the results shouldn't sit in an inbox.
+  // We send only a private link, never the scores themselves.
+  if (linkOnly) {
+    const inner = `<h1 style="font-size:22px;margin:0 0 12px;color:${INK};">Your ${assessment.name} results are ready</h1>
+      <p style="font-size:15px;line-height:1.6;color:#4A5B6D;">Hi ${first}, your reflection is complete. Because this one is personal, we've kept the results out of this email. Open your private report with the link below whenever you're ready.</p>
+      <p style="margin:22px 0;">${button(link, "View my private report")}</p>
+      <p style="font-size:13px;color:#7C8A9C;">Or paste this link into your browser:<br><span style="color:${NAVY};word-break:break-all;">${link}</span></p>`;
+    return { subject: `Your ${assessment.name} results are ready`, html: shell(inner) };
+  }
 
   if (sensitive) {
     const inner = `<h1 style="font-size:22px;margin:0 0 12px;color:${INK};">Your ${assessment.name} results are ready</h1>

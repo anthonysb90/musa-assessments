@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSupabase } from "../../lib/supabaseServer";
+import { SCALE_OPTIONS } from "../../lib/content";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,30 @@ export default async function PersonPage({ searchParams }) {
     .map((s) => ({ s, r: byId[s.id] }))
     .filter((x) => x.r)
     .sort((a, b) => new Date(b.s.completed_at) - new Date(a.s.completed_at));
+
+  // Individual answers: every response, joined to its question text.
+  let responses = [];
+  if (ids.length) {
+    const { data } = await supabase.from("responses").select("session_id,item_id,value").in("session_id", ids);
+    responses = data || [];
+  }
+  const itemIds = [...new Set(responses.map((r) => r.item_id))];
+  let itemMap = {};
+  if (itemIds.length) {
+    const { data: itemRows } = await supabase.from("items").select("id,text,item_order").in("id", itemIds);
+    itemMap = Object.fromEntries((itemRows || []).map((it) => [it.id, it]));
+  }
+  const scaleLabel = (slug, value) => {
+    const opts = SCALE_OPTIONS[slug];
+    if (!opts) return null;
+    const hit = opts.find(([v]) => Number(v) === Number(value));
+    return hit ? hit[1] : null;
+  };
+  const answersFor = (sessionId, slug) =>
+    responses
+      .filter((r) => r.session_id === sessionId)
+      .map((r) => ({ order: itemMap[r.item_id]?.item_order ?? 999, text: itemMap[r.item_id]?.text || "(item)", value: r.value, label: scaleLabel(slug, r.value) }))
+      .sort((a, b) => a.order - b.order);
 
   // Profile from the most recent contact block.
   const latest = items[0]?.r?.scored_json?.contact || {};
@@ -90,6 +115,25 @@ export default async function PersonPage({ searchParams }) {
                   {s.result_token && <a href={`/results/${s.result_token}`} target="_blank" rel="noreferrer" style={link}>View full report →</a>}
                   <span>Source: {s.source_tag || "public"}{r.delivered_at ? " · emailed" : ""}</span>
                 </div>
+                {(() => {
+                  const ans = answersFor(s.id, s.assessments?.slug);
+                  if (!ans.length) return null;
+                  return (
+                    <details style={{ marginTop: 12 }}>
+                      <summary style={{ cursor: "pointer", color: "var(--teal-deep)", fontWeight: 600, fontSize: 13.5 }}>
+                        View all {ans.length} answers
+                      </summary>
+                      <div style={{ marginTop: 8 }}>
+                        {ans.map((a, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 14, fontSize: 13, padding: "7px 0", borderTop: "1px solid #F0F2F4" }}>
+                            <span style={{ color: "#3A4A5A" }}>{a.order}. {a.text}</span>
+                            <span style={{ fontWeight: 700, color: "#1B3A57", whiteSpace: "nowrap" }}>{a.value}{a.label ? ` · ${a.label}` : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })()}
               </div>
             );
           })}
