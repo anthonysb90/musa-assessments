@@ -164,6 +164,35 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     return { ...base, type: "subscale-sum", subscales, total, max_total: 180, max_per: 18, total_band: tb.key, total_label: tb.label };
   }
 
+  if (type === "kingdom-design") {
+    // MBTI-style forced choice. Value 0 = option A (gift_letter pole), 1 = option B
+    // (option_b_letter pole). Four scales (EI/SN/TF/JP), 15 items each. The higher
+    // count wins each scale; clarity comes from the winning count (out of 15).
+    const SC = ["EI", "SN", "TF", "JP"];
+    const counts = {};
+    for (const s of SC) counts[s] = { A: 0, B: 0, aPole: null, bPole: null };
+    for (const [itemId, value] of Object.entries(answers)) {
+      const it = itemMap[itemId];
+      if (!it || it.is_scored === false) continue;
+      const s = it.domain;
+      if (!counts[s]) continue;
+      counts[s].aPole = it.gift_letter;
+      counts[s].bPole = it.option_b_letter;
+      if (Number(value) === 1) counts[s].B += 1; else counts[s].A += 1;
+    }
+    const clar = (n) => (n >= 14 ? "very-clear" : n >= 12 ? "clear" : n >= 10 ? "moderate" : "slight");
+    const scales = SC.map((s) => {
+      const c = counts[s];
+      const aWins = c.A >= c.B; // 15 items → ties impossible when complete; default to A
+      const letter = aWins ? c.aPole : c.bPole;
+      const win = Math.max(c.A, c.B), tot = c.A + c.B;
+      return { key: s, letter, a_pole: c.aPole, b_pole: c.bPole, a: c.A, b: c.B, total: tot, win, clarity: clar(win), pct: tot ? Math.round((win / tot) * 100) : 50 };
+    });
+    const code = scales.map((x) => x.letter).join("");
+    const temperament = code[1] === "S" ? (code[3] === "J" ? "SJ" : "SP") : (code[2] === "F" ? "NF" : "NT");
+    return { ...base, type: "kingdom-design", code, temperament, scales };
+  }
+
   if (type === "big-five") {
     // Five traits (O,C,E,A,N; 12 items each) + six facets (6 items each).
     // Reverse keying already applied by adj(). Percentage puts every scale on

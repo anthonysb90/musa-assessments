@@ -1,6 +1,7 @@
 // One-line human summary of a scored result, for dashboards and lists.
 import { GROWTH_LEVELS, DISC_BLENDS, DISC_DIMS } from "./content";
 import { BIG5_TRAIT_META } from "./bigfive";
+import { KDP_NAMES } from "./kingdom";
 import { GIFTS } from "./gifts";
 
 export function headlineFor(scored) {
@@ -29,6 +30,9 @@ export function headlineFor(scored) {
     case "big-five": {
       const top = [...(scored.traits || [])].sort((a, b) => b.pct - a.pct)[0];
       return top ? `Strongest trait: ${BIG5_TRAIT_META[top.key]?.name || top.key} (${top.pct})` : "Big Five profile";
+    }
+    case "kingdom-design": {
+      return scored.code ? `Type: ${scored.code} · ${KDP_NAMES[scored.code] || ""}`.trim().replace(/·\s*$/, "") : "Kingdom Design Profile";
     }
     case "domain-average": {
       const top = scored.domains?.[0];

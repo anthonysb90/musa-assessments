@@ -31,6 +31,7 @@ const CARD = {
   "spiritual-growth": { tag: "How is your walk, honestly?", desc: "Six disciplines every follower of Christ grows in, from abiding in Christ to ministering to others. Reflect on each, then see your walk drawn as a Discipleship Wheel, with your strengths and next steps.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><circle cx="24" cy="24" r="9" stroke="#2E7D8A" stroke-width="1.4" opacity=".55"/><g stroke="#1F5E68" stroke-width="1.7" stroke-linecap="round"><path d="M24 9v30"/><path d="M11 16.5l26 15"/><path d="M11 31.5l26-15"/></g><path d="M24 24l15 0A15 15 0 0 1 31.5 37z" fill="#C4923E" opacity=".85"/><circle cx="24" cy="24" r="2.6" fill="#1B3A57"/></svg>` },
   enneagram: { tag: "Discover what drives you", desc: "Nine core motivations, narrowed to your type through 36 quick either-or choices. This one goes beneath behavior to the why underneath, then turns it toward Christ: your gift, your blind spot, and a Scripture and devotion for your type.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><path d="M24 9L37 31.5H11z" stroke="#1B3A57" stroke-width="1.7" stroke-linejoin="round"/><path d="M33.6 12.5L29.1 38.1L38.8 21.4L14.4 12.5L18.9 38.1L9.2 21.4z" stroke="#2E7D8A" stroke-width="1.3" opacity=".5" stroke-linejoin="round"/><g fill="#C4923E"><circle cx="24" cy="9" r="2"/><circle cx="33.6" cy="12.5" r="1.7"/><circle cx="38.8" cy="21.4" r="1.7"/><circle cx="37" cy="31.5" r="1.7"/><circle cx="29.1" cy="38.1" r="1.7"/><circle cx="18.9" cy="38.1" r="1.7"/><circle cx="11" cy="31.5" r="1.7"/><circle cx="9.2" cy="21.4" r="1.7"/><circle cx="14.4" cy="12.5" r="1.7"/></g></svg>` },
   "big-five": { tag: "The most researched map of your personality", desc: "The Big Five is the gold standard of personality science. In about fifteen minutes, see yourself across five core traits and six expanded facets, with a full report on how each one shapes the way you lead, relate, and serve.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><polygon points="24,8 38,18.5 32.5,35 15.5,35 10,18.5" stroke="#1F5E68" stroke-width="2" fill="none" stroke-linejoin="round"/><polygon points="24,15 31,20.2 28.3,28.5 19.7,28.5 17,20.2" fill="#2E7D8A" opacity=".18"/><polygon points="24,15 31,20.2 28.3,28.5 19.7,28.5 17,20.2" stroke="#2E7D8A" stroke-width="1.4" fill="none" stroke-linejoin="round"/><g fill="#C4923E"><circle cx="24" cy="8" r="2.2"/><circle cx="38" cy="18.5" r="2"/><circle cx="32.5" cy="35" r="2"/><circle cx="15.5" cy="35" r="2"/><circle cx="10" cy="18.5" r="2"/></g><circle cx="24" cy="23" r="1.8" fill="#1B3A57"/></svg>` },
+  "kingdom-design": { tag: "Who God made you, and why", desc: "The Kingdom Design Profile joins the Myers-Briggs framework of 16 personality types to Scripture. In about fifteen minutes, find your four-letter type, then get a full report: how God wired you, your biblical mirror, your calling, and a 30-day plan.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><rect x="9" y="9" width="30" height="30" rx="7" stroke="#1B3A57" stroke-width="2"/><path d="M24 9v30M9 24h30" stroke="#1F5E68" stroke-width="1.4" opacity=".6"/><circle cx="16.5" cy="16.5" r="3" fill="#C4923E"/><circle cx="31.5" cy="16.5" r="3" fill="#2E7D8A"/><circle cx="16.5" cy="31.5" r="3" fill="#2E7D8A"/><circle cx="31.5" cy="31.5" r="3" fill="#C4923E"/><circle cx="24" cy="24" r="3.4" fill="#1B3A57"/></svg>` },
   "forgiveness-profile": { tag: "What moves you to forgive", desc: "Forgiveness is hard, and freeing. Bring to mind someone who hurt you, then discover which of ten motivations draw your heart toward forgiveness, from your own peace to your faith. A gentle, private reflection built on established forgiveness research.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M8 32c8 3 17 1 23-6 2.4-2.8 5.6-4 9-3.4-1 6-6 12-14 13-6.6.8-13-.6-18-3.6z" fill="#2E7D8A"/><path d="M31 22.6c1.4-3.6 4.6-6 9-6.2-.6 3.6-3.2 6.2-6.6 6.6z" fill="#C4923E"/><circle cx="37.8" cy="17.2" r="1.3" fill="#1B3A57"/><path d="M14 33c-2 2.6-2.2 5.4-.4 8" stroke="#1F5E68" stroke-width="2.2" stroke-linecap="round"/><path d="M20 34c-1.6 2.4-1.8 4.8-.4 7.2" stroke="#3E7C63" stroke-width="2" stroke-linecap="round"/></svg>` },
 };
 
@@ -48,7 +49,8 @@ const FINDER_ROLES = [
 const FINDER_GOALS = [
   { key: "gifts", label: "discover how God has gifted me", slugs: ["spiritual-gifts", "fivefold-calling"] },
   { key: "calling", label: "find my ministry calling", slugs: ["fivefold-calling", "spiritual-gifts"] },
-  { key: "personality", label: "understand my personality", slugs: ["big-five", "enneagram"] },
+  { key: "personality", label: "understand my personality", slugs: ["big-five", "kingdom-design", "enneagram"] },
+  { key: "type", label: "find my personality type (Myers-Briggs)", slugs: ["kingdom-design", "big-five"] },
   { key: "motivation", label: "understand what really drives me", slugs: ["enneagram", "big-five"] },
   { key: "lead", label: "understand my leadership style", slugs: ["wired-to-lead", "leadership-health"] },
   { key: "growLead", label: "grow as a leader", slugs: ["leadership-health", "pastor-profile"] },
@@ -133,7 +135,7 @@ export default function Home() {
                               <Link key={a.slug} href={`/assessment/${a.slug}`} className="mega-item" onClick={() => setMenuOpen(false)}>
                                 <span className="mega-ico" dangerouslySetInnerHTML={{ __html: c.plate || "" }} />
                                 <span className="mega-txt">
-                                  <span className="mega-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : ""}</span>
+                                  <span className="mega-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</span>
                                   <span className="mega-desc">{c.tag || a.subtitle}</span>
                                 </span>
                               </Link>
@@ -243,7 +245,7 @@ export default function Home() {
                       </div>
                       <div className="card-body">
                         {isPaid(a) && <span className="paid-badge">Premium · ${(a.price_cents / 100).toFixed(2)}</span>}
-                        <h4>{a.name}{a.slug === "wired-to-lead" ? " (DISC Assessment)" : ""}</h4>
+                        <h4>{a.name}{a.slug === "wired-to-lead" ? " (DISC Assessment)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</h4>
                         <p className="tag">{c.tag}</p>
                         <p className="desc">{c.desc}</p>
                       </div>
@@ -364,7 +366,7 @@ function Finder({ assessments }) {
                     <Link key={a.slug} href={`/assessment/${a.slug}`} className="finder-rc">
                       <span className="finder-rc-ico" dangerouslySetInnerHTML={{ __html: c.plate || "" }} />
                       <span className="finder-rc-body">
-                        <span className="finder-rc-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : ""}</span>
+                        <span className="finder-rc-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</span>
                         <span className="finder-rc-desc">{c.tag || a.subtitle}</span>
                       </span>
                       <span className="finder-rc-go">Start →</span>

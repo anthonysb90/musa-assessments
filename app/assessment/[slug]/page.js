@@ -74,12 +74,27 @@ export default async function AssessmentLanding({ params, searchParams }) {
         .cta-start:hover { animation: none; transform: translateY(-3px) scale(1.02); box-shadow: 0 18px 44px rgba(196,146,62,.6); }
         @media (prefers-reduced-motion: reduce){ .cta-start{ animation:none; } }
       `}</style>
+
+      {/* Persistent site header — stays visible so people can always get back */}
+      <header style={siteHeader}>
+        <div style={siteHeaderIn}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none" }}>
+            <img src="/musa-logo-white-h.png" alt="Mission USA" style={{ height: 32 }} />
+            <span style={{ color: "#fff", fontSize: 12.5, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", opacity: .92 }}>Assessments</span>
+          </Link>
+          <nav style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Link href="/" style={navLink}>← All assessments</Link>
+            <Link href="/partner" style={navLink}>For churches</Link>
+            <Link href="/welcome" style={navCta}>Sign in / My results →</Link>
+          </nav>
+        </div>
+      </header>
+
       {/* Hero */}
       <section style={hero}>
         <div style={{ ...heroImg, backgroundImage: `url("${image}")` }} />
         <div style={heroOverlay} />
         <div style={heroInner}>
-          <Link href="/" style={backLink}>← All assessments</Link>
           <div style={kicker}>{CAT_LABEL[a.category] || "Ministry Assessment"}</div>
           <h1 className="serif" style={heroTitle}>{a.name}</h1>
           <p style={heroTag}>{land.tagline || a.subtitle}</p>
@@ -149,6 +164,10 @@ export default async function AssessmentLanding({ params, searchParams }) {
 }
 
 /* styles */
+const siteHeader = { background: "#122A44", borderBottom: "1px solid rgba(255,255,255,.08)", position: "sticky", top: 0, zIndex: 50 };
+const siteHeaderIn = { maxWidth: 1200, margin: "0 auto", padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" };
+const navLink = { color: "rgba(255,255,255,.82)", fontSize: 14, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" };
+const navCta = { color: "#3a2a08", background: "#C4923E", padding: "8px 15px", borderRadius: 9, fontSize: 14, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" };
 const hero = { position: "relative", minHeight: "58vh", display: "flex", alignItems: "flex-end", overflow: "hidden" };
 const heroImg = { position: "absolute", inset: 0, backgroundSize: "cover", backgroundPosition: "center", transform: "scale(1.03)" };
 const heroOverlay = { position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(18,42,68,.35) 0%, rgba(18,42,68,.72) 55%, rgba(18,42,68,.92) 100%)" };

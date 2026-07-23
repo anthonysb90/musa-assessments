@@ -25,8 +25,10 @@ export default function AdminChurches() {
       const { data: admin } = await supabase.rpc("is_admin");
       if (!admin) { setState("denied"); return; }
       const { data: a } = await supabase
-        .from("assessments").select("slug,name,is_published").order("name");
-      setAssessments((a || []).filter((x) => x.is_published));
+        .from("assessments").select("slug,name,is_published,allows_church_mode").order("name");
+      // Only assessments eligible for church mode. The most personal ones
+      // (marriage, wellbeing, private reflection) are never church-shareable.
+      setAssessments((a || []).filter((x) => x.is_published && x.allows_church_mode));
       await load();
       setState("ready");
     })();

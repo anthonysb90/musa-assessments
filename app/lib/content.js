@@ -37,6 +37,9 @@ export const SCORING_TYPE = {
   // (6 each), reverse-keyed, scored to 0-100 percentages with Low/Mod/High
   // bands. Fifth trait reported as Emotional Stability (100 - Neuroticism).
   "big-five": "big-five",
+  // Kingdom Design Profile (Myers-Briggs): 60 forced-choice items, 4 dichotomies
+  // (EI/SN/TF/JP), a 4-letter type + clarity per letter, and a full type report.
+  "kingdom-design": "kingdom-design",
   // seeded but unpublished (dedicated flows pending)
   "called-together": "couple-lower",
   "church-health": "multi-rater",
@@ -1062,6 +1065,7 @@ export const ASSESSMENT_IMAGE = {
   enneagram: pexels(3771069),
   "forgiveness-profile": pexels(34823825),
   "big-five": pexels(1181671),
+  "kingdom-design": "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1600&h=1000&q=70",
 };
 
 export function assessmentImage(slug) {
@@ -1306,5 +1310,22 @@ export const ASSESSMENT_LANDING = {
     ],
     demo: { headline: "A clear five-trait profile", sub: "5 traits · 6 facets · 0–100",
       bars: [["Conscientiousness", 75, 100], ["Agreeableness", 68, 100], ["Openness", 60, 100], ["Emotional Stability", 54, 100]] },
+  },
+  "kingdom-design": {
+    tagline: "Who God made you, and why He made you that way.",
+    about:
+      "The Kingdom Design Profile takes the time-tested Myers-Briggs framework of 16 personality types and joins it to Scripture. Over 60 quick either-or questions, about 12 to 15 minutes, it finds your four-letter type, then hands you a full personal report: how God wired you, your biblical mirror, where you fit in the church and the family, your growth edges, and a 30-day plan. Psychology describes how you're wired. The Word tells you what the wiring is for.",
+    measures: [
+      "4 preferences: Energy (E/I), Information (S/N), Decisions (T/F), Lifestyle (J/P)",
+      "Your four-letter type, with a clarity read on each letter",
+      "Your temperament: Pillar, Responder, Encourager, or Architect",
+    ],
+    youGet: [
+      "Your type and temperament, on a clear visual profile",
+      "A complete report: your design, your biblical mirror, your calling, and your watch-outs",
+      "Spiritual disciplines, verses, a prayer, and a 30-day plan for your type",
+    ],
+    demo: { headline: "Your type: INFJ · The Counselor", sub: "4 preferences · 16 types · clarity",
+      bars: [["Introversion", 12, 15], ["Intuition", 13, 15], ["Feeling", 11, 15], ["Judging", 10, 15]] },
   },
 };

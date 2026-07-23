@@ -17,7 +17,8 @@ export default function PartnerRequest() {
   useEffect(() => {
     (async () => {
       const { data } = await supabase
-        .from("assessments").select("slug,name,category").eq("is_published", true).order("category").order("name");
+        .from("assessments").select("slug,name,category").eq("is_published", true)
+        .eq("allows_church_mode", true).order("category").order("name");
       setAssessments(data || []);
     })();
   }, [supabase]);
@@ -98,6 +99,12 @@ export default function PartnerRequest() {
           <Field label="A second email to also give dashboard access (optional)" type="email" v={f.admin_email} on={(v) => setF({ ...f, admin_email: v })} />
 
           <div style={sec}>Which assessments would you like to use?</div>
+          <div style={privacyNote}>
+            <strong>A note on privacy.</strong> A few of our most personal assessments, like the ones touching
+            marriage, mental and emotional health, and private reflection, are not eligible for church
+            partnership or dashboard viewing. We would never hand a church that data. Those results always stay
+            between the individual and God. Only the assessments below can be shared with a church.
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {assessments.map((a) => {
               const on = f.slugs.includes(a.slug);
@@ -172,6 +179,7 @@ const kicker = { fontSize: 12.5, letterSpacing: ".16em", textTransform: "upperca
 const card = { background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 18, padding: "28px 26px" };
 const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 };
 const sec = { fontSize: 12.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700, margin: "18px 0 12px" };
+const privacyNote = { background: "var(--blush,#F5EFE6)", border: "1px solid #EADFC9", borderRadius: 12, padding: "13px 16px", fontSize: 13.5, lineHeight: 1.55, color: "var(--ink-soft)", margin: "0 0 14px" };
 const fieldLabel = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 6 };
 const input = { width: "100%", padding: "12px 14px", fontSize: 15, borderRadius: 10, border: "1.5px solid var(--line)", fontFamily: "inherit", background: "#fff", color: "var(--ink)" };
 const chip = { fontSize: 13.5, fontWeight: 600, padding: "8px 13px", borderRadius: 999, border: "1.5px solid var(--line)", background: "#fff", color: "var(--ink-soft)", cursor: "pointer" };

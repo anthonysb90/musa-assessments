@@ -16,7 +16,7 @@ export default function AdminPricing() {
       if (!admin) { setState("denied"); return; }
       const { data } = await supabase
         .from("assessments")
-        .select("slug,name,category,is_paid,price_cents,is_published,seat_tiers")
+        .select("slug,name,category,is_paid,price_cents,is_published,seat_tiers,allows_church_mode")
         .order("category").order("name");
       setRows((data || []).map((r) => ({
         ...r,
@@ -50,6 +50,12 @@ export default function AdminPricing() {
     await supabase.rpc("admin_set_published", { p_slug: r.slug, p_published: next });
   }
 
+  async function toggleChurch(r) {
+    const next = !r.allows_church_mode;
+    edit(r.slug, { allows_church_mode: next });
+    await supabase.rpc("admin_set_church_mode", { p_slug: r.slug, p_enabled: next });
+  }
+
   const addTier = (slug) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: [...(r.tiers || []), { qty: "", dollars: "" }] } : r));
   const editTier = (slug, i, patch) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: r.tiers.map((t, j) => j === i ? { ...t, ...patch } : t) } : r));
   const removeTier = (slug, i) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: r.tiers.filter((_, j) => j !== i) } : r));
@@ -74,6 +80,10 @@ export default function AdminPricing() {
                   <span style={{ color: "#C9D2DA" }}>·</span>
                   <button onClick={() => togglePublish(r)} style={{ ...linkBtn, color: r.is_published ? "#B4703A" : "var(--teal-deep)" }}>
                     {r.is_published ? "Unpublish" : "Publish"}
+                  </button>
+                  <span style={{ color: "#C9D2DA" }}>·</span>
+                  <button onClick={() => toggleChurch(r)} title="Whether churches can include this in a partnership and see members' results. Turn off for personal or sensitive assessments." style={{ ...linkBtn, textDecoration: "none", color: r.allows_church_mode ? "var(--teal-deep)" : "#B07C2E" }}>
+                    {r.allows_church_mode ? "🏛 Church-eligible" : "🔒 Not church-eligible"}
                   </button>
                 </div>
               </div>

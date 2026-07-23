@@ -100,7 +100,7 @@ function AssessmentFlow() {
           .from("couples").select("couple_code").eq("couple_code", coupleCode).maybeSingle();
         if (!cp) { setErr("That couple link isn't valid. Ask your spouse for the correct link, or start a new one."); setPhase("error"); return; }
         const { data: its } = await supabase
-          .from("items").select("id,text,option_b_text,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
+          .from("items").select("id,text,option_b_text,stem,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
         setAssessment(a); setItems(its || []); setPhase("intro");
         return;
       }
@@ -125,7 +125,7 @@ function AssessmentFlow() {
       }
 
       const { data: its, error: ie } = await supabase
-        .from("items").select("id,text,option_b_text,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
+        .from("items").select("id,text,option_b_text,stem,item_order,domain,item_type").eq("assessment_id", a.id).order("item_order");
       if (ie) { setErr("Couldn't load the questions."); setPhase("error"); return; }
 
       const { data: ch } = await supabase
@@ -218,7 +218,7 @@ function AssessmentFlow() {
     it.domain === "Wellbeing" ? WELLBEING_OPTIONS
       : it.domain === "Safety" ? SAFETY_OPTIONS
       : scaleOptions(assessment);
-  const isForced = slug === "enneagram";
+  const isForced = slug === "enneagram" || slug === "kingdom-design";
 
   function startQuestions() {
     startedAt.current = Date.now();
@@ -600,7 +600,8 @@ function AssessmentFlow() {
               const pair = [[0, it.text], [1, it.option_b_text]];
               return (
                 <div key={it.id} style={qBlock}>
-                  <div style={{ ...qNum, marginBottom: 12, display: "block" }}>{num}.</div>
+                  <div style={{ ...qNum, marginBottom: it.stem ? 6 : 12, display: "block" }}>{num}.</div>
+                  {it.stem && <div style={{ fontSize: 16, color: "var(--ink)", fontWeight: 500, margin: "0 0 12px", lineHeight: 1.4 }}>{it.stem}</div>}
                   <div style={{ display: "grid", gap: 10 }}>
                     {pair.map(([val, txt]) => {
                       const active = chosen === val;

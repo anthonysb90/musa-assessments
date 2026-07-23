@@ -92,6 +92,11 @@ const SAMPLE = {
     traits: [["Openness", 78], ["Conscientiousness", 72], ["Extraversion", 50], ["Agreeableness", 64], ["Emotional Stability", 58]],
     facets: [["Vision (Future Orientation)", 83], ["Purpose & Meaning", 80], ["Kindness", 67], ["Humor", 30]],
   },
+  "kingdom-design": {
+    type: "kingdom-design", code: "INFJ", name: "The Counselor", mirror: "John the Beloved", temperament: "The Encouragers (NF)",
+    // [label, A pole, B pole, winning letter, winning count, total, clarity]
+    scales: [["Energy", "E", "I", "I", 12, 15, "Clear"], ["Information", "S", "N", "N", 13, 15, "Clear"], ["Decisions", "T", "F", "F", 11, 15, "Moderate"], ["Lifestyle", "J", "P", "J", 15, 15, "Very Clear"]],
+  },
 };
 
 export default function SampleReportButton({ slug, name }) {
@@ -149,8 +154,53 @@ function Report({ sample }) {
     case "planter": return <Planter s={sample} />;
     case "forgiveness": return <Forgiveness s={sample} />;
     case "big-five": return <BigFive s={sample} />;
+    case "kingdom-design": return <Kingdom s={sample} />;
     default: return null;
   }
+}
+
+function Kingdom({ s }) {
+  const cc = { "Very Clear": "#1F5E68", Clear: "#2E7D8A", Moderate: "#C4923E", Slight: "#8CA0B3" };
+  return (
+    <>
+      <Section label="Your type">
+        <div style={{ ...card, borderLeft: `5px solid ${GOLD}` }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            {s.code.split("").map((l, i) => (
+              <span key={i} style={{ fontFamily: "'Fraunces',serif", fontWeight: 700, fontSize: 24, color: "#8A6420", background: "#F5EFE6", border: "1px solid #EADFC9", borderRadius: 8, width: 34, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>{l}</span>
+            ))}
+          </div>
+          <div className="serif" style={{ fontSize: 21, color: "#1C2B3A" }}>{s.name}</div>
+          <div style={{ ...defP, marginTop: 4 }}>Biblical mirror: {s.mirror} · {s.temperament}</div>
+        </div>
+      </Section>
+      <Section label="Your four preferences" style={{ padding: "16px 0 4px" }}>
+        <div style={card}>
+          {s.scales.map(([label, a, b, letter, win, total, clarity]) => {
+            const markerLeft = letter === a ? Math.round(((total - win) / total) * 100) : Math.round((win / total) * 100);
+            const col = cc[clarity] || TEAL;
+            return (
+              <div key={label} style={{ padding: "12px 4px", borderBottom: "1px solid #F0F2F4" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1C2B3A" }}>{label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: col }}>{letter} · {clarity}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontFamily: "'Fraunces',serif", fontWeight: 600, color: letter === a ? "#1B3A57" : "#B4BEC9", width: 20, textAlign: "center" }}>{a}</span>
+                  <div style={{ position: "relative", height: 10, background: "#EEF1F4", borderRadius: 999 }}>
+                    <div style={{ position: "absolute", left: "50%", top: -2, bottom: -2, width: 1, background: "#D3DAE1" }} />
+                    <div style={{ position: "absolute", top: -4, height: 16, width: 16, borderRadius: "50%", background: col, border: "2px solid #fff", left: `calc(${markerLeft}% - 8px)` }} />
+                  </div>
+                  <span style={{ fontFamily: "'Fraunces',serif", fontWeight: 600, color: letter === b ? "#1B3A57" : "#B4BEC9", width: 20, textAlign: "center" }}>{b}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p style={{ ...defP, marginTop: 10 }}>Your full report adds your biblical mirror, your calling, your place in the church and family, spiritual disciplines, a prayer, and a 30-day plan for your type.</p>
+      </Section>
+    </>
+  );
 }
 
 function BigFive({ s }) {

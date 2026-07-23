@@ -39,6 +39,14 @@ import {
   BIG5_FACETS,
   big5Boundary,
 } from "../../lib/bigfive";
+import {
+  KDP_TYPES,
+  KDP_NAMES,
+  KDP_ORDER,
+  KDP_TEMPERAMENTS,
+  KDP_PAIRS,
+  KDP_EMBLEMS,
+} from "../../lib/kingdom";
 import DonationCard from "../../components/DonationCard";
 import CircleInvite from "../../components/CircleInvite";
 
@@ -225,6 +233,7 @@ export default function ResultsPage() {
             {scored.type === "type-pick" && <EnneagramReport scored={scored} />}
             {scored.type === "subscale-sum" && <ForgivenessReport scored={scored} />}
             {scored.type === "big-five" && <BigFiveReport scored={scored} />}
+            {scored.type === "kingdom-design" && <KingdomReport scored={scored} />}
             {scored.type === "planter" && <PlanterReport scored={scored} />}
             {scored.type === "level-matrix" && <GrowthReport scored={scored} />}
             {scored.type === "disc-blend" && <DiscReport scored={scored} />}
@@ -793,6 +802,205 @@ const b5TwoCol = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax
 const b5List = { margin: 0, paddingLeft: 18 };
 const b5Ol = { margin: 0, paddingLeft: 20 };
 const b5Li = { fontSize: 13.5, color: "#4A5B6D", lineHeight: 1.5, marginBottom: 5 };
+
+/* ---------------- Kingdom Design Profile (MBTI) ---------------- */
+const KDP_CLAR_LABEL = { "very-clear": "Very Clear", clear: "Clear", moderate: "Moderate", slight: "Slight" };
+const KDP_CLAR_COLOR = { "very-clear": "#1F5E68", clear: "#2E7D8A", moderate: "#C4923E", slight: "#8CA0B3" };
+
+function KingdomReport({ scored }) {
+  const code = scored.code;
+  const t = KDP_TYPES[code];
+  const temp = KDP_TEMPERAMENTS[scored.temperament] || {};
+  const emblem = KDP_EMBLEMS[scored.temperament];
+  const byKey = Object.fromEntries((scored.scales || []).map((s) => [s.key, s]));
+  if (!t) return null;
+  return (
+    <>
+      {/* Type hero */}
+      <section style={{ padding: "8px 0 4px" }}>
+        <div style={{ background: "linear-gradient(135deg,#1B3A57,#0E2036)", borderRadius: 20, padding: "28px 26px", color: "#fff" }}>
+          <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 7 }}>
+              {code.split("").map((l, i) => (
+                <span key={i} style={kdpLetter}>{l}</span>
+              ))}
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 12, letterSpacing: ".16em", textTransform: "uppercase", color: "#E4CE8C", fontWeight: 700 }}>Your Kingdom Design</div>
+              <div className="serif" style={{ fontSize: 30, margin: "4px 0 3px", color: "#fff" }}>{t.name}</div>
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,.82)" }}>Biblical mirror: {t.mirror} &middot; {temp.name}</div>
+            </div>
+            {emblem && <img src={emblem} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 78, height: 78, borderRadius: 15, objectFit: "cover", border: "1px solid rgba(255,255,255,.15)" }} />}
+          </div>
+        </div>
+      </section>
+
+      {/* Four preferences — spectrum bars */}
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>Your four preferences</div>
+        <div style={chart}>
+          {KDP_PAIRS.map((p) => {
+            const sc = byKey[p.key] || { a: 0, b: 0, total: 15, letter: p.a, clarity: "slight" };
+            const total = sc.total || 15;
+            const markerLeft = Math.round((sc.b / total) * 100);
+            const col = KDP_CLAR_COLOR[sc.clarity] || "#2E7D8A";
+            return (
+              <div key={p.key} style={{ padding: "16px 14px", borderBottom: "1px solid #F0F2F4" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1C2B3A" }}>{p.label}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: col }}>{sc.letter === p.a ? p.a_name : p.b_name} &middot; {KDP_CLAR_LABEL[sc.clarity]}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12 }}>
+                  <span style={{ ...kdpPole, ...(sc.letter === p.a ? kdpPoleOn : {}) }}>{p.a}</span>
+                  <div style={{ position: "relative", height: 12, background: "#EEF1F4", borderRadius: 999 }}>
+                    <div style={{ position: "absolute", left: "50%", top: -3, bottom: -3, width: 1, background: "#D3DAE1" }} />
+                    <div style={{ position: "absolute", top: -3, height: 18, width: 18, borderRadius: "50%", background: col, border: "2px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.22)", left: `calc(${markerLeft}% - 9px)` }} />
+                  </div>
+                  <span style={{ ...kdpPole, ...(sc.letter === p.b ? kdpPoleOn : {}) }}>{p.b}</span>
+                </div>
+                <div style={{ textAlign: "center", fontSize: 12, color: "#8CA0B3", marginTop: 7 }}>{sc.a} chose {p.a_name.toLowerCase()} &middot; {sc.b} chose {p.b_name.toLowerCase()}</div>
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>Every preference is one end of a spectrum you both use. The marker shows your natural lean, and clarity tells you how strong that lean is, never how good or spiritual it is. A Slight lean means you use both sides almost equally, so read both and keep what fits.</p>
+      </section>
+
+      {/* Preference pair meaning */}
+      <section style={{ padding: "16px 0 4px" }}>
+        <div style={sectionLabel}>What each preference means</div>
+        <div style={b5TwoCol}>
+          {KDP_PAIRS.map((p) => {
+            const sc = byKey[p.key] || {};
+            const isA = sc.letter === p.a;
+            return (
+              <div key={p.key} style={{ ...b5Card, marginBottom: 0 }}>
+                <div style={{ fontSize: 12, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 }}>{p.label}</div>
+                <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                  <div style={{ ...kdpPoleRow, ...(isA ? kdpPoleRowOn : {}) }}>
+                    <b>{p.a_name} ({p.a})</b><span>{p.a_desc}</span>
+                  </div>
+                  <div style={{ ...kdpPoleRow, ...(!isA ? kdpPoleRowOn : {}) }}>
+                    <b>{p.b_name} ({p.b})</b><span>{p.b_desc}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Temperament */}
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>Your temperament</div>
+        <div style={{ ...b5Card, display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
+          {emblem && <img src={emblem} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 92, height: 92, borderRadius: 16, objectFit: "cover", flex: "0 0 auto" }} />}
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div className="serif" style={{ fontSize: 22, color: "#1C2B3A" }}>{temp.name} <span style={{ fontSize: 15, color: "#8CA0B3" }}>({scored.temperament})</span></div>
+            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "10px 0 4px" }}>
+              <div><div style={blockH}>Core drive</div><div style={kdpFact}>{temp.drive}</div></div>
+              <div><div style={blockH}>Kingdom gift</div><div style={kdpFact}>{temp.contribution}</div></div>
+              <div><div style={blockH}>Key risk</div><div style={kdpFact}>{temp.risk}</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 16-type grid */}
+      <section style={{ padding: "16px 0 4px" }}>
+        <div style={sectionLabel}>The sixteen designs</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+          {KDP_ORDER.map((c) => {
+            const on = c === code;
+            return (
+              <div key={c} style={{ textAlign: "center", padding: "11px 6px", borderRadius: 10, border: `1px solid ${on ? "#C4923E" : "#E7E9EC"}`, background: on ? "#FBF6EC" : "#fff" }}>
+                <div className="serif" style={{ fontWeight: 700, fontSize: 15, color: on ? "#8A6420" : "#1C2B3A" }}>{c}</div>
+                <div style={{ fontSize: 10.5, color: "#8CA0B3", marginTop: 2, lineHeight: 1.2 }}>{(KDP_NAMES[c] || "").replace(/^The /, "")}</div>
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>Each row is a temperament family. Yours is highlighted. Reading the profiles of your spouse, children, and teammates will do as much for those relationships as reading your own.</p>
+      </section>
+
+      {/* Full profile */}
+      <section style={{ padding: "22px 0 4px" }}>
+        <div style={sectionLabel}>Your Kingdom Design Profile</div>
+        <div style={b5Card}>
+          <p style={{ ...detailP, fontSize: 15.5, marginTop: 0 }}>{t.snapshot}</p>
+          <div style={{ marginBottom: 4 }}>
+            <div style={blockH}>How God wired you</div>
+            <ul style={b5List}>{t.wired.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+          </div>
+        </div>
+
+        <div style={{ ...b5Card, borderLeft: "5px solid #C4923E" }}>
+          <div style={blockH}>Your biblical mirror: {t.mirror}</div>
+          <p style={{ ...detailP, marginTop: 6 }}>{t.mirror_story}</p>
+          {t.also && <div style={refLine}>Also see: {t.also}</div>}
+        </div>
+
+        <div style={b5Card}>
+          <Block h="Your place in the Kingdom of God" t={t.kingdom} />
+          <div style={blockH}>In your church</div>
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ ...detailP, margin: "4px 0 8px" }}><b>Serve best in:</b> {t.church.roles}</p>
+            <p style={{ ...detailP, margin: "0 0 8px" }}><b>How you lead:</b> {t.church.lead}</p>
+            <p style={{ ...detailP, margin: "0 0 8px" }}><b>Your team needs from you:</b> {t.church.team_needs}</p>
+            <p style={{ ...detailP, margin: 0 }}><b>You need from your team:</b> {t.church.you_need}</p>
+          </div>
+          <div style={b5TwoCol}>
+            <div><div style={blockH}>In your family</div><ul style={b5List}>{t.family.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul></div>
+            <div><div style={blockH}>In relationships</div><ul style={b5List}>{t.relationships.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul></div>
+          </div>
+        </div>
+
+        <div style={{ ...b5Card, background: "#FBFAF7" }}>
+          <div style={blockH}>Watch-out areas</div>
+          <ul style={b5List}>{t.watchouts.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+          {t.sanctification && <div style={{ ...transitionBox, marginTop: 12 }}><b>Sanctification focus:</b> {t.sanctification}</div>}
+          <div style={{ marginTop: 14 }}><Block h="Under stress" t={t.stress} /></div>
+        </div>
+
+        <div style={b5Card}>
+          <div style={b5TwoCol}>
+            <div><div style={blockH}>Disciplines that come naturally</div><p style={{ ...detailP, margin: "4px 0 0" }}>{t.disc_natural}</p></div>
+            <div><div style={blockH}>Disciplines that stretch you</div><p style={{ ...detailP, margin: "4px 0 0" }}>{t.disc_stretch}</p></div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <div style={blockH}>Verses to live by</div>
+            <ul style={b5List}>{t.verses.map((s, i) => <li key={i} style={{ ...b5Li, fontStyle: "italic" }}>{s}</li>)}</ul>
+          </div>
+        </div>
+
+        <div style={devotionBox}>
+          <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 6 }}>A prayer for the {t.name.replace(/^The /, "")}</div>
+          <p style={{ fontSize: 14.5, color: "#4A3F2A", margin: 0, lineHeight: 1.6, fontStyle: "italic" }}>{t.prayer}</p>
+        </div>
+
+        <div style={{ ...b5Card, marginTop: 16 }}>
+          <div style={blockH}>Your next 30 days</div>
+          <div style={{ display: "grid", gap: 9, marginTop: 6 }}>
+            {t.next30.map((s, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ flex: "0 0 auto", width: 18, height: 18, borderRadius: 5, border: "1.5px solid #C4923E", marginTop: 1 }} />
+                <span style={{ fontSize: 14, color: "#4A5B6D", lineHeight: 1.5 }}>{s}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p style={helper}>Your type explains you; it never excuses you. Every design is called to Christlikeness, which always includes growth in your weaker areas. Read this as a mirror for discipleship, a common language for your family and team, and a starting point, never a box or a verdict.</p>
+      </section>
+    </>
+  );
+}
+const kdpLetter = { fontFamily: "'Fraunces',Georgia,serif", fontSize: 40, fontWeight: 600, background: "rgba(255,255,255,.08)", border: "1px solid rgba(228,206,140,.35)", borderRadius: 12, width: 54, height: 64, display: "flex", alignItems: "center", justifyContent: "center", color: "#E4CE8C" };
+const kdpPole = { fontFamily: "'Fraunces',serif", fontSize: 20, fontWeight: 600, color: "#B4BEC9", width: 26, textAlign: "center" };
+const kdpPoleOn = { color: "#1B3A57" };
+const kdpPoleRow = { display: "grid", gap: 3, padding: "10px 12px", borderRadius: 10, background: "#F6F8FA", fontSize: 13, color: "#4A5B6D", lineHeight: 1.45 };
+const kdpPoleRowOn = { background: "#EAF3F4", border: "1px solid #CFE3E5", color: "#1C2B3A" };
+const kdpFact = { fontSize: 15, fontWeight: 600, color: "#1C2B3A" };
 
 /* ---------------- Enneagram (forced-choice type pick) ---------------- */
 function EnneagramReport({ scored }) {

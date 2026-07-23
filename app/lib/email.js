@@ -135,6 +135,10 @@ function inlineSummary(scored, assessment) {
     const body = rows.map((t) => li(NAMES[t.key] || t.key, `${t.pct} / 100`)).join("");
     return `<table role="presentation" width="100%">${body}</table>`;
   }
+  if (type === "kingdom-design") {
+    const rows = (scored.scales || []).map((s) => li(s.key.split("").join("/"), `${s.letter} · ${(s.clarity || "").replace("-", " ")}`)).join("");
+    return `<p style="font-size:18px;margin:0 0 8px;color:${NAVY};font-weight:bold;">${scored.code || ""}</p><table role="presentation" width="100%">${rows}</table>`;
+  }
   return "";
 }
 
