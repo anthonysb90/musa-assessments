@@ -135,7 +135,10 @@ export default function Home() {
                 <div className="mega" role="menu">
                   <div className="mega-in">
                     {GROUPS.map((g) => {
-                      const items = assessments.filter((a) => a.category === g.cat);
+                      // Alphabetical within each group, featured assessments first.
+                      const items = assessments
+                        .filter((a) => a.category === g.cat)
+                        .sort((a, b) => (!!a.is_featured === !!b.is_featured ? a.name.localeCompare(b.name) : a.is_featured ? -1 : 1));
                       if (!items.length) return null;
                       return (
                         <div className="mega-col" key={g.cat}>
@@ -146,7 +149,7 @@ export default function Home() {
                               <Link key={a.slug} href={`/assessment/${a.slug}`} className="mega-item" onClick={() => setMenuOpen(false)}>
                                 <span className="mega-ico" dangerouslySetInnerHTML={{ __html: c.plate || "" }} />
                                 <span className="mega-txt">
-                                  <span className="mega-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</span>
+                                  <span className="mega-name">{a.is_featured && <span className="feat-star">★</span>}{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</span>
                                   <span className="mega-desc">{c.tag || a.subtitle}</span>
                                 </span>
                               </Link>
@@ -244,7 +247,7 @@ export default function Home() {
           {renderGroups.map((g) => (
             <div className={`group g-${g.cat}`} key={g.cat}>
               <div className="group-head">
-                <h3>{g.cat === "featured" ? <><span style={{ color: "var(--gold)" }}>★</span> {g.label}</> : g.label}</h3>
+                <h3>{g.cat === "featured" ? <><span style={{ color: "#2C6BB0" }}>★</span> {g.label}</> : g.label}</h3>
                 <span className="gh-sub">{g.sub}</span>
                 <span className="gh-line" />
               </div>
@@ -252,8 +255,9 @@ export default function Home() {
                 {g.items.map((a) => {
                   const c = CARD[a.slug] || { tag: a.subtitle, desc: a.subtitle, plate: "" };
                   return (
-                    <Link href={`/assessment/${a.slug}`} className={`card in${isPaid(a) ? " is-premium" : ""}`} key={a.slug}>
+                    <Link href={`/assessment/${a.slug}`} className={`card in${isPaid(a) ? " is-premium" : ""}${a.is_featured ? " is-featured" : ""}`} key={a.slug}>
                       {isPaid(a) && <span className="premium-ribbon">Premium</span>}
+                      {a.is_featured && <span className="featured-badge">★ Featured</span>}
                       <div className="card-top">
                         <div className="logo-plate" dangerouslySetInnerHTML={{ __html: c.plate }} />
                       </div>
@@ -514,6 +518,10 @@ const CSS = `
 .card.is-premium:hover{box-shadow:0 24px 54px rgba(196,146,62,.24);border-color:#D9BE86;}
 .card.is-premium .logo-plate{border-color:#E7D6B0;background:var(--gold-soft) !important;}
 .premium-ribbon{position:absolute;top:0;right:0;z-index:2;background:linear-gradient(135deg,#C4923E,#A87A2E);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 13px;border-radius:0 20px 0 14px;box-shadow:0 4px 12px rgba(168,122,46,.35);}
+.card.is-featured{border:2px solid #2C6BB0;box-shadow:0 12px 32px rgba(44,107,176,.16);}
+.card.is-featured:hover{box-shadow:0 24px 54px rgba(44,107,176,.26);border-color:#215699;}
+.featured-badge{position:absolute;top:12px;left:12px;z-index:2;display:inline-flex;align-items:center;gap:4px;background:#2C6BB0;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:999px;box-shadow:0 4px 12px rgba(44,107,176,.35);}
+.feat-star{color:#2C6BB0;margin-right:5px;}
 @media (max-width:820px){.mega{display:none;}}
 .btn{font-family:var(--sans,'Inter');font-weight:600;font-size:15px;border-radius:10px;padding:15px 28px;text-decoration:none;display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:1.5px solid transparent;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;}
 .btn-primary{background:var(--navy);color:#fff;box-shadow:0 6px 18px rgba(27,58,87,.18);}
@@ -570,6 +578,8 @@ const CSS = `
 .group-head h3{font-family:var(--display,'Fraunces');font-weight:500;font-size:24px;color:var(--ink);margin:0;white-space:nowrap;}
 .group-head .gh-sub{font-size:14px;color:var(--ink-soft);font-style:italic;white-space:nowrap;}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:24px;}
+/* Featured cards pack tighter so up to 4 fit across on wide screens; responsive down to 1. */
+.g-featured .cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,232px),1fr));gap:18px;}
 .card{background:#fff;border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;transition:box-shadow .25s ease, border-color .25s ease, transform .25s ease;}
 .card:hover{box-shadow:0 22px 50px rgba(27,58,87,.12);border-color:transparent;transform:translateY(-5px);}
 .card-top{padding:28px 26px 0;display:flex;align-items:flex-start;}

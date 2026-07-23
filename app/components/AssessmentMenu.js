@@ -50,7 +50,7 @@ export default function AssessmentMenu({ signedIn }) {
                       <Link key={x.slug} href={`/assessment/${x.slug}`} className="am-item" onClick={() => setOpen(false)}>
                         <span className="am-ico" dangerouslySetInnerHTML={{ __html: c.plate || "" }} />
                         <span className="am-txt">
-                          <span className="am-name">{x.name}</span>
+                          <span className="am-name">{x.is_featured && <span style={{ color: "#2C6BB0", marginRight: 5 }}>★</span>}{x.name}</span>
                           {c.tag && <span className="am-desc">{c.tag}</span>}
                         </span>
                       </Link>

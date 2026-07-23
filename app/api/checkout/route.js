@@ -33,7 +33,7 @@ export async function GET() {
 export async function POST(req) {
   if (!STRIPE_SECRET) return NextResponse.json({ error: "Checkout is not configured yet." }, { status: 503 });
   try {
-    const { kind, slug, email, name, first_name, last_name, phone, seats, tier_qty, coupon } = await req.json();
+    const { kind, slug, email, name, first_name, last_name, phone, seats, tier_qty, coupon, group_name } = await req.json();
     let nSeats = Math.max(1, Math.min(1000, Number(seats) || 1));
     const supabase = getServerSupabase();
 
@@ -117,6 +117,7 @@ export async function POST(req) {
     form.append("metadata[first_name]", first_name || "");
     form.append("metadata[last_name]", last_name || "");
     form.append("metadata[phone]", phone || "");
+    form.append("metadata[group_name]", group_name || "");
     form.append("metadata[subtotal]", String(subtotal));
     form.append("metadata[fee]", String(fee));
     form.append("metadata[discount]", String(discount));

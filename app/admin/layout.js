@@ -6,14 +6,10 @@ import { usePathname } from "next/navigation";
 // every /admin page so the whole panel feels like one professional product.
 const TABS = [
   ["/admin", "Overview"],
+  ["/admin/assessments", "Assessments"],
   ["/admin/people", "People"],
   ["/admin/churches", "Churches"],
-  ["/admin/pricing", "Pricing"],
-  ["/admin/gifts", "Gifts & Coupons"],
-  ["/admin/homepage", "Homepage"],
-  ["/admin/pages", "Pages"],
   ["/admin/bundles", "Bundles"],
-  ["/admin/embed", "Embed"],
 ];
 
 export default function AdminLayout({ children }) {

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { getSupabase } from "../lib/supabase";
 
 // On-screen Stripe checkout using the Payment Element. Reused for single
 // assessments and bundles, individual or multi-seat (church) purchases.
@@ -28,6 +29,7 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
   const [phone, setPhone] = useState("");
   const buyer = `${firstName} ${lastName}`.trim();
   const [group, setGroup] = useState(false);
+  const [groupName, setGroupName] = useState("");
   const [seats, setSeats] = useState(1);
   const [amount, setAmount] = useState(priceCents || 0);
   const [err, setErr] = useState("");
@@ -46,12 +48,33 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
     return () => { live = false; };
   }, []);
 
-  // Fee computed on the subtotal, matching the server's formula exactly.
-  const feeCents = feeCfg && feeCfg.fee_enabled
-    ? Math.round((amount * (Number(feeCfg.fee_percent) || 0)) / 100) + (Number(feeCfg.fee_fixed_cents) || 0)
+  // Fee computed on the discounted subtotal, matching the server's formula.
+  const afterDiscount = Math.max(0, amount - discount);
+  const feeCents = feeCfg && feeCfg.fee_enabled && afterDiscount > 0
+    ? Math.round((afterDiscount * (Number(feeCfg.fee_percent) || 0)) / 100) + (Number(feeCfg.fee_fixed_cents) || 0)
     : 0;
   const feeLabel = feeCfg?.fee_label || "Platform fee";
-  const grandTotal = amount + feeCents;
+  const grandTotal = afterDiscount + feeCents;
+
+  const supaRef = useRef(null);
+  const [applying, setApplying] = useState(false);
+  const [couponMsg, setCouponMsg] = useState(""); // "" | "applied" | "invalid"
+  async function applyCoupon() {
+    if (!coupon.trim()) return;
+    setApplying(true); setCouponMsg("");
+    try {
+      const supabase = supaRef.current || (supaRef.current = getSupabase());
+      const { data, error } = await supabase.rpc("validate_coupon", {
+        p_code: coupon.trim(), p_slug: slug, p_bundle: kind === "bundle" ? slug : null, p_subtotal_cents: amount,
+      });
+      if (error) throw error;
+      if (data?.ok) { setDiscount(Number(data.discount_cents) || 0); setCouponLabel(data.label || "Discount"); setCouponMsg("applied"); }
+      else { setDiscount(0); setCouponLabel(""); setCouponMsg("invalid"); }
+    } catch { setDiscount(0); setCouponLabel(""); setCouponMsg("invalid"); }
+    setApplying(false);
+  }
+  // If the amount changes (seats/tier), a previously applied coupon is re-checked on submit.
+  useEffect(() => { if (couponMsg === "applied") { setCouponMsg(""); setDiscount(0); setCouponLabel(""); } /* eslint-disable-next-line */ }, [amount]);
 
   // Volume options: "just me" (1 seat, base price) plus each admin-defined tier.
   const options = (Array.isArray(tiers) && tiers.length)
@@ -82,8 +105,8 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
     setErr("");
     try {
       const payload = options
-        ? { kind, slug, email, name: buyer, first_name: firstName, last_name: lastName, phone, coupon, tier_qty: tierQty > 1 ? tierQty : undefined, seats: 1 }
-        : { kind, slug, email, name: buyer, first_name: firstName, last_name: lastName, phone, coupon, seats: group ? Number(seats) || 1 : 1 };
+        ? { kind, slug, email, name: buyer, first_name: firstName, last_name: lastName, phone, coupon, group_name: groupName || null, tier_qty: tierQty > 1 ? tierQty : undefined, seats: 1 }
+        : { kind, slug, email, name: buyer, first_name: firstName, last_name: lastName, phone, coupon, group_name: group ? groupName : null, seats: group ? Number(seats) || 1 : 1 };
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -189,25 +212,43 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
                 <span style={{ fontSize: 14, color: "var(--ink-soft)" }}>Buying for a group or church (multiple seats)</span>
               </label>
               {group && (
-                <label style={fw}><span style={fl}>How many seats?</span>
-                  <input style={inp} type="number" min="1" max="1000" value={seats} onChange={(e) => setSeats(e.target.value)} />
-                </label>
+                <>
+                  <label style={fw}><span style={fl}>Group or church name</span>
+                    <input style={inp} required value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g. First CHC of Griffin" />
+                  </label>
+                  <label style={fw}><span style={fl}>How many seats?</span>
+                    <input style={inp} type="number" min="1" max="1000" value={seats} onChange={(e) => setSeats(e.target.value)} />
+                  </label>
+                </>
               )}
             </>
           ) : null}
-          <label style={{ ...fw, marginTop: 4 }}><span style={fl}>Coupon or gift code (optional)</span>
-            <input style={{ ...inp, textTransform: "uppercase" }} value={coupon} placeholder="Enter a code"
-              onChange={(e) => setCoupon(e.target.value)} />
-          </label>
+          <div style={{ ...fw, marginTop: 4 }}>
+            <span style={fl}>Coupon or gift code (optional)</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input style={{ ...inp, flex: 1, textTransform: "uppercase" }} value={coupon} placeholder="Enter a code"
+                onChange={(e) => { setCoupon(e.target.value); if (couponMsg) { setCouponMsg(""); setDiscount(0); setCouponLabel(""); } }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }} />
+              <button type="button" onClick={applyCoupon} disabled={applying || !coupon.trim()}
+                style={{ ...applyBtn, opacity: applying || !coupon.trim() ? 0.55 : 1 }}>
+                {applying ? "…" : couponMsg === "applied" ? "Applied ✓" : "Apply"}
+              </button>
+            </div>
+            {couponMsg === "applied" && <p style={{ fontSize: 12.5, color: "#1F7A4D", margin: "6px 0 0", fontWeight: 600 }}>{couponLabel} applied.</p>}
+            {couponMsg === "invalid" && <p style={{ fontSize: 12.5, color: "#B4443A", margin: "6px 0 0" }}>That code isn’t valid for this order.</p>}
+          </div>
           <div style={subRow}><span>Subtotal</span><span>{dollars(amount)}</span></div>
+          {discount > 0 && (
+            <div style={subRow}><span style={{ color: "#1F7A4D" }}>Discount{couponLabel ? ` (${couponLabel})` : ""}</span><span style={{ color: "#1F7A4D" }}>−{dollars(discount)}</span></div>
+          )}
           {feeCents > 0 && (
             <div style={subRow}>
               <span>{feeLabel}</span>
               <span>{dollars(feeCents)}</span>
             </div>
           )}
-          <div style={totalRow}><span>Total{coupon ? " (before code)" : ""}</span><strong>{dollars(grandTotal)}</strong></div>
-          {coupon && <p style={{ fontSize: 12, color: "#8CA0B3", margin: "6px 0 0" }}>Your code is applied on the next step.</p>}
+          <div style={totalRow}><span>Total</span><strong>{dollars(grandTotal)}</strong></div>
+          {grandTotal < 50 && discount > 0 && <p style={{ fontSize: 12, color: "#1F7A4D", margin: "6px 0 0", fontWeight: 600 }}>This code covers the full amount — no payment needed.</p>}
           {feeCents > 0 && (
             <p style={feeNote}>
               The {feeLabel.toLowerCase()} helps cover secure payment processing and keeps most of our
@@ -215,7 +256,7 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
             </p>
           )}
           <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
-            Continue to payment →
+            {grandTotal < 50 && discount > 0 ? "Get it free →" : "Continue to payment →"}
           </button>
           <p style={{ fontSize: 12, color: "#8CA0B3", marginTop: 12, textAlign: "center" }}>Secure payment by Stripe. Your card never touches our servers.</p>
         </form>
@@ -243,6 +284,7 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
 
 const card = { background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 18, padding: 26 };
 const priceRow = { display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 14, marginBottom: 14, borderBottom: "1px solid var(--line)", fontSize: 16, color: "var(--ink)" };
+const applyBtn = { flex: "0 0 auto", padding: "0 16px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "var(--navy)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" };
 const subRow = { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "5px 0", fontSize: 14.5, color: "var(--ink-soft)" };
 const totalRow = { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "12px 0", fontSize: 18, color: "var(--ink)", borderTop: "1px solid var(--line)", marginTop: 6 };
 const feeNote = { fontSize: 11.5, color: "#8CA0B3", margin: "2px 0 0", lineHeight: 1.5 };
