@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSupabase } from "../../lib/supabaseServer";
 import { SCALE_OPTIONS } from "../../lib/content";
+import ResendButton from "./ResendButton";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +114,7 @@ export default async function PersonPage({ searchParams }) {
                 </div>
                 <div style={{ marginTop: 12, display: "flex", gap: 12, fontSize: 13, color: "var(--ink-soft)" }}>
                   {s.result_token && <a href={`/results/${s.result_token}`} target="_blank" rel="noreferrer" style={link}>View full report →</a>}
+                  <ResendButton sessionId={s.id} />
                   <span>Source: {s.source_tag || "public"}{r.delivered_at ? " · emailed" : ""}</span>
                 </div>
                 {(() => {

@@ -70,9 +70,12 @@ function Login() {
           </button>
         </form>
       )}
-      <div style={{ marginTop: 18 }}>
+      <div style={{ marginTop: 18, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <a href="/" style={{ color: "var(--teal-deep)", fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
           ← Back to assessments
+        </a>
+        <a href="/find-my-results" style={{ color: "var(--ink-soft)", fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
+          Lost your report link?
         </a>
       </div>
     </Shell>

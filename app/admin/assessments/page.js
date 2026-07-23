@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getSupabase } from "../../lib/supabase";
 import { APP_URL } from "../../lib/config";
+import RefundButton from "../RefundButton";
 
 // Unified assessment hub: one place to manage every assessment end to end —
 // publish, price + seat tiers, header image, church eligibility, featured +
@@ -337,7 +338,11 @@ function Commerce({ supabase }) {
                     {(g.assessment_slugs || []).join(", ") || g.bundle_slug || "—"} · {g.seats_used}/{g.seats_total} used{g.email ? ` · ${g.email}` : ""} · {g.stripe_payment_intent ? "paid" : "gift"}
                   </span>
                 </span>
-                <button onClick={() => deleteGrant(g.code)} style={{ ...linkBtn, color: "#B4443A", flexShrink: 0 }}>Delete</button>
+                {g.stripe_payment_intent
+                  ? (g.refunded_at
+                      ? <span style={refundedChip}>Refunded</span>
+                      : <RefundButton code={g.code} onDone={loadGrants} />)
+                  : <button onClick={() => deleteGrant(g.code)} style={{ ...linkBtn, color: "#B4443A", flexShrink: 0 }}>Delete</button>}
               </div>
             ))}
           </div>
@@ -366,6 +371,7 @@ const dragHandle = { cursor: "grab", color: "#B4BEC9", fontSize: 20, lineHeight:
 const groupHead = { fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#8CA0B3", margin: "0 0 10px", paddingBottom: 6, borderBottom: "1px solid var(--line)" };
 const chipBase = { fontSize: 11.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999 };
 const chipMuted = { fontSize: 11.5, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: "#EEF1F4", color: "#5A6A78" };
+const refundedChip = { fontSize: 11.5, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: "#EEF1F4", color: "#8CA0B3", flexShrink: 0 };
 const commerceToggle = { background: "#F6F8FA", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 600, color: "var(--ink)", cursor: "pointer", width: "100%", textAlign: "left" };
 const tabRow = { display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0 12px" };
 const tabBtn = { background: "#fff", border: "1.5px solid var(--line)", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit" };

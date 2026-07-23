@@ -1,46 +1,33 @@
-"use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { redirect } from "next/navigation";
+import { getServerSupabase } from "../lib/supabaseServer";
+import AdminNav from "./AdminNav";
 
-// Unified admin shell: a slim, branded top bar with active-tab nav, wrapping
-// every /admin page so the whole panel feels like one professional product.
-const TABS = [
-  ["/admin", "Overview"],
-  ["/admin/assessments", "Assessments"],
-  ["/admin/people", "People"],
-  ["/admin/churches", "Churches"],
-  ["/admin/bundles", "Bundles"],
-];
+export const dynamic = "force-dynamic";
 
-export default function AdminLayout({ children }) {
-  const path = usePathname();
-  const isActive = (href) => (href === "/admin" ? path === "/admin" : path.startsWith(href));
+// Server-side admin guard for the WHOLE /admin panel. Every admin page renders
+// inside this, so no admin screen (including the client mutation pages) is shown
+// to a non-admin. Data mutations are additionally guarded at the RPC level by
+// is_admin(); this is the defense-in-depth layer the audit called for.
+export default async function AdminLayout({ children }) {
+  const supabase = getServerSupabase();
+  const { data: udata } = await supabase.auth.getUser();
+  if (!udata?.user) redirect("/login?next=/admin");
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+  if (!isAdmin) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--mist)", padding: 24, textAlign: "center" }}>
+        <div>
+          <p style={{ color: "var(--ink-soft)", marginBottom: 10 }}>You don't have access to the admin panel.</p>
+          <Link href="/dashboard" style={{ color: "var(--teal-deep)", fontWeight: 600, textDecoration: "none" }}>Go to my dashboard →</Link>
+        </div>
+      </main>
+    );
+  }
   return (
     <div style={{ minHeight: "100vh", background: "var(--mist)" }}>
-      <div style={bar}>
-        <div style={barInner}>
-          <Link href="/admin" style={brand}>
-            <img src="/musa-logo-white-h.png" alt="Mission USA" style={{ height: 22, width: "auto" }} />
-            <span style={brandTxt}>Admin</span>
-          </Link>
-          <nav style={nav}>
-            {TABS.map(([href, label]) => (
-              <Link key={href} href={href} style={{ ...tab, ...(isActive(href) ? tabOn : {}) }}>{label}</Link>
-            ))}
-          </nav>
-          <Link href="/" style={backLink}>View site →</Link>
-        </div>
-      </div>
+      <AdminNav />
       {children}
     </div>
   );
 }
-
-const bar = { background: "linear-gradient(90deg,#122A44,#1B3A57)", borderBottom: "1px solid rgba(255,255,255,.08)", position: "sticky", top: 0, zIndex: 50 };
-const barInner = { maxWidth: 1100, margin: "0 auto", padding: "0 22px", height: 54, display: "flex", alignItems: "center", gap: 22 };
-const brand = { display: "flex", alignItems: "center", gap: 9, textDecoration: "none", flexShrink: 0 };
-const brandTxt = { color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", opacity: 0.9 };
-const nav = { display: "flex", gap: 4, flex: 1, flexWrap: "wrap" };
-const tab = { color: "rgba(255,255,255,.72)", fontSize: 13.5, fontWeight: 600, textDecoration: "none", padding: "7px 12px", borderRadius: 8, transition: "all .12s ease" };
-const tabOn = { color: "#fff", background: "rgba(255,255,255,.12)" };
-const backLink = { color: "#E4CE8C", fontSize: 13, fontWeight: 600, textDecoration: "none", flexShrink: 0 };

@@ -4,6 +4,8 @@ import { getServerSupabase } from "../lib/supabaseServer";
 import { headlineFor } from "../lib/headline";
 import { GIFTS } from "../lib/gifts";
 import Greeting from "../components/Greeting";
+import CareContact from "./CareContact";
+import ActivityPanel from "./ActivityPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +112,7 @@ export default async function AdminPage({ searchParams }) {
 
   // ---- pastor wellbeing care list ----
   const { data: wbRows } = await supabase
-    .from("wellbeing_results").select("session_id,band,elevated,created_at").order("created_at", { ascending: false });
+    .from("wellbeing_results").select("session_id,band,elevated,created_at,contacted,contacted_note,contacted_by,contacted_at").order("created_at", { ascending: false });
   const careList = (wbRows || [])
     .filter((w) => (w.band === "significant" || w.band === "strain") && inRange(w.created_at))
     .map((w) => ({ ...w, contact: scoredBy[w.session_id]?.scored_json?.contact || {} }))
@@ -169,13 +171,17 @@ export default async function AdminPage({ searchParams }) {
             </p>
             <div style={{ display: "grid", gap: 8 }}>
               {careList.map((w) => (
-                <div key={w.session_id} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr auto", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 10, background: "#fff", border: "1px solid #EADFC9" }}>
+                <div key={w.session_id} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr auto", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 10, background: "#fff", border: "1px solid #EADFC9", opacity: w.contacted ? 0.6 : 1 }}>
                   <span style={{ fontWeight: 600, color: "var(--ink)" }}>
                     {w.contact.first_name} {w.contact.last_name}
                     <span style={{ display: "block", fontSize: 12.5, color: "var(--ink-soft)", fontWeight: 400 }}>{w.contact.email} {w.contact.phone ? `· ${w.contact.phone}` : ""}</span>
+                    {w.contacted && <span style={{ display: "block", fontSize: 12, color: "#1F7A4D", fontWeight: 500 }}>✓ contacted{w.contacted_by ? ` by ${w.contacted_by}` : ""}</span>}
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: w.band === "significant" ? "#B0442E" : "#B07C2E" }}>{w.band === "significant" ? "Heavy load" : "Some strain"}</span>
-                  <span style={{ fontSize: 12.5, color: "var(--ink-soft)", textAlign: "right" }}>{new Date(w.created_at).toLocaleDateString()}</span>
+                  <span style={{ display: "grid", gap: 6, justifyItems: "end" }}>
+                    <span style={{ fontSize: 12.5, color: "var(--ink-soft)", textAlign: "right" }}>{new Date(w.created_at).toLocaleDateString()}</span>
+                    <CareContact sessionId={w.session_id} contacted={w.contacted} note={w.contacted_note} />
+                  </span>
                 </div>
               ))}
             </div>
@@ -210,6 +216,10 @@ export default async function AdminPage({ searchParams }) {
             ))}
             {completed.length === 0 && <p style={{ color: "var(--ink-soft)" }}>No completions in this range.</p>}
           </div>
+        </Panel>
+
+        <Panel title="Recent admin activity">
+          <ActivityPanel />
         </Panel>
       </div>
     </main>
