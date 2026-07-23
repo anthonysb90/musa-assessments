@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabase } from "./lib/supabase";
+import { DONATE_URL } from "./lib/config";
 
 const GROUPS = [
   { cat: "personal", label: "Personal Growth & Calling", sub: "for anyone wanting to know themselves better" },
@@ -79,6 +80,7 @@ export default function Home() {
   const [filter, setFilter] = useState("all");
   const [cost, setCost] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -89,6 +91,8 @@ export default function Home() {
         .eq("is_published", true);
       setAssessments(data || []);
       setLoading(false);
+      const { data: u } = await supabase.auth.getUser();
+      setSignedIn(!!u?.user);
     })();
   }, []);
 
@@ -103,7 +107,7 @@ export default function Home() {
 
   return (
     <main>
-      <style>{CSS}</style>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       <header className="topbar">
         <div className="hwrap topbar-in">
@@ -149,7 +153,9 @@ export default function Home() {
               )}
             </div>
             <Link href="/partner" className="topbar-link">For churches</Link>
-            <Link href="/welcome" className="topbar-link nav-cta">Sign in / My results →</Link>
+            <Link href="/welcome" className={`topbar-link nav-cta${signedIn ? " nav-cta-in" : ""}`}>
+              {signedIn ? <><span style={{ color: "#7FD8A6" }}>●</span> My results →</> : "Sign in / My results →"}
+            </Link>
           </nav>
         </div>
       </header>
@@ -239,7 +245,8 @@ export default function Home() {
                 {g.items.map((a) => {
                   const c = CARD[a.slug] || { tag: a.subtitle, desc: a.subtitle, plate: "" };
                   return (
-                    <Link href={`/assessment/${a.slug}`} className="card in" key={a.slug}>
+                    <Link href={`/assessment/${a.slug}`} className={`card in${isPaid(a) ? " is-premium" : ""}`} key={a.slug}>
+                      {isPaid(a) && <span className="premium-ribbon">Premium</span>}
                       <div className="card-top">
                         <div className="logo-plate" dangerouslySetInnerHTML={{ __html: c.plate }} />
                       </div>
@@ -285,6 +292,45 @@ export default function Home() {
           <div className="mark">“</div>
           <blockquote>Anyone who listens to the word but does not do what it says is like a person who looks at his face in a mirror and, after looking at himself, goes away and forgets what he looks like.</blockquote>
           <cite>James 1:23–24</cite>
+        </div>
+      </section>
+
+      {/* FOR CHURCHES */}
+      <section className="churchband">
+        <div className="hwrap">
+          <div className="churchcard">
+            <div className="cg" />
+            <div className="cc-in">
+              <div>
+                <div className="eyebrow" style={{ color: "var(--gold-soft)" }}>For churches</div>
+                <h2 className="cc-h">Bring these to your whole church.</h2>
+                <p className="cc-p">Use the assessments in your membership and growth classes. Your members choose your church, you see every result in your own private dashboard, and we hand you a link that's ready to share.</p>
+                <Link href="/partner" className="btn btn-gold cc-cta">Request a partnership <span className="btn-arrow">→</span></Link>
+              </div>
+              <ul className="cc-list">
+                <li>Your own private church dashboard</li>
+                <li>Choose the assessments your church uses</li>
+                <li>Results emailed to your contact</li>
+                <li>Your church's logo on the reports</li>
+                <li>Reveal results in person, if you prefer</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* DONATION / MINISTRY CALLOUT */}
+      <section className="giveband">
+        <div className="hwrap give-in">
+          <div className="give-mark">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.5-9.5-9C1 8.5 2.5 5 6 5c2 0 3.2 1.2 4 2.4C10.8 6.2 12 5 14 5c3.5 0 5 3.5 3.5 7-2.5 4.5-9.5 9-9.5 9z" stroke="#C4923E" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <div className="eyebrow" style={{ color: "var(--teal)" }}>A ministry of Mission USA</div>
+            <h3 className="give-h">Free for the whole CHC family, and kept that way by giving.</h3>
+            <p className="give-p">Almost every assessment here is free, and always will be. But servers, security, email, and honest research all cost real money to keep running. If one of these reports served you, a gift of any size helps us keep them free for the next pastor, leader, or believer who needs one.</p>
+          </div>
+          <a className="btn btn-primary give-cta" href={DONATE_URL} target="_blank" rel="noopener noreferrer">Give to Mission USA <span className="btn-arrow">→</span></a>
         </div>
       </section>
 
@@ -400,6 +446,8 @@ const CSS = `
 .hasmega::after{content:"";position:absolute;left:0;right:0;top:100%;height:18px;}
 .nav-cta{background:var(--gold);color:#3a2a08 !important;padding:9px 16px;border-radius:9px;}
 .nav-cta:hover{filter:brightness(1.05);color:#3a2a08 !important;}
+.nav-cta-in{background:rgba(255,255,255,.14) !important;color:#fff !important;border:1px solid rgba(255,255,255,.22);}
+.nav-cta-in:hover{background:rgba(255,255,255,.2) !important;color:#fff !important;filter:none;}
 .mega{position:absolute;top:calc(100% + 16px);right:0;z-index:60;width:min(820px,92vw);background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 34px 80px rgba(16,32,52,.30);padding:24px;}
 .mega::before{content:"";position:absolute;top:-8px;right:120px;width:16px;height:16px;background:#fff;border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg);}
 .mega-in{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
@@ -428,8 +476,13 @@ const CSS = `
 .finder-rc-name{display:block;font-family:var(--display,'Fraunces');font-size:17px;font-weight:600;color:var(--ink);}
 .finder-rc-desc{display:block;font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
 .finder-rc-go{font-size:13.5px;font-weight:700;color:var(--teal-deep);white-space:nowrap;}
-.premium-note{max-width:640px;margin:-12px auto 26px;text-align:center;font-size:13.5px;line-height:1.55;color:var(--ink-soft);background:var(--gold-soft);border:1px solid #EADFC9;border-radius:12px;padding:12px 18px;}
+.premium-note{max-width:640px;margin:14px auto 30px;text-align:center;font-size:13.5px;line-height:1.55;color:var(--ink-soft);background:var(--gold-soft);border:1px solid #EADFC9;border-radius:12px;padding:13px 18px;}
 .premium-note strong{color:#8A6420;}
+/* premium cards stand out */
+.card.is-premium{position:relative;background:linear-gradient(180deg,#FCF8EF,#fff 46%);border-color:#E7D6B0;box-shadow:0 10px 30px rgba(196,146,62,.14);}
+.card.is-premium:hover{box-shadow:0 24px 54px rgba(196,146,62,.24);border-color:#D9BE86;}
+.card.is-premium .logo-plate{border-color:#E7D6B0;background:var(--gold-soft) !important;}
+.premium-ribbon{position:absolute;top:0;right:0;z-index:2;background:linear-gradient(135deg,#C4923E,#A87A2E);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 13px;border-radius:0 20px 0 14px;box-shadow:0 4px 12px rgba(168,122,46,.35);}
 @media (max-width:820px){.mega{display:none;}}
 .btn{font-family:var(--sans,'Inter');font-weight:600;font-size:15px;border-radius:10px;padding:15px 28px;text-decoration:none;display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:1.5px solid transparent;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;}
 .btn-primary{background:var(--navy);color:#fff;box-shadow:0 6px 18px rgba(27,58,87,.18);}
@@ -519,6 +572,40 @@ const CSS = `
 .final{padding:90px 0;text-align:center;background:var(--mist);}
 .final p{font-size:17px;color:var(--ink-soft);max-width:540px;margin:0 auto 32px;}
 .final .foot-meta{margin-top:40px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#93A0AD;}
+/* For-churches band (mirrors the landing page) */
+.churchband{background:var(--mist);padding:20px 0 60px;}
+.churchcard{position:relative;overflow:hidden;background:linear-gradient(135deg,#1B3A57,#0E2036);border-radius:26px;padding:52px 48px;}
+.churchcard .cg{position:absolute;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(196,146,62,.42),transparent 70%);filter:blur(70px);right:-130px;top:-150px;}
+.cc-in{position:relative;z-index:1;display:grid;grid-template-columns:1.25fr 1fr;gap:44px;align-items:center;}
+.cc-h{font-family:var(--display,'Fraunces');font-weight:500;color:#fff;font-size:clamp(26px,3.4vw,38px);line-height:1.12;margin:12px 0 14px;}
+.cc-p{color:rgba(255,255,255,.86);font-size:16px;line-height:1.6;margin:0;}
+.btn-gold{background:var(--gold);color:#3a2a08;}
+.btn-gold:hover{filter:brightness(1.05);}
+.cc-cta{margin-top:24px;}
+.cc-list{list-style:none;display:grid;gap:13px;margin:0;padding:0;}
+.cc-list li{color:#fff;font-size:15px;padding-left:30px;position:relative;}
+.cc-list li::before{content:"";position:absolute;left:0;top:5px;width:17px;height:17px;border-radius:50%;background:rgba(196,146,62,.22);border:1px solid var(--gold);}
+.cc-list li::after{content:"✓";position:absolute;left:4px;top:3.5px;color:var(--gold-soft);font-size:11px;font-weight:800;}
+/* Donation / ministry band */
+.giveband{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:44px 0;}
+.give-in{display:flex;align-items:center;gap:24px;flex-wrap:wrap;}
+.give-mark{flex:0 0 auto;width:60px;height:60px;border-radius:16px;background:var(--gold-soft);display:flex;align-items:center;justify-content:center;}
+.give-h{font-family:var(--display,'Fraunces');font-weight:500;color:var(--ink);font-size:clamp(20px,2.4vw,26px);line-height:1.2;margin:6px 0 8px;}
+.give-p{color:var(--ink-soft);font-size:15px;line-height:1.6;margin:0;max-width:640px;}
+.give-cta{flex:0 0 auto;}
+/* Mobile header — never overflow */
+@media (max-width:820px){
+  .topbar-in{flex-wrap:wrap;gap:10px 14px;}
+  .hasmega{display:none;}
+  .brand-txt{display:none;}
+  .topnav{gap:14px;}
+  .topbar-link{font-size:13px;}
+  .nav-cta{padding:7px 12px;font-size:12.5px;}
+  .cc-in{grid-template-columns:1fr;gap:26px;}
+  .churchcard{padding:38px 28px;}
+  .give-in{gap:16px;}
+  .give-cta{width:100%;justify-content:center;}
+}
 @media (max-width:960px){
 .hero-inner{grid-template-columns:1fr;}
 .hero-copy{padding:64px 28px 52px;max-width:none;margin:0;}

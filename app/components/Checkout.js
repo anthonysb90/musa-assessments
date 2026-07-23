@@ -28,8 +28,23 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
   const [seats, setSeats] = useState(1);
   const [amount, setAmount] = useState(priceCents || 0);
   const [err, setErr] = useState("");
+  const [feeCfg, setFeeCfg] = useState(null); // { fee_fixed_cents, fee_percent, fee_label, fee_enabled }
   const stripeRef = useRef(null);
   const elementsRef = useRef(null);
+
+  // Load the platform fee config (public) so we can show the fee up front.
+  useEffect(() => {
+    let live = true;
+    fetch("/api/checkout").then((r) => r.json()).then((c) => { if (live) setFeeCfg(c); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  // Fee computed on the subtotal, matching the server's formula exactly.
+  const feeCents = feeCfg && feeCfg.fee_enabled
+    ? Math.round((amount * (Number(feeCfg.fee_percent) || 0)) / 100) + (Number(feeCfg.fee_fixed_cents) || 0)
+    : 0;
+  const feeLabel = feeCfg?.fee_label || "Platform fee";
+  const grandTotal = amount + feeCents;
 
   // Volume options: "just me" (1 seat, base price) plus each admin-defined tier.
   const options = (Array.isArray(tiers) && tiers.length)
@@ -160,7 +175,20 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
               )}
             </>
           ) : null}
-          <div style={totalRow}><span>Total</span><strong>{dollars(amount)}</strong></div>
+          <div style={subRow}><span>Subtotal</span><span>{dollars(amount)}</span></div>
+          {feeCents > 0 && (
+            <div style={subRow}>
+              <span>{feeLabel}</span>
+              <span>{dollars(feeCents)}</span>
+            </div>
+          )}
+          <div style={totalRow}><span>Total</span><strong>{dollars(grandTotal)}</strong></div>
+          {feeCents > 0 && (
+            <p style={feeNote}>
+              The {feeLabel.toLowerCase()} helps cover secure payment processing and keeps most of our
+              assessments free for the whole CHC family.
+            </p>
+          )}
           <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
             Continue to payment →
           </button>
@@ -169,10 +197,12 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
       )}
       {phase === "pay" && (
         <div>
-          <div style={totalRow}><span>Total</span><strong>{dollars(amount)}</strong></div>
+          <div style={subRow}><span>Subtotal</span><span>{dollars(amount)}</span></div>
+          {feeCents > 0 && <div style={subRow}><span>{feeLabel}</span><span>{dollars(feeCents)}</span></div>}
+          <div style={totalRow}><span>Total</span><strong>{dollars(grandTotal)}</strong></div>
           <div id="payment-element" style={{ margin: "16px 0" }} />
           <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={pay}>
-            Pay {dollars(amount)}
+            Pay {dollars(grandTotal)}
           </button>
           {err && <p style={{ color: "#B4443A", fontSize: 13, marginTop: 8 }}>{err}</p>}
         </div>
@@ -184,7 +214,9 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
 
 const card = { background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 18, padding: 26 };
 const priceRow = { display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 14, marginBottom: 14, borderBottom: "1px solid var(--line)", fontSize: 16, color: "var(--ink)" };
+const subRow = { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "5px 0", fontSize: 14.5, color: "var(--ink-soft)" };
 const totalRow = { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "12px 0", fontSize: 18, color: "var(--ink)", borderTop: "1px solid var(--line)", marginTop: 6 };
+const feeNote = { fontSize: 11.5, color: "#8CA0B3", margin: "2px 0 0", lineHeight: 1.5 };
 const fw = { display: "block", marginBottom: 16 };
 const fl = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 6 };
 const inp = { width: "100%", padding: "12px 14px", fontSize: 15, borderRadius: 10, border: "1.5px solid var(--line)", fontFamily: "inherit" };

@@ -9,6 +9,27 @@ export const runtime = "nodejs";
 // with the on-screen Payment Element.
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || "";
 
+// Public read of the (non-sensitive) fee configuration, so the checkout form
+// can show the fee line before the customer commits to paying.
+export async function GET() {
+  try {
+    const supabase = getServerSupabase();
+    const { data: s } = await supabase
+      .from("platform_settings")
+      .select("fee_fixed_cents,fee_percent,fee_label,fee_enabled")
+      .eq("id", 1)
+      .maybeSingle();
+    return NextResponse.json({
+      fee_fixed_cents: s?.fee_enabled ? Number(s.fee_fixed_cents) || 0 : 0,
+      fee_percent: s?.fee_enabled ? Number(s.fee_percent) || 0 : 0,
+      fee_label: s?.fee_label || "Platform fee",
+      fee_enabled: !!s?.fee_enabled,
+    });
+  } catch {
+    return NextResponse.json({ fee_fixed_cents: 0, fee_percent: 0, fee_label: "Platform fee", fee_enabled: false });
+  }
+}
+
 export async function POST(req) {
   if (!STRIPE_SECRET) return NextResponse.json({ error: "Checkout is not configured yet." }, { status: 503 });
   try {
@@ -37,10 +58,29 @@ export async function POST(req) {
 
     if (amount < 50) return NextResponse.json({ error: "Amount too low." }, { status: 400 });
 
+    // Platform fee: read from settings (admin-editable), computed on the base
+    // amount server-side, never trusted from the client. Percent + fixed cents.
+    const subtotal = amount;
+    let fee = 0, feeLabel = "Platform fee";
+    {
+      const { data: s } = await supabase
+        .from("platform_settings")
+        .select("fee_fixed_cents,fee_percent,fee_label,fee_enabled")
+        .eq("id", 1)
+        .maybeSingle();
+      if (s && s.fee_enabled) {
+        const pct = Number(s.fee_percent) || 0;
+        const fixed = Number(s.fee_fixed_cents) || 0;
+        fee = Math.round((subtotal * pct) / 100) + fixed;
+        feeLabel = s.fee_label || feeLabel;
+      }
+    }
+    amount = subtotal + fee;
+
     const form = new URLSearchParams();
     form.append("amount", String(amount));
     form.append("currency", "usd");
-    form.append("description", `${desc}${nSeats > 1 ? ` (${nSeats} seats)` : ""}`);
+    form.append("description", `${desc}${nSeats > 1 ? ` (${nSeats} seats)` : ""}${fee > 0 ? ` + ${feeLabel}` : ""}`);
     form.append("automatic_payment_methods[enabled]", "true");
     if (email) form.append("receipt_email", email);
     form.append("metadata[kind]", kind || "assessment");
@@ -50,6 +90,8 @@ export async function POST(req) {
     form.append("metadata[seats]", String(nSeats));
     form.append("metadata[email]", email || "");
     form.append("metadata[name]", name || "");
+    form.append("metadata[subtotal]", String(subtotal));
+    form.append("metadata[fee]", String(fee));
 
     const res = await fetch("https://api.stripe.com/v1/payment_intents", {
       method: "POST",
@@ -58,7 +100,7 @@ export async function POST(req) {
     });
     const pi = await res.json();
     if (!res.ok) return NextResponse.json({ error: pi?.error?.message || "Stripe error" }, { status: 400 });
-    return NextResponse.json({ client_secret: pi.client_secret, amount });
+    return NextResponse.json({ client_secret: pi.client_secret, amount, subtotal, fee, fee_label: feeLabel });
   } catch (e) {
     return NextResponse.json({ error: e.message || "Server error" }, { status: 500 });
   }

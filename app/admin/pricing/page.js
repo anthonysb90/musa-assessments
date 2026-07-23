@@ -9,6 +9,9 @@ export default function AdminPricing() {
   const [state, setState] = useState("loading"); // loading | ready | denied
   const [savingSlug, setSavingSlug] = useState("");
   const [savedSlug, setSavedSlug] = useState("");
+  const [fee, setFee] = useState(null); // { fixed, percent, label, enabled }
+  const [feeSaving, setFeeSaving] = useState(false);
+  const [feeSaved, setFeeSaved] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -23,9 +26,32 @@ export default function AdminPricing() {
         dollars: (r.price_cents / 100).toFixed(2),
         tiers: (Array.isArray(r.seat_tiers) ? r.seat_tiers : []).map((t) => ({ qty: String(t.qty), dollars: (Number(t.price_cents) / 100).toFixed(2) })),
       })));
+      const { data: ps } = await supabase
+        .from("platform_settings")
+        .select("fee_fixed_cents,fee_percent,fee_label,fee_enabled")
+        .eq("id", 1).maybeSingle();
+      setFee({
+        fixed: ((ps?.fee_fixed_cents ?? 30) / 100).toFixed(2),
+        percent: String(ps?.fee_percent ?? 3.5),
+        label: ps?.fee_label ?? "Platform fee",
+        enabled: ps?.fee_enabled ?? true,
+      });
       setState("ready");
     })();
   }, [supabase]);
+
+  async function saveFee() {
+    if (!fee) return;
+    setFeeSaving(true); setFeeSaved(false);
+    await supabase.rpc("admin_set_platform_fee", {
+      p_fixed_cents: Math.round(Number(fee.fixed || 0) * 100),
+      p_percent: Number(fee.percent || 0),
+      p_label: (fee.label || "").trim() || "Platform fee",
+      p_enabled: !!fee.enabled,
+    });
+    setFeeSaving(false); setFeeSaved(true);
+    setTimeout(() => setFeeSaved(false), 1800);
+  }
 
   function edit(slug, patch) {
     setRows((rs) => rs.map((r) => (r.slug === slug ? { ...r, ...patch } : r)));
@@ -68,6 +94,53 @@ export default function AdminPricing() {
       <div style={{ fontSize: 12, letterSpacing: ".16em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 }}>Commerce</div>
       <h1 className="serif" style={h1}>Pricing</h1>
       <p style={sub}>Mark an assessment paid and set its price. Free assessments show no badge. Changes take effect immediately, no deploy needed.</p>
+
+      {fee && (
+        <div style={{ ...card, padding: "20px 22px", marginBottom: 22 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: 16 }}>Platform fee</div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 2 }}>Added to every paid order to cover payment processing. Shown to buyers on the checkout screen.</div>
+            </div>
+            <label style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 14, color: "var(--ink)" }}>
+              <input type="checkbox" checked={!!fee.enabled} onChange={(e) => setFee({ ...fee, enabled: e.target.checked })} />
+              Charge this fee
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 18, alignItems: "flex-end", flexWrap: "wrap", marginTop: 16, opacity: fee.enabled ? 1 : 0.5 }}>
+            <label style={{ display: "block" }}>
+              <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 5 }}>Percent of order</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <input style={priceInp} type="number" min="0" max="30" step="0.1" disabled={!fee.enabled}
+                  value={fee.percent} onChange={(e) => setFee({ ...fee, percent: e.target.value })} />
+                <span style={{ color: "var(--ink-soft)" }}>%</span>
+              </div>
+            </label>
+            <span style={{ color: "var(--ink-soft)", paddingBottom: 9 }}>+</span>
+            <label style={{ display: "block" }}>
+              <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 5 }}>Fixed amount</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ color: "var(--ink-soft)" }}>$</span>
+                <input style={priceInp} type="number" min="0" step="0.01" disabled={!fee.enabled}
+                  value={fee.fixed} onChange={(e) => setFee({ ...fee, fixed: e.target.value })} />
+              </div>
+            </label>
+            <label style={{ display: "block", flex: "1 1 180px" }}>
+              <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 5 }}>What buyers see it called</span>
+              <input style={{ ...priceInp, width: "100%" }} type="text" disabled={!fee.enabled}
+                value={fee.label} onChange={(e) => setFee({ ...fee, label: e.target.value })} />
+            </label>
+            <button className="btn btn-primary" style={{ padding: "8px 18px" }} disabled={feeSaving} onClick={saveFee}>
+              {feeSaving ? "Saving…" : feeSaved ? "Saved ✓" : "Save fee"}
+            </button>
+          </div>
+          <div style={{ fontSize: 12.5, color: "#8CA0B3", marginTop: 12 }}>
+            Example on a $29.00 order: {fee.enabled
+              ? `$${(29 * (Number(fee.percent) || 0) / 100 + (Number(fee.fixed) || 0)).toFixed(2)} fee → buyer pays $${(29 + 29 * (Number(fee.percent) || 0) / 100 + (Number(fee.fixed) || 0)).toFixed(2)}.`
+              : "no fee added."}
+          </div>
+        </div>
+      )}
 
       <div style={card}>
         {rows.map((r) => (

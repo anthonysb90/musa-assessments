@@ -14,6 +14,8 @@ const CAT_LABEL = {
 export default async function AssessmentLanding({ params, searchParams }) {
   const { slug } = params;
   const supabase = getServerSupabase();
+  const { data: udata } = await supabase.auth.getUser();
+  const signedIn = !!udata?.user;
   const { data: a } = await supabase
     .from("assessments")
     .select("id,slug,name,subtitle,category,estimated_minutes,sensitivity,is_multi_rater,is_paid,price_cents,header_image_url")
@@ -85,7 +87,9 @@ export default async function AssessmentLanding({ params, searchParams }) {
           <nav style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Link href="/" style={navLink}>← All assessments</Link>
             <Link href="/partner" style={navLink}>For churches</Link>
-            <Link href="/welcome" style={navCta}>Sign in / My results →</Link>
+            {signedIn
+              ? <Link href="/welcome" style={{ ...navCta, background: "rgba(255,255,255,.14)", color: "#fff" }}>● My results →</Link>
+              : <Link href="/welcome" style={navCta}>Sign in / My results →</Link>}
           </nav>
         </div>
       </header>
