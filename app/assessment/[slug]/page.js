@@ -16,7 +16,7 @@ export default async function AssessmentLanding({ params, searchParams }) {
   const supabase = getServerSupabase();
   const { data: a } = await supabase
     .from("assessments")
-    .select("id,slug,name,subtitle,category,estimated_minutes,sensitivity,is_multi_rater,is_paid,price_cents")
+    .select("id,slug,name,subtitle,category,estimated_minutes,sensitivity,is_multi_rater,is_paid,price_cents,header_image_url")
     .eq("slug", slug)
     .eq("is_published", true)
     .maybeSingle();
@@ -36,7 +36,8 @@ export default async function AssessmentLanding({ params, searchParams }) {
     .from("items").select("id", { count: "exact", head: true }).eq("assessment_id", a.id);
 
   const land = ASSESSMENT_LANDING[slug] || {};
-  const image = assessmentImage(slug);
+  // Admin-set header image (Pricing → Pages) wins; otherwise the built-in default.
+  const image = a.header_image_url || assessmentImage(slug);
 
   // preserve assignment / campaign params into the take flow
   const qp = new URLSearchParams();
