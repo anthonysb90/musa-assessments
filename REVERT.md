@@ -3,7 +3,7 @@
 If anything about the report redesign looks wrong and you want to undo it, read this
 top to bottom. It is written to be followed first thing in the morning, half awake.
 
-## What changed and where the safety net is
+## What changed and where the safety net is is
 
 The reports are React renderers, not standalone templates. Everything visual for a
 report lives in:
