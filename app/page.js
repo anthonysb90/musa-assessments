@@ -520,7 +520,8 @@ const CSS = `
 .premium-ribbon{position:absolute;top:0;right:0;z-index:2;background:linear-gradient(135deg,#C4923E,#A87A2E);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 13px;border-radius:0 20px 0 14px;box-shadow:0 4px 12px rgba(168,122,46,.35);}
 .card.is-featured{border:2px solid #2C6BB0;box-shadow:0 12px 32px rgba(44,107,176,.16);}
 .card.is-featured:hover{box-shadow:0 24px 54px rgba(44,107,176,.26);border-color:#215699;}
-.featured-badge{position:absolute;top:12px;left:12px;z-index:2;display:inline-flex;align-items:center;gap:4px;background:#2C6BB0;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:999px;box-shadow:0 4px 12px rgba(44,107,176,.35);}
+.featured-badge{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;background:#2C6BB0;color:#fff;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;padding:8px 12px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.10);}
+.card.is-featured .premium-ribbon{display:none;}
 .feat-star{color:#2C6BB0;margin-right:5px;}
 @media (max-width:820px){.mega{display:none;}}
 .btn{font-family:var(--sans,'Inter');font-weight:600;font-size:15px;border-radius:10px;padding:15px 28px;text-decoration:none;display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:1.5px solid transparent;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;}
@@ -590,7 +591,7 @@ const CSS = `
 .g-featured .desc{font-size:12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;}
 .g-featured .card-foot{padding:12px 16px 14px;margin-top:8px;}
 .g-featured .foot-min,.g-featured .link-go{font-size:12px;}
-.g-featured .featured-badge{top:10px;left:10px;font-size:9.5px;padding:3px 9px;}
+.g-featured .featured-badge{font-size:10px;letter-spacing:.12em;padding:7px 12px;}
 .card{position:relative;background:#fff;border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;transition:box-shadow .25s ease, border-color .25s ease, transform .25s ease;}
 .card:hover{box-shadow:0 22px 50px rgba(27,58,87,.12);border-color:transparent;transform:translateY(-5px);}
 .card-top{padding:28px 26px 0;display:flex;align-items:flex-start;}
