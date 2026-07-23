@@ -70,42 +70,11 @@ export default function ResultsPage() {
   const [meta, setMeta] = useState(null);
   const [wb, setWb] = useState(null);
   const [state, setState] = useState("loading");
-  const [dl, setDl] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [brand, setBrand] = useState(null); // { name, logo_url, withhold }
   const [blocked, setBlocked] = useState(false); // withheld from this viewer
   const [synth, setSynth] = useState(null); // cross-assessment synthesis, or { empty: true }
-  const reportRef = useRef(null);
-
-  // Save as PDF: capture the report region and auto-download. Loads html2pdf
-  // from CDN on demand (no npm dependency). Colors are captured as rendered.
-  async function downloadPdf() {
-    if (!reportRef.current) return;
-    setDl(true);
-    try {
-      const lib = await loadHtml2pdf();
-      const contact = scored?.contact || {};
-      const who = `${contact.first_name || ""}-${contact.last_name || ""}`.trim().replace(/\s+/g, "-") || "report";
-      const what = (meta?.name || "assessment").replace(/[^\w]+/g, "-");
-      await lib()
-        .set({
-          margin: [8, 8, 12, 8],
-          filename: `${who}-${what}.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", ignoreElements: (el) => el.classList?.contains?.("no-pdf") },
-          jsPDF: { unit: "mm", format: "letter", orientation: "portrait" },
-          pagebreak: { mode: ["avoid-all", "css"] },
-        })
-        .from(reportRef.current)
-        .save();
-    } catch (e) {
-      // Fall back to the print dialog if the PDF library can't load.
-      window.print();
-    } finally {
-      setDl(false);
-    }
-  }
 
   useEffect(() => {
     (async () => {
@@ -198,51 +167,76 @@ export default function ResultsPage() {
     );
 
   const contact = scored.contact || {};
+  return (
+    <ReportView
+      scored={scored}
+      meta={meta}
+      contact={contact}
+      brand={brand}
+      wb={wb}
+      synth={synth}
+      isAdmin={isAdmin}
+      token={token}
+      preview={false}
+    />
+  );
+}
+
+/* ---------------- ReportView (shared report presentation) ----------------
+   The complete report — cover, Save PDF / Print actions, the scored.type
+   renderer switch, wellbeing card, Ministry Profile, CircleInvite, footer, and
+   the injected PRINT_CSS. Extracted from the page so the admin preview harness
+   renders the EXACT same components users see. Self-contained: owns reportRef,
+   the Save-PDF `dl` state, and downloadPdf, so the toolbar works anywhere it is
+   mounted. When `preview` is true the CircleInvite (which needs a real token)
+   is omitted; every other output is identical to the live report. */
+export function ReportView({ scored, meta, contact, brand, wb, synth, isAdmin, token, preview = false }) {
+  const reportRef = useRef(null);
+  const [dl, setDl] = useState(false);
+  const cc = contact || {};
+
+  // Save as PDF: capture the report region and auto-download. Loads html2pdf
+  // from CDN on demand (no npm dependency). Colors are captured as rendered.
+  async function downloadPdf() {
+    if (!reportRef.current) return;
+    setDl(true);
+    try {
+      const lib = await loadHtml2pdf();
+      const who = `${cc.first_name || ""}-${cc.last_name || ""}`.trim().replace(/\s+/g, "-") || "report";
+      const what = (meta?.name || "assessment").replace(/[^\w]+/g, "-");
+      await lib()
+        .set({
+          margin: [8, 8, 12, 8],
+          filename: `${who}-${what}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", ignoreElements: (el) => el.classList?.contains?.("no-pdf") },
+          jsPDF: { unit: "mm", format: "letter", orientation: "portrait" },
+          pagebreak: { mode: ["avoid-all", "css"] },
+        })
+        .from(reportRef.current)
+        .save();
+    } catch (e) {
+      // Fall back to the print dialog if the PDF library can't load.
+      window.print();
+    } finally {
+      setDl(false);
+    }
+  }
+
   // Don't ask for a donation on a premium report — they already paid.
   const isPaidReport = !!(meta?.is_paid && meta?.price_cents > 0);
-  const suppressDonation = isPaidReport || ["mip", "church-class"].includes(contact.source_tag);
+  const suppressDonation = isPaidReport || ["mip", "church-class"].includes(cc.source_tag);
 
   return (
     <main style={{ background: "var(--mist)", minHeight: "100vh" }}>
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
       <div className="print-foot" aria-hidden="true">
-        {contact.first_name} {contact.last_name} · {meta?.name} · Mission USA
+        {cc.first_name} {cc.last_name} · {meta?.name} · Mission USA
       </div>
       <div ref={reportRef} id="report-capture">
-        <header className="report-hd" style={hd}>
-          <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, gap: 16 }}>
-              <img className="hd-logo" src="/musa-logo-white-h.png" alt="Mission USA Assessments" style={{ height: 46, width: "auto", display: "block" }} />
-              {/* Print-only navy wordmark: the screen logo PNG is white and would
-                  vanish on the print header's white ground, so we swap in ink text. */}
-              <div className="hd-print-mark serif" aria-hidden="true" style={{ fontSize: 20, fontWeight: 600, color: COLOR.navy, letterSpacing: ".01em" }}>
-                MISSION USA <span style={{ color: COLOR.gold }}>— Assessments</span>
-              </div>
-              {brand?.logo_url && (
-                <span className="brand-chip" style={{ background: "#fff", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}>
-                  <img src={brand.logo_url} alt={brand.name} style={{ height: 34, width: "auto", display: "block" }} />
-                </span>
-              )}
-            </div>
-            <div style={hdRow}>
-              <div>
-                <div className="hd-kicker" style={kicker}>{meta?.name}{meta?.subtitle && meta.subtitle.length <= 16 ? ` · ${meta.subtitle}` : ""}</div>
-                <h1 className="serif" style={hName}>
-                  {contact.first_name} {contact.last_name}
-                </h1>
-              </div>
-              <div className="hd-meta" style={hMeta}>
-                {meta?.created_at &&
-                  new Date(meta.created_at).toLocaleDateString(undefined, {
-                    year: "numeric", month: "long", day: "numeric",
-                  })}
-                {contact.email && <div style={{ opacity: 0.75 }}>{contact.email}</div>}
-              </div>
-            </div>
-          </div>
-        </header>
-
         <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px 60px" }}>
+          <ReportCover meta={meta} contact={cc} brand={brand} scored={scored} />
+
           <div className="no-print no-pdf" style={actions}>
             <button className="btn btn-primary" onClick={downloadPdf} disabled={dl}>
               {dl ? "Preparing PDF…" : "Save PDF"}
@@ -268,7 +262,7 @@ export default function ResultsPage() {
             <span style={{ fontSize: 16 }}>✓</span>
             <span>
               This report is saved to your profile. You can come back to it anytime with the link we
-              emailed to {contact.email || "you"}.
+              emailed to {cc.email || "you"}.
             </span>
           </div>
 
@@ -300,7 +294,7 @@ export default function ResultsPage() {
 
           <MinistryProfile synth={synth} />
 
-          {(scored.slug === "leadership-health" || scored.type === "planter") && (
+          {!preview && (scored.slug === "leadership-health" || scored.type === "planter") && (
             <CircleInvite token={token} kind={scored.type === "planter" ? "planter" : "leader"} />
           )}
 
@@ -321,7 +315,7 @@ function MinistryProfile({ synth }) {
 
   if (synth.empty) {
     return (
-      <section className="avoid-break" style={{ breakInside: "avoid", marginTop: 8 }}>
+      <section className="avoid-break no-print no-pdf" style={{ breakInside: "avoid", marginTop: 8 }}>
         <div style={mpTeaser}>
           <div style={{ ...kicker, color: "#C4923E", marginBottom: 6 }}>Your Ministry Profile</div>
           <p style={{ fontSize: 14.5, color: "#4A5B6D", lineHeight: 1.6, margin: 0 }}>
@@ -337,7 +331,9 @@ function MinistryProfile({ synth }) {
 
   const { result, others } = synth;
   return (
-    <section className="avoid-break" style={{ breakInside: "avoid", marginTop: 8 }}>
+    // Screen-only: the Ministry Profile links out to other reports, which has no
+    // meaning in a printed/PDF copy, so it is excluded from print and PDF.
+    <section className="avoid-break no-print no-pdf" style={{ breakInside: "avoid", marginTop: 8 }}>
       <div style={mpCard}>
         <div style={{ ...kicker, color: "#C4923E", marginBottom: 6 }}>Bringing it together</div>
         <h2 className="serif" style={{ fontSize: 26, color: "#1B3A57", margin: "0 0 16px", fontWeight: 500 }}>
@@ -1887,13 +1883,23 @@ const discTag = (c) => ({
   fontSize: 10, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase",
   color: c, background: `${c}1A`, border: `1px solid ${c}55`, borderRadius: 999, padding: "2px 8px",
 });
+// Each DISC dimension's signature color (matches the hand-designed template).
+const DISC_DIM_COLOR = { D: "#B4703A", I: "#C4923E", S: "#2E7D8A", C: "#5E7183" };
+// Which corner of the 2x2 quadrant map each dimension anchors (plot coords).
+// Horizontal: task (D/C, left) ↔ people (I/S, right).
+// Vertical: outgoing (D/I, top) ↔ reserved (S/C, bottom).
+const DISC_QUAD_CORNER = { D: [100, 100], I: [240, 100], S: [240, 240], C: [100, 240] };
+
 function DiscReport({ scored }) {
-  const b = DISC_BLENDS[scored.blend] || {};
-  const per = scored.max_per || 35;
-  const pct = (s) => Math.round((s / per) * 100);
+  const b = DISC_BLENDS[scored?.blend] || {};
+  const per = scored?.max_per || 35;
+  const pct = (s) => Math.round(((s || 0) / per) * 100);
+  const dims = Array.isArray(scored?.dims) ? scored.dims : [];
   // Rank the four dimensions by score, highest first, so the blend reads
   // top-down. Percentages make intensity clearer than a raw /35 sum.
-  const byScore = [...scored.dims].sort((a, b2) => b2.score - a.score);
+  const byScore = [...dims].sort((a, b2) => (b2.score || 0) - (a.score || 0));
+  const scoreOf = (k) => dims.find((d) => d.key === k)?.score ?? 0;
+  const pctOf = (k) => pct(scoreOf(k));
   const gapPct = (i, j) => (byScore[i] && byScore[j] ? pct(byScore[i].score) - pct(byScore[j].score) : 0);
 
   // How clear is each part of the blend?
@@ -1904,68 +1910,118 @@ function DiscReport({ scored }) {
   const primaryClear = primaryGap >= 12;
   const secondaryAmbiguous = secondaryGap <= 8;
 
-  const primaryName = DISC_DIMS[scored.primary];
-  const secondaryName = DISC_DIMS[scored.secondary];
-  const altSecondaryKey = secondaryAmbiguous ? byScore[2].key : null;
+  const primaryName = DISC_DIMS[scored?.primary] || "";
+  const secondaryName = DISC_DIMS[scored?.secondary] || "";
+  const altSecondaryKey = secondaryAmbiguous && byScore[2] ? byScore[2].key : null;
   const altBlendKey = altSecondaryKey ? scored.primary + altSecondaryKey : null;
   const altBlend = altBlendKey ? DISC_BLENDS[altBlendKey] : null;
 
+  // "You" dot on the quadrant map: a weighted centroid of the four corner
+  // anchors (weighted by each dimension's percentage), with the displacement
+  // from center amplified so a clear lead dimension reads out into its corner
+  // while a balanced profile stays central. Purely data-driven, then clamped.
+  const wSum = ["D", "I", "S", "C"].reduce((a, k) => a + pctOf(k), 0) || 1;
+  let dotX = ["D", "I", "S", "C"].reduce((a, k) => a + pctOf(k) * DISC_QUAD_CORNER[k][0], 0) / wSum;
+  let dotY = ["D", "I", "S", "C"].reduce((a, k) => a + pctOf(k) * DISC_QUAD_CORNER[k][1], 0) / wSum;
+  const AMP = 1.7;
+  dotX = Math.max(62, Math.min(278, 170 + (dotX - 170) * AMP));
+  dotY = Math.max(62, Math.min(272, 170 + (dotY - 170) * AMP));
+  const dotColor = DISC_DIM_COLOR[scored?.primary] || "#C4923E";
+  const outgoing = ["D", "I"].includes(scored?.primary);
+  const peopleFacing = ["I", "S"].includes(scored?.primary);
+  const quadCaption = `${outgoing ? "Outgoing" : "Reserved"} and ${peopleFacing ? "people-facing" : "task-focused"}, leaning ${primaryName || "your lead dimension"}${secondaryName ? `, with ${secondaryName} close behind` : ""}.`;
+
+  // Radar axes in the template's clock order: Drive (top), Influence (right),
+  // Steadiness (bottom), Conscientiousness (left).
+  const radarAxes = ["D", "I", "S", "C"].map((k) => {
+    const p = pctOf(k);
+    return { label: DISC_DIMS[k], sub: p, subColor: DISC_DIM_COLOR[k], value: p, color: DISC_DIM_COLOR[k], shape: shapeForColor(DISC_DIM_COLOR[k]) };
+  });
+
+  const rows = discDimensions(dims.map((d) => ({ key: d.key, pct: pct(d.score) })));
+  const LEVEL = { high: "High", moderate: "Moderate", low: "Low" };
+  const levelBadge = (level) =>
+    level === "high" ? { color: "#1F5E68", background: "#EEF3F6" }
+      : level === "moderate" ? { color: "#8A6420", background: "#F0E4CB" }
+        : { color: "#5E7183", background: "#EEF1F4" };
+
   return (
     <>
+      {/* YOUR BLEND — gold tile + figure/title + plain-language lead sentence */}
       <section style={{ padding: "8px 0" }}>
         <div style={sectionLabel}>Your blend</div>
-        <div style={{ ...topCard, borderLeft: "5px solid #C4923E" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            <div className="serif" style={{ fontSize: 44, lineHeight: 1, color: "#C4923E", letterSpacing: "0.02em", fontVariantNumeric: "tabular-nums" }}>
-              {scored.blend}
-            </div>
-            <div>
-              <div style={topRank}>{primaryName} + {secondaryName}</div>
-              <div className="serif" style={{ fontSize: 27, color: "#1C2B3A", marginTop: 2 }}>
-                {b.figure}, {b.title}
-              </div>
-            </div>
+        <div style={discBlendCard}>
+          <div style={discBlendTile} className="serif">{scored?.blend}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={discBlendRank}>{primaryName}{secondaryName ? ` · ${secondaryName}` : ""}</div>
+            <h2 className="serif" style={{ fontSize: 28, margin: "0 0 10px", color: "#1B3A57", fontWeight: 500, letterSpacing: "-.01em" }}>
+              {b.figure}{b.figure && b.title ? ", " : ""}{b.title}
+            </h2>
+            <p style={{ ...detailP, margin: 0, fontSize: 15.5 }}>
+              Your <strong style={{ color: "#1B3A57" }}>{primaryName}</strong> ({pctOf(scored?.primary)}%) leads the way
+              {primaryClear ? ", clearly out front," : secondaryName ? `, with ${secondaryName} close behind,` : ","}{" "}
+              {secondaryName && <>and <strong style={{ color: "#1B3A57" }}>{secondaryName}</strong> ({pctOf(scored?.secondary)}%) backs it up. </>}
+              That combination is what shapes the {b.title || "your"} blend.
+            </p>
           </div>
-          <p style={{ ...detailP, margin: "12px 0 0" }}>
-            Your <strong>{primaryName}</strong> ({pct(byScore[0].score)}%) leads the way
-            {primaryClear
-              ? ", clearly out front,"
-              : `, with ${secondaryName} close behind,`}{" "}
-            and <strong>{secondaryName}</strong> ({pct(scored.dims.find((d) => d.key === scored.secondary)?.score ?? 0)}%) backs it up. That combination is what shapes the {b.title} blend.
-          </p>
         </div>
-
-        {secondaryAmbiguous && altBlend && (
-          <div style={transitionBox}>
-            One honest note: your <strong>{secondaryName}</strong> and <strong>{DISC_DIMS[altSecondaryKey]}</strong>{" "}
-            scored almost the same ({pct(byScore[1].score)}% and {pct(byScore[2].score)}%), so your secondary
-            style is close to a tie. {primaryName} is clearly your lead, but the trait riding alongside it could
-            read as either. You may also recognize yourself in the <strong>{altBlendKey}</strong> blend
-            ({altBlend.figure}, {altBlend.title}) — read both and keep what fits.
-          </div>
-        )}
-        {!secondaryAmbiguous && primaryGap <= 6 && (
-          <div style={transitionBox}>
-            Your top two dimensions came out very close, so which one leads was a near call. Both{" "}
-            {primaryName} and {secondaryName} strongly shape how you are wired.
-          </div>
-        )}
       </section>
 
-      <section style={{ padding: "18px 0" }}>
+      {/* HOW YOU'RE WIRED — quadrant map + four-dimension radar */}
+      <section style={{ padding: "18px 0 8px", breakInside: "avoid" }} className="avoid-break">
+        <div style={sectionLabel}>How you're wired</div>
+        <h2 className="serif" style={discH2}>Your position at a glance</h2>
+        <div style={discChartRow}>
+          {/* DISC quadrant map */}
+          <div style={discChartCard}>
+            <div style={discChartTitle}>DISC quadrant map</div>
+            <svg viewBox="0 0 340 340" style={{ width: "100%", height: "auto" }} role="img" aria-label="DISC quadrant map showing your position">
+              <rect x="30" y="30" width="280" height="280" rx="16" fill="#F6F8FA" stroke="#E7E9EC" />
+              <line x1="170" y1="30" x2="170" y2="310" stroke="#E7E9EC" />
+              <line x1="30" y1="170" x2="310" y2="170" stroke="#E7E9EC" />
+              <g fontFamily={FONT_SANS} textAnchor="middle">
+                <text x="100" y="60" fontSize="20" fontWeight="800" fill="#B4703A">D</text>
+                <text x="100" y="78" fontSize="10.5" fill="#8CA0B3">Drive</text>
+                <text x="240" y="60" fontSize="20" fontWeight="800" fill="#C4923E">I</text>
+                <text x="240" y="78" fontSize="10.5" fill="#8CA0B3">Influence</text>
+                <text x="100" y="290" fontSize="20" fontWeight="800" fill="#5E7183">C</text>
+                <text x="100" y="272" fontSize="10.5" fill="#8CA0B3">Conscientious</text>
+                <text x="240" y="290" fontSize="20" fontWeight="800" fill="#2E7D8A">S</text>
+                <text x="240" y="272" fontSize="10.5" fill="#8CA0B3">Steadiness</text>
+              </g>
+              <g fontFamily={FONT_SANS} fontSize="9" fill="#8CA0B3" textAnchor="middle">
+                <text x="170" y="22">Outgoing</text>
+                <text x="170" y="326">Reserved</text>
+              </g>
+              <circle cx={dotX.toFixed(1)} cy={dotY.toFixed(1)} r="26" fill={dotColor} opacity="0.14" />
+              <circle cx={dotX.toFixed(1)} cy={dotY.toFixed(1)} r="10" fill={dotColor} stroke="#fff" strokeWidth="3" />
+              <text x={dotX.toFixed(1)} y={(dotY + 40).toFixed(1)} fontFamily={FONT_SANS} fontSize="10.5" fontWeight="700" fill="#1B3A57" textAnchor="middle">You</text>
+            </svg>
+            <p style={discChartCaption}>{quadCaption}</p>
+          </div>
+          {/* Four-dimension radar */}
+          <div style={discChartCard}>
+            <div style={discChartTitle}>Four-dimension profile</div>
+            <RadarChart axes={radarAxes} max={100} reference={50} ringLabels={false} maxWidth={320}
+              fill="rgba(46,125,138,.16)" stroke="#2E7D8A" ariaLabel="Your four DISC dimensions" />
+            <p style={discChartCaption}>Each dimension is scored against itself, 0 to 100, never against other people.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* RANKED DIMENSION BARS */}
+      <section style={{ padding: "18px 0", breakInside: "avoid" }} className="avoid-break">
         <div style={sectionLabel}>Your four dimensions</div>
-        <p style={{ ...helper, margin: "0 0 12px" }}>
-          Ranked strongest to weakest. Each dimension is scored against itself, 0 to 100, never against other people.
-        </p>
-        <div style={chart}>
-          {byScore.map((d, i) => {
-            const isPrimary = d.key === scored.primary;
-            const isSecondary = d.key === scored.secondary;
+        <h2 className="serif" style={discH2}>Ranked strongest to weakest</h2>
+        <div style={{ ...chart, marginTop: 4 }}>
+          {byScore.map((d) => {
+            const isPrimary = d.key === scored?.primary;
+            const isSecondary = d.key === scored?.secondary;
             const isTop = isPrimary || isSecondary;
             const color = isPrimary ? "#C4923E" : isSecondary ? "#2E7D8A" : "#8CA0B3";
             const p = pct(d.score);
             return (
-              <ScoreBar key={d.key} frac={d.score / per} color={color} refs={[0.5]} opacity={isTop ? 1 : 0.72}
+              <ScoreBar key={d.key} frac={(d.score || 0) / per} color={color} refs={[0.5]} opacity={isTop ? 1 : 0.72}
                 nameStyle={{ fontWeight: isTop ? 800 : 600, display: "flex", alignItems: "center", gap: 8 }}
                 label={<>{DISC_DIMS[d.key]}{isPrimary && <span style={discTag("#C4923E")}>Primary</span>}{isSecondary && <span style={discTag("#2E7D8A")}>Secondary</span>}</>}
                 valueText={<>{p}<span style={{ color: "#B4BEC9", fontWeight: 400, fontSize: 12 }}>%</span></>} />
@@ -1974,37 +2030,56 @@ function DiscReport({ scored }) {
         </div>
       </section>
 
-      {/* Your DISC dimensions — each dimension read at its own level */}
-      {(() => {
-        const scales = scored.dims.map((d) => ({ key: d.key, pct: Math.round((d.score / per) * 100) }));
-        const rows = discDimensions(scales);
-        const LEVEL = { high: "High", moderate: "Moderate", low: "Low" };
-        const LEVEL_COLOR = { high: "#2E7D8A", moderate: "#C4923E", low: "#8CA0B3" };
-        return (
-          <section style={{ padding: "4px 0 8px" }} className="avoid-break">
-            <div style={sectionLabel}>Your DISC dimensions</div>
-            {rows.map((r) => (
-              <div key={r.key} style={{ ...growCard, breakInside: "avoid" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-                  <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{r.name} · {r.title}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: LEVEL_COLOR[r.level], whiteSpace: "nowrap" }}>{LEVEL[r.level]}</div>
-                </div>
-                <p style={{ ...detailP, margin: "8px 0 0" }}>{r.body}</p>
-              </div>
-            ))}
-          </section>
-        );
-      })()}
-      <section style={{ padding: "4px 0 8px" }}>
-        <div style={chart}>
-          <div style={{ padding: "18px 20px" }}>
-            <Block h="Strengths" t={b.strengths} />
-            <Block h="Watch-outs" t={b.watchouts} />
-            <Block h="Best used for" t={b.bestFor} />
-            <Block h="Growth challenge" t={b.growth} />
-          </div>
+      {/* ONE HONEST NOTE — secondary-tie callout on a blush card */}
+      {secondaryAmbiguous && altBlend && (
+        <div style={discHonestNote} className="avoid-break">
+          <div style={{ ...sectionLabel, color: "#B07C2E", marginBottom: 10 }}>One honest note</div>
+          <p style={{ margin: 0, fontSize: 14.5, color: "#1C2B3A", lineHeight: 1.6 }}>
+            Your <strong>{secondaryName}</strong> and <strong>{DISC_DIMS[altSecondaryKey]}</strong>{" "}
+            scored almost the same ({pct(byScore[1].score)}% and {pct(byScore[2].score)}%), so your secondary
+            style is close to a tie. {primaryName} is clearly your lead, but the trait riding alongside it could
+            read as either. You may also recognize yourself in the <strong>{altBlendKey} blend ({altBlend.figure}, {altBlend.title})</strong> — read both and keep what fits.
+          </p>
         </div>
-        <p style={helper}>
+      )}
+      {!secondaryAmbiguous && primaryGap <= 6 && (
+        <div style={discHonestNote} className="avoid-break">
+          <div style={{ ...sectionLabel, color: "#B07C2E", marginBottom: 10 }}>One honest note</div>
+          <p style={{ margin: 0, fontSize: 14.5, color: "#1C2B3A", lineHeight: 1.6 }}>
+            Your top two dimensions came out very close, so which one leads was a near call. Both{" "}
+            {primaryName} and {secondaryName} strongly shape how you are wired.
+          </p>
+        </div>
+      )}
+
+      {/* DIMENSION BY DIMENSION — colored left-border detail cards */}
+      <section style={{ padding: "18px 0 8px", breakBefore: "page" }} className="break-before">
+        <div style={sectionLabel}>Dimension by dimension</div>
+        <h2 className="serif" style={discH2}>What each one means for you</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
+          {rows.map((r) => (
+            <div key={r.key} style={{ border: "1px solid #E7E9EC", borderLeft: `4px solid ${DISC_DIM_COLOR[r.key]}`, borderRadius: 14, padding: "22px 26px", background: "#fff", breakInside: "avoid" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div className="serif" style={{ fontSize: 19, color: "#1B3A57", fontWeight: 600 }}>{r.name}{r.title ? ` · ${r.title}` : ""}</div>
+                <span style={{ ...discLevelBadge, ...levelBadge(r.level) }}>{LEVEL[r.level]}</span>
+              </div>
+              <p style={{ ...detailP, margin: "12px 0 0" }}>{r.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* IN PRACTICE — 2x2 strengths grid */}
+      <section style={{ padding: "18px 0 8px", breakInside: "avoid" }} className="avoid-break">
+        <div style={sectionLabel}>In practice</div>
+        <h2 className="serif" style={discH2}>Leading from your design</h2>
+        <div style={discGrid}>
+          <DiscGridCard eyebrow="Strengths" ec="#1F5E68" t={b.strengths} />
+          <DiscGridCard eyebrow="Watch-outs" ec="#8A6420" t={b.watchouts} />
+          <DiscGridCard eyebrow="Best used for" ec="#1F5E68" t={b.bestFor} />
+          <DiscGridCard eyebrow="Growth challenge" ec="#1F5E68" t={b.growth} bg="#F6F8FA" />
+        </div>
+        <p style={{ ...helper, maxWidth: 600 }}>
           A blend is a description of how you're wired, not a limit on how God can use you. Lead from
           your actual design.
         </p>
@@ -2012,6 +2087,27 @@ function DiscReport({ scored }) {
     </>
   );
 }
+// A single cell in the DISC "In practice" 2x2 grid.
+function DiscGridCard({ eyebrow, ec, t, bg = "#fff" }) {
+  if (!t) return null;
+  return (
+    <div style={{ border: "1px solid #E7E9EC", borderRadius: 14, padding: "22px 24px", background: bg, breakInside: "avoid" }}>
+      <div style={{ ...sectionLabel, color: ec, marginBottom: 10 }}>{eyebrow}</div>
+      <p style={{ margin: 0, fontSize: 14, color: "#4A5B6D", lineHeight: 1.55 }}>{t}</p>
+    </div>
+  );
+}
+const discBlendCard = { border: "1px solid #E7E9EC", borderLeft: "4px solid #C4923E", borderRadius: 16, padding: "26px 30px", background: "#fff", display: "flex", gap: 26, alignItems: "center", flexWrap: "wrap", breakInside: "avoid" };
+const discBlendTile = { flex: "none", width: 88, height: 88, borderRadius: 20, background: "linear-gradient(135deg,#C4923E,#A87A2E)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 34, color: "#fff", boxShadow: "var(--shadow-gold,0 8px 24px rgba(168,122,46,.28))", fontVariantNumeric: NUM };
+const discBlendRank = { fontFamily: FONT_SERIF, fontSize: 12.5, fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase", color: "#8A6420", marginBottom: 4 };
+const discH2 = { fontSize: 23, margin: "12px 0 16px", color: "#1B3A57", fontWeight: 500, letterSpacing: "-.01em" };
+const discChartRow = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 };
+const discChartCard = { border: "1px solid #E7E9EC", borderRadius: 16, padding: "22px 22px 18px", background: "#fff", breakInside: "avoid" };
+const discChartTitle = { fontSize: 13, fontWeight: 700, color: "#1B3A57", marginBottom: 10 };
+const discChartCaption = { fontSize: 12.5, margin: "8px 0 0", color: "#4A5B6D", lineHeight: 1.5 };
+const discHonestNote = { marginTop: 8, marginBottom: 8, background: "var(--blush,#F5EFE6)", border: "1px solid #EADFC9", borderRadius: 16, padding: "24px 28px", breakInside: "avoid" };
+const discLevelBadge = { fontSize: 11, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", padding: "5px 12px", borderRadius: 999, whiteSpace: "nowrap" };
+const discGrid = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 4 };
 
 /* ---------------- Pastor Profile (3 pillars, 14 domains) ---------------- */
 function PastorReport({ scored }) {
@@ -2183,6 +2279,74 @@ const fill = (frac, color) => ({
 const chevron = (open) => ({
   color: "#B4BEC9", fontSize: 18, transform: open ? "rotate(90deg)" : "none", transition: "transform .2s",
 });
+
+/* ---------------- Shared report cover ----------------
+   The navy gradient cover that opens every report, matching the hand-designed
+   print templates: white Mission USA logo top-left, a faint gold line-art motif
+   top-right, then a gold kicker + serif name + a generic one-line result summary
+   (headlineFor), with date / email / a muted secondary line on the right. Church
+   co-branding rides as a white chip beside the logo. Data-driven and defensive:
+   every field guards against a missing meta / contact / scored. Prints as a
+   lightened card (white ground, navy ink, gold top rule) — see PRINT_CSS. */
+function ReportCover({ meta, contact, brand, scored }) {
+  const c = contact || {};
+  const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || "Your results";
+  const sub = typeof meta?.subtitle === "string" ? meta.subtitle : "";
+  const kickerText = `${meta?.name || "Assessment"}${sub && sub.length <= 16 ? ` · ${sub}` : ""}`;
+  let summary = "";
+  try { summary = headlineFor(scored) || ""; } catch { summary = ""; }
+  const dateStr = meta?.created_at
+    ? new Date(meta.created_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
+    : "";
+  const secondary = sub && sub.length > 16 ? sub : "Mission USA Assessments";
+  return (
+    <header className="report-cover" style={coverCard}>
+      {/* Faint gold line-art motif in the top-right corner (opacity ~.12). */}
+      <svg className="cover-motif" viewBox="0 0 300 300" width="300" height="300" aria-hidden="true"
+        style={{ position: "absolute", right: -40, top: -20, opacity: 0.12, pointerEvents: "none" }}>
+        <g fill="none" stroke="#E4CE8C" strokeWidth="1.5">
+          <rect x="40" y="40" width="220" height="220" rx="18" />
+          <line x1="150" y1="40" x2="150" y2="260" />
+          <line x1="40" y1="150" x2="260" y2="150" />
+          <circle cx="150" cy="150" r="70" />
+        </g>
+      </svg>
+      <div style={{ position: "relative" }}>
+        <div className="cover-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 34, gap: 16 }}>
+          <img className="cover-logo" src="/musa-logo-white-h.png" alt="Mission USA Assessments"
+            style={{ height: 36, width: "auto", display: "block" }} />
+          {/* Print-only navy wordmark: the white PNG logo would vanish on the
+              lightened print cover, so we swap in ink text for print. */}
+          <div className="cover-print-mark serif" aria-hidden="true" style={{ fontSize: 20, fontWeight: 600, color: COLOR.navy, letterSpacing: ".01em" }}>
+            MISSION USA <span style={{ color: COLOR.gold }}>— Assessments</span>
+          </div>
+          {brand?.logo_url && (
+            <span className="brand-chip" style={{ background: "#fff", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}>
+              <img src={brand.logo_url} alt={brand.name || ""} style={{ height: 32, width: "auto", display: "block" }} />
+            </span>
+          )}
+        </div>
+        <div className="cover-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="cover-kicker" style={coverKicker}>{kickerText}</div>
+            <h1 className="serif cover-name" style={coverName}>{name}</h1>
+            {summary && <div className="cover-summary" style={coverSummary}>{summary}</div>}
+          </div>
+          <div className="cover-meta" style={coverMeta}>
+            {dateStr && <div style={{ color: "#C7D3DF" }}>{dateStr}</div>}
+            {c.email && <div>{c.email}</div>}
+            <div style={{ marginTop: 8, color: "#6E8298" }}>{secondary}</div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+const coverCard = { position: "relative", overflow: "hidden", background: "linear-gradient(155deg,#1B3A57 0%,#122A44 100%)", borderRadius: 26, padding: "44px 46px 40px", color: "#fff", margin: "26px 0 0" };
+const coverKicker = { fontSize: 12, fontWeight: 700, letterSpacing: ".16em", textTransform: "uppercase", color: "#E4CE8C", marginBottom: 18 };
+const coverName = { fontFamily: FONT_SERIF, fontWeight: 500, fontSize: 44, lineHeight: 1.02, letterSpacing: "-.015em", margin: 0 };
+const coverSummary = { marginTop: 14, fontSize: 15, color: "#C7D3DF", lineHeight: 1.5 };
+const coverMeta = { textAlign: "right", fontSize: 12.5, color: "#93A7BC", lineHeight: 1.7, fontVariantNumeric: NUM };
 
 // Shared style constants. Colors reference the reportTokens palette (COLOR.*)
 // and chart contract (CHART.*) so the report has a single source of truth for
@@ -2883,16 +3047,22 @@ const PRINT_CSS = `
 .ennea-study { display:none; }
 .ennea-study.is-open { display:block; }
 /* The print-only navy wordmark is hidden on screen (the white PNG logo shows there). */
-.hd-print-mark { display:none; }
+.cover-print-mark { display:none; }
 @media print {
-  /* Print header: a light ground with navy ink + a thin gold rule instead of
-     the full navy ink slab. Swap the white PNG logo for the navy wordmark. */
-  .report-hd { background:#fff !important; background-image:none !important; color:#1C2B3A !important; padding:16px 0 12px !important; border-bottom:2px solid #C4923E; }
-  .report-hd .hd-logo { display:none !important; }
-  .report-hd .hd-print-mark { display:block !important; }
-  .report-hd .hd-kicker { color:#1F5E68 !important; }
-  .report-hd .hd-meta { color:#5A6A78 !important; }
-  .report-hd .brand-chip { border:1px solid #E7E9EC; background:#fff !important; }
+  /* Print cover: lighten the navy gradient card to a white ground with navy ink
+     and a gold top rule, so it prints as a clean masthead rather than a heavy
+     full-bleed ink slab. The logo and name stay (logo swaps to the navy
+     wordmark, since the white PNG would vanish on white). */
+  .report-cover { background:#fff !important; background-image:none !important; color:#1C2B3A !important; border:1px solid #E7E9EC; border-top:3px solid #C4923E; border-radius:16px; padding:24px 28px !important; margin:0 0 8px !important; }
+  .report-cover .cover-motif { display:none !important; }
+  .report-cover .cover-logo { display:none !important; }
+  .report-cover .cover-print-mark { display:block !important; }
+  .report-cover .cover-kicker { color:#1F5E68 !important; }
+  .report-cover .cover-name { color:#1C2B3A !important; }
+  .report-cover .cover-summary { color:#4A5B6D !important; }
+  .report-cover .cover-meta,
+  .report-cover .cover-meta div { color:#5A6A78 !important; }
+  .report-cover .brand-chip { border:1px solid #E7E9EC; background:#fff !important; }
   /* US Letter with the report's margin geometry (reportTokens.PRINT). */
   @page { size: letter; margin: 18mm 16mm 20mm; }
 

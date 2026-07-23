@@ -16,6 +16,11 @@
   --mist:#F6F8FA; --mist2:#EEF3F6; --navy:#1B3A57; --navy-deep:#122A44;
   --teal:#2E7D8A; --teal-deep:#1F5E68; --gold:#C4923E; --gold-soft:#F0E4CB;
   --blush:#F5EFE6;
+  /* Report design-system tokens (mirrors _ds/tokens/colors.css) */
+  --gold-2:#E4CE8C; --gold-deep-text:#8A6420; --gold-text:#A87A2E;
+  --clay-text:#B07C2E; --chart-track:#EEF1F4; --score-low:#8CA0B3;
+  --shadow-gold:0 8px 24px rgba(168,122,46,.28);
+  --shadow-navy:0 8px 24px rgba(18,42,68,.28);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
