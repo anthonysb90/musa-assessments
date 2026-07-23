@@ -87,6 +87,11 @@ const SAMPLE = {
       ["Improvement for the Other", 8], ["Improved Relationship", 7],
     ],
   },
+  "big-five": {
+    type: "big-five",
+    traits: [["Openness", 78], ["Conscientiousness", 72], ["Extraversion", 50], ["Agreeableness", 64], ["Emotional Stability", 58]],
+    facets: [["Vision (Future Orientation)", 83], ["Purpose & Meaning", 80], ["Kindness", 67], ["Humor", 30]],
+  },
 };
 
 export default function SampleReportButton({ slug, name }) {
@@ -143,8 +148,45 @@ function Report({ sample }) {
     case "enneagram": return <Enneagram s={sample} />;
     case "planter": return <Planter s={sample} />;
     case "forgiveness": return <Forgiveness s={sample} />;
+    case "big-five": return <BigFive s={sample} />;
     default: return null;
   }
+}
+
+function BigFive({ s }) {
+  const bandOf = (p) => (p >= 70 ? ["High", TEAL] : p >= 40 ? ["Moderate", GOLD] : ["Low", GREY]);
+  return (
+    <>
+      <Section label="Your five traits">
+        <div style={card}>
+          {s.traits.map(([name, pct]) => {
+            const [label, color] = bandOf(pct);
+            return (
+              <div key={name} style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", alignItems: "center", gap: 12, padding: "11px 4px", borderBottom: "1px solid #F0F2F4" }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#1C2B3A" }}>{name}</span>
+                <span style={{ height: 10, background: "#EEF1F4", borderRadius: 999, overflow: "hidden" }}>
+                  <span style={{ display: "block", height: "100%", width: `${pct}%`, background: color, borderRadius: 999 }} />
+                </span>
+                <span style={{ fontSize: 14, fontWeight: 700, color, minWidth: 96, textAlign: "right" }}>{pct} · {label}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p style={{ ...defP, marginTop: 12 }}>Each trait is scored 0 to 100 against the trait itself. There are no good or bad scores. Your full report adds a radar chart, a deep write-up for every trait, and six expanded facets.</p>
+      </Section>
+      <Section label="Signature strengths & growth areas" style={{ padding: "16px 0 4px" }}>
+        {s.facets.map(([name, pct]) => {
+          const [label, color] = bandOf(pct);
+          return (
+            <div key={name} style={{ ...card, borderLeft: `5px solid ${color}`, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span className="serif" style={{ fontSize: 17, color: "#1C2B3A" }}>{name}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color }}>{pct} · {label}</span>
+            </div>
+          );
+        })}
+      </Section>
+    </>
+  );
 }
 
 function Forgiveness({ s }) {

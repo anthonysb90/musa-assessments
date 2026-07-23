@@ -22,6 +22,7 @@ import {
   efmiBand,
   efmiTotalBand,
 } from "./content";
+import { big5Band } from "./bigfive";
 import { CONSENT_VERSION } from "./config";
 
 function contactBlock(profile) {
@@ -161,6 +162,38 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     const total = subscales.reduce((a, s) => a + s.score, 0);
     const tb = efmiTotalBand(total);
     return { ...base, type: "subscale-sum", subscales, total, max_total: 180, max_per: 18, total_band: tb.key, total_label: tb.label };
+  }
+
+  if (type === "big-five") {
+    // Five traits (O,C,E,A,N; 12 items each) + six facets (6 items each).
+    // Reverse keying already applied by adj(). Percentage puts every scale on
+    // 0-100: % = (sum - n) / (4n) * 100, where each item is 1-5 (min n, max 5n).
+    const groups = groupBy(itemMap, answers, (it) => it.domain, smin, smax);
+    const stat = (vals) => {
+      const arr = vals || [];
+      const sum = arr.reduce((a, b) => a + b, 0);
+      const n = arr.length;
+      const pct = n ? Math.round(((sum - n) / (4 * n)) * 100) : 0;
+      return { sum, n, pct };
+    };
+    const traits = [];
+    for (const k of ["O", "C", "E", "A"]) {
+      const s = stat(groups[k]);
+      traits.push({ key: k, pct: s.pct, raw: s.sum, count: s.n, band: big5Band(s.pct).key });
+    }
+    // Fifth trait: stored/scored as Neuroticism, reported as Emotional Stability.
+    const nStat = stat(groups["N"]);
+    const esPct = 100 - nStat.pct;
+    traits.push({
+      key: "ES", pct: esPct, raw: nStat.sum, count: nStat.n,
+      band: big5Band(esPct).key, n_pct: nStat.pct, n_band: big5Band(nStat.pct).key,
+    });
+    const facets = ["creative-expression", "vision", "kindness", "innovation", "humor", "purpose"]
+      .map((k) => {
+        const s = stat(groups[k]);
+        return { key: k, pct: s.pct, raw: s.sum, count: s.n, band: big5Band(s.pct).key };
+      });
+    return { ...base, type: "big-five", traits, facets };
   }
 
   if (type === "planter") {

@@ -32,6 +32,13 @@ import {
   EFMI_HURT_OPTIONS,
   EFMI_DEGREE_OPTIONS,
 } from "../../lib/content";
+import {
+  BIG5_TRAITS,
+  BIG5_TRAIT_META,
+  BIG5_TRAIT_ORDER,
+  BIG5_FACETS,
+  big5Boundary,
+} from "../../lib/bigfive";
 import DonationCard from "../../components/DonationCard";
 import CircleInvite from "../../components/CircleInvite";
 
@@ -217,6 +224,7 @@ export default function ResultsPage() {
                 : <DomainBandsReport scored={scored} />)}
             {scored.type === "type-pick" && <EnneagramReport scored={scored} />}
             {scored.type === "subscale-sum" && <ForgivenessReport scored={scored} />}
+            {scored.type === "big-five" && <BigFiveReport scored={scored} />}
             {scored.type === "planter" && <PlanterReport scored={scored} />}
             {scored.type === "level-matrix" && <GrowthReport scored={scored} />}
             {scored.type === "disc-blend" && <DiscReport scored={scored} />}
@@ -584,6 +592,207 @@ function SpiritualGrowthReport({ scored }) {
 function shortDisc(name) {
   return { "Fellowship with Believers": "Fellowship", "Witness to the World": "Witness", "Minister to Others": "Ministry", "Abide in Christ": "Abide", "Live in the Word": "The Word", "Pray in Faith": "Prayer" }[name] || name;
 }
+
+/* ---------------- Big Five (Five Factor Model) ---------------- */
+const B5_BAND_LABEL = { high: "High", moderate: "Moderate", low: "Low" };
+const B5_BAND_COLOR = { high: "#2E7D8A", moderate: "#C4923E", low: "#8CA0B3" };
+const B5_SHORT = { O: "Openness", C: "Conscien.", E: "Extravert", A: "Agreeable", ES: "Stability" };
+
+function BigFiveReport({ scored }) {
+  const traits = scored.traits || [];
+  const facets = scored.facets || [];
+  const byKey = Object.fromEntries(traits.map((t) => [t.key, t]));
+  const order = BIG5_TRAIT_ORDER.filter((k) => byKey[k]); // O, C, E, A, ES
+
+  // Radar geometry (0-100).
+  const per = 100, R = 108, cx = 170, cy = 168, N = order.length || 5;
+  const ang = (i) => (-90 + i * (360 / N)) * (Math.PI / 180);
+  const pt = (i, val) => [cx + (val / per) * R * Math.cos(ang(i)), cy + (val / per) * R * Math.sin(ang(i))];
+  const ringPoly = (v) => order.map((_, i) => pt(i, v).map((n) => n.toFixed(1)).join(",")).join(" ");
+  const dataPoly = order.map((k, i) => pt(i, byKey[k].pct).map((n) => n.toFixed(1)).join(",")).join(" ");
+  const labelPos = (i) => pt(i, per * 1.32);
+
+  const sigStrengths = facets.filter((f) => f.pct >= 70);
+  const lowPref = facets.filter((f) => f.pct <= 39);
+  const highest = [...traits].sort((a, b) => b.pct - a.pct)[0];
+
+  return (
+    <>
+      {/* Trait profile radar */}
+      <section style={{ padding: "8px 0" }}>
+        <div style={sectionLabel}>Your trait profile</div>
+        <div style={{ ...chart, padding: "18px 12px", display: "flex", justifyContent: "center" }}>
+          <svg viewBox="-44 0 428 336" width="100%" style={{ maxWidth: 480 }} role="img" aria-label="Big Five trait profile">
+            {[20, 40, 60, 80, 100].map((v) => (
+              <polygon key={v} points={ringPoly(v)} fill="none" stroke="#E7E9EC" strokeWidth="1" />
+            ))}
+            {order.map((_, i) => { const [x, y] = pt(i, per); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#E7E9EC" strokeWidth="1" />; })}
+            <polygon points={dataPoly} fill="rgba(31,94,104,.16)" stroke="#1F5E68" strokeWidth="2.4" strokeLinejoin="round" />
+            {order.map((k, i) => { const [px, py] = pt(i, byKey[k].pct); return <circle key={k} cx={px} cy={py} r="4.2" fill={BIG5_TRAIT_META[k].color} />; })}
+            {order.map((k, i) => {
+              const [lx, ly] = labelPos(i);
+              const anchor = Math.abs(lx - cx) < 8 ? "middle" : lx > cx ? "start" : "end";
+              return (
+                <g key={k}>
+                  <text x={lx} y={ly - 3} textAnchor={anchor} fontSize="10.5" fontWeight="700" fill="#1C2B3A" style={{ fontFamily: "Inter,system-ui,sans-serif" }}>{B5_SHORT[k]}</text>
+                  <text x={lx} y={ly + 11} textAnchor={anchor} fontSize="11" fontWeight="700" fill={BIG5_TRAIT_META[k].color} style={{ fontFamily: "Inter,system-ui,sans-serif" }}>{byKey[k].pct}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <p style={helper}>
+          Every trait is scored 0 to 100 against the trait itself, never against other people. There are no good
+          or bad scores; each position carries its own strengths and watch-outs. This shape is your whole
+          personality at a glance.
+        </p>
+      </section>
+
+      {/* Banded bars */}
+      <section style={{ padding: "16px 0 4px" }}>
+        <div style={sectionLabel}>Your five traits</div>
+        <div style={chart}>
+          {order.map((k) => {
+            const t = byKey[k], meta = BIG5_TRAIT_META[k];
+            return (
+              <div key={k} style={{ padding: "14px 14px", borderBottom: "1px solid #F0F2F4" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2B3A" }}>{meta.name}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: B5_BAND_COLOR[t.band] }}>{t.pct} · {B5_BAND_LABEL[t.band]}</span>
+                </div>
+                <div style={b5TrackWrap}>
+                  <div style={{ ...b5Zone, left: "40%", width: "30%", background: "#E9EDF0" }} />
+                  <div style={{ ...b5Zone, left: "70%", width: "30%", background: "#E1E7EB" }} />
+                  <div style={{ ...b5FillBar, width: `${t.pct}%`, background: meta.color }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9AA7B3", marginTop: 5 }}>
+                  <span>{meta.lowWord}</span><span>{meta.highWord}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>Shaded zones mark Low (0–39), Moderate (40–69), and High (70–100). Your bar shows exactly where you land.</p>
+      </section>
+
+      {/* Per-trait depth */}
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>Your traits in depth</div>
+        {order.map((k) => {
+          const t = byKey[k], meta = BIG5_TRAIT_META[k];
+          const reportBand = k === "ES" ? t.n_band : t.band;
+          const rd = (k === "ES" ? BIG5_TRAITS.N : BIG5_TRAITS[k])[reportBand];
+          const bc = B5_BAND_COLOR[t.band];
+          const near = big5Boundary(t.pct);
+          return (
+            <div key={k} style={b5Card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <div className="serif" style={{ fontSize: 22, color: "#1C2B3A" }}>{meta.name}</div>
+                  <div style={{ fontSize: 13, color: "#8CA0B3", marginTop: 2 }}>{meta.tag}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 30, fontWeight: 700, color: bc, lineHeight: 1 }}>{t.pct}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: bc, textTransform: "uppercase", letterSpacing: ".06em" }}>{B5_BAND_LABEL[t.band]}</div>
+                </div>
+              </div>
+              {k === "ES" && <p style={{ ...detailP, fontStyle: "italic", color: "#5A6A78", margin: "12px 0 0" }}>{meta.note}</p>}
+              <p style={{ ...detailP, marginTop: 14 }}>{rd.snapshot}</p>
+              <div style={b5TwoCol}>
+                <div>
+                  <div style={blockH}>Strengths</div>
+                  <ul style={b5List}>{rd.strengths.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+                </div>
+                <div>
+                  <div style={blockH}>Watch-outs</div>
+                  <ul style={b5List}>{rd.watchouts.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+                </div>
+              </div>
+              <Block h="Ministry & leadership application" t={rd.application} />
+              <div style={{ marginBottom: 12 }}>
+                <div style={blockH}>Growth steps</div>
+                <ol style={b5Ol}>{rd.growth.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ol>
+              </div>
+              <div style={devotionBox}>
+                <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 5 }}>Anchor Scripture</div>
+                <p style={{ fontSize: 14.5, color: "#4A3F2A", margin: 0, lineHeight: 1.55, fontStyle: "italic" }}>&ldquo;{rd.scripture.text}&rdquo;</p>
+                <div style={{ fontSize: 12.5, color: "#8A6D3B", marginTop: 6, fontWeight: 600 }}>{rd.scripture.ref}</div>
+              </div>
+              {near && <div style={transitionBox}>Your score sits near the line between two bands. Read both this report and the neighboring band; elements of each will likely apply to you.</div>}
+            </div>
+          );
+        })}
+      </section>
+
+      {/* Facets */}
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>Six expanded facets</div>
+        <div style={chart}>
+          {facets.map((f) => {
+            const meta = BIG5_FACETS[f.key];
+            return (
+              <div key={f.key} style={rowGrid}>
+                <span style={rName}>{meta.name}</span>
+                <span style={track}><span style={fill(f.pct / 100, meta.color)} /></span>
+                <span style={{ ...rScore, color: B5_BAND_COLOR[f.band], minWidth: 120, textAlign: "right" }}>{f.pct} · {B5_BAND_LABEL[f.band]}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>Facets add practical color to the core traits. Anything at 70+ is a signature strength; 39 or below is a low-preference area.</p>
+      </section>
+
+      {(sigStrengths.length > 0 || lowPref.length > 0) && (
+        <section style={{ padding: "16px 0 4px" }}>
+          {sigStrengths.length > 0 && (
+            <>
+              <div style={sectionLabel}>Signature strengths</div>
+              {sigStrengths.map((f) => (
+                <div key={f.key} style={growCard}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{BIG5_FACETS[f.key].name}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#2E7D8A" }}>{f.pct} · High</div>
+                  </div>
+                  <p style={{ ...detailP, margin: "8px 0 0" }}>{BIG5_FACETS[f.key].high}</p>
+                </div>
+              ))}
+            </>
+          )}
+          {lowPref.length > 0 && (
+            <>
+              <div style={{ ...sectionLabel, marginTop: 18 }}>Low-preference areas</div>
+              {lowPref.map((f) => (
+                <div key={f.key} style={growCard}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{BIG5_FACETS[f.key].name}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#8CA0B3" }}>{f.pct} · Low</div>
+                  </div>
+                  <p style={{ ...detailP, margin: "8px 0 0" }}>{BIG5_FACETS[f.key].low}</p>
+                </div>
+              ))}
+            </>
+          )}
+        </section>
+      )}
+
+      <section style={{ padding: "16px 0 8px" }}>
+        <p style={helper}>
+          How to read this: every score compares you to the trait, not to other people, so a &ldquo;low&rdquo; is
+          never a failing grade. Traits describe how you naturally operate; they don&rsquo;t limit what God can do
+          through you. Use this as a mirror for growth and a starting point for honest conversation, never as a verdict.
+        </p>
+      </section>
+    </>
+  );
+}
+const b5TrackWrap = { position: "relative", height: 16, borderRadius: 999, overflow: "hidden", background: "#EEF1F4" };
+const b5Zone = { position: "absolute", top: 0, bottom: 0 };
+const b5FillBar = { position: "absolute", top: 0, bottom: 0, left: 0, borderRadius: 999 };
+const b5Card = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 16, padding: "22px 22px 20px", marginBottom: 16 };
+const b5TwoCol = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 18, margin: "8px 0 14px" };
+const b5List = { margin: 0, paddingLeft: 18 };
+const b5Ol = { margin: 0, paddingLeft: 20 };
+const b5Li = { fontSize: 13.5, color: "#4A5B6D", lineHeight: 1.5, marginBottom: 5 };
 
 /* ---------------- Enneagram (forced-choice type pick) ---------------- */
 function EnneagramReport({ scored }) {

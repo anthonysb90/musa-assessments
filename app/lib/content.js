@@ -33,6 +33,10 @@ export const SCORING_TYPE = {
   // The Forgiveness Profile (licensed EFMI): 30 items, 10 motivation subscales
   // (3 items each, summed 3-18), total 30-180. Ranks the motivations.
   "forgiveness-profile": "subscale-sum",
+  // Big Five (Five Factor Model): 96 items, 5 traits (12 each) + 6 facets
+  // (6 each), reverse-keyed, scored to 0-100 percentages with Low/Mod/High
+  // bands. Fifth trait reported as Emotional Stability (100 - Neuroticism).
+  "big-five": "big-five",
   // seeded but unpublished (dedicated flows pending)
   "called-together": "couple-lower",
   "church-health": "multi-rater",
@@ -74,6 +78,10 @@ export const SCALE_OPTIONS = {
   "forgiveness-profile": [
     [1, "Strongly Disagree"], [2, "Disagree"], [3, "Slightly Disagree"],
     [4, "Slightly Agree"], [5, "Agree"], [6, "Strongly Agree"],
+  ],
+  "big-five": [
+    [1, "Very Inaccurate"], [2, "Moderately Inaccurate"], [3, "Neither"],
+    [4, "Moderately Accurate"], [5, "Very Accurate"],
   ],
 };
 
@@ -1053,6 +1061,7 @@ export const ASSESSMENT_IMAGE = {
   "spiritual-growth": pexels(1112048),
   enneagram: pexels(3771069),
   "forgiveness-profile": pexels(34823825),
+  "big-five": pexels(1181671),
 };
 
 export function assessmentImage(slug) {
@@ -1280,5 +1289,22 @@ export const ASSESSMENT_LANDING = {
     ],
     demo: { headline: "Strongest: Forgiveness as Good in Itself", sub: "10 motivations to forgive",
       bars: [["Good in Itself", 17, 18], ["Self-Healing", 15, 18], ["Community Harmony", 11, 18], ["Improved Relationship", 8, 18]] },
+  },
+  "big-five": {
+    tagline: "The most researched map of who you are.",
+    about:
+      "The Big Five is the most scientifically supported model of personality in the world. Over 96 short items, about ten to fifteen minutes, it measures five core traits and six expanded facets, then hands you a full personal report: where each trait puts you, what it means for how you lead and serve, and a next step for growth. There are no good or bad scores, only an honest, useful picture of how you're wired.",
+    measures: [
+      "5 core traits: Openness, Conscientiousness, Extraversion, Agreeableness, Emotional Stability",
+      "6 expanded facets, from Creative Expression to Purpose & Meaning",
+      "Every trait on a clear 0–100 scale with Low / Moderate / High bands",
+    ],
+    youGet: [
+      "A trait profile chart and a facet breakdown",
+      "A full report for each trait: strengths, watch-outs, ministry application, and a growth step",
+      "Your signature strengths and growth areas, named",
+    ],
+    demo: { headline: "A clear five-trait profile", sub: "5 traits · 6 facets · 0–100",
+      bars: [["Conscientiousness", 75, 100], ["Agreeableness", 68, 100], ["Openness", 60, 100], ["Emotional Stability", 54, 100]] },
   },
 };

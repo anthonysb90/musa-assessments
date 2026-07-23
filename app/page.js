@@ -29,8 +29,46 @@ const CARD = {
   "church-health": { tag: "A leadership team assessment", desc: "How healthy is your church, really? Gather your whole leadership team's honest read across eight vital areas, including where you agree, and where you don't.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M24 37C14 31 8 25.5 8 18.5 8 13.8 11.6 10 16.4 10c3 0 5.5 1.6 7.6 4 2.1-2.4 4.6-4 7.6-4C36.4 10 40 13.8 40 18.5" stroke="#1B3A57" stroke-width="2.2" stroke-linecap="round"/><path d="M9 24h6l3-6 4 12 3-8 2 2h11" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>` },
   "leadership-health": { tag: "A self & team assessment", desc: "Self-awareness is where strong leadership starts. Read yourself across eight essential areas, then invite trusted voices to show you what you can't see about yourself.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1B3A57" stroke-width="2.2"/><path d="M30 18l-4.5 8.5L17 30l4.5-8.5z" fill="#C4923E"/><circle cx="24" cy="24" r="2" fill="#1B3A57"/></svg>` },
   "spiritual-growth": { tag: "How is your walk, honestly?", desc: "Six disciplines every follower of Christ grows in, from abiding in Christ to ministering to others. Reflect on each, then see your walk drawn as a Discipleship Wheel, with your strengths and next steps.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><circle cx="24" cy="24" r="9" stroke="#2E7D8A" stroke-width="1.4" opacity=".55"/><g stroke="#1F5E68" stroke-width="1.7" stroke-linecap="round"><path d="M24 9v30"/><path d="M11 16.5l26 15"/><path d="M11 31.5l26-15"/></g><path d="M24 24l15 0A15 15 0 0 1 31.5 37z" fill="#C4923E" opacity=".85"/><circle cx="24" cy="24" r="2.6" fill="#1B3A57"/></svg>` },
-  enneagram: { tag: "Understand how you're wired", desc: "Nine ways of seeing the world, narrowed to your core type through 36 quick either-or choices. Then a redemptive read to grow by: your gift, your blind spot, and a Scripture and devotion for your type.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><path d="M24 9L37 31.5H11z" stroke="#1B3A57" stroke-width="1.7" stroke-linejoin="round"/><path d="M33.6 12.5L29.1 38.1L38.8 21.4L14.4 12.5L18.9 38.1L9.2 21.4z" stroke="#2E7D8A" stroke-width="1.3" opacity=".5" stroke-linejoin="round"/><g fill="#C4923E"><circle cx="24" cy="9" r="2"/><circle cx="33.6" cy="12.5" r="1.7"/><circle cx="38.8" cy="21.4" r="1.7"/><circle cx="37" cy="31.5" r="1.7"/><circle cx="29.1" cy="38.1" r="1.7"/><circle cx="18.9" cy="38.1" r="1.7"/><circle cx="11" cy="31.5" r="1.7"/><circle cx="9.2" cy="21.4" r="1.7"/><circle cx="14.4" cy="12.5" r="1.7"/></g></svg>` },
+  enneagram: { tag: "Discover what drives you", desc: "Nine core motivations, narrowed to your type through 36 quick either-or choices. This one goes beneath behavior to the why underneath, then turns it toward Christ: your gift, your blind spot, and a Scripture and devotion for your type.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><path d="M24 9L37 31.5H11z" stroke="#1B3A57" stroke-width="1.7" stroke-linejoin="round"/><path d="M33.6 12.5L29.1 38.1L38.8 21.4L14.4 12.5L18.9 38.1L9.2 21.4z" stroke="#2E7D8A" stroke-width="1.3" opacity=".5" stroke-linejoin="round"/><g fill="#C4923E"><circle cx="24" cy="9" r="2"/><circle cx="33.6" cy="12.5" r="1.7"/><circle cx="38.8" cy="21.4" r="1.7"/><circle cx="37" cy="31.5" r="1.7"/><circle cx="29.1" cy="38.1" r="1.7"/><circle cx="18.9" cy="38.1" r="1.7"/><circle cx="11" cy="31.5" r="1.7"/><circle cx="9.2" cy="21.4" r="1.7"/><circle cx="14.4" cy="12.5" r="1.7"/></g></svg>` },
+  "big-five": { tag: "The most researched map of your personality", desc: "The Big Five is the gold standard of personality science. In about fifteen minutes, see yourself across five core traits and six expanded facets, with a full report on how each one shapes the way you lead, relate, and serve.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><polygon points="24,8 38,18.5 32.5,35 15.5,35 10,18.5" stroke="#1F5E68" stroke-width="2" fill="none" stroke-linejoin="round"/><polygon points="24,15 31,20.2 28.3,28.5 19.7,28.5 17,20.2" fill="#2E7D8A" opacity=".18"/><polygon points="24,15 31,20.2 28.3,28.5 19.7,28.5 17,20.2" stroke="#2E7D8A" stroke-width="1.4" fill="none" stroke-linejoin="round"/><g fill="#C4923E"><circle cx="24" cy="8" r="2.2"/><circle cx="38" cy="18.5" r="2"/><circle cx="32.5" cy="35" r="2"/><circle cx="15.5" cy="35" r="2"/><circle cx="10" cy="18.5" r="2"/></g><circle cx="24" cy="23" r="1.8" fill="#1B3A57"/></svg>` },
   "forgiveness-profile": { tag: "What moves you to forgive", desc: "Forgiveness is hard, and freeing. Bring to mind someone who hurt you, then discover which of ten motivations draw your heart toward forgiveness, from your own peace to your faith. A gentle, private reflection built on established forgiveness research.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M8 32c8 3 17 1 23-6 2.4-2.8 5.6-4 9-3.4-1 6-6 12-14 13-6.6.8-13-.6-18-3.6z" fill="#2E7D8A"/><path d="M31 22.6c1.4-3.6 4.6-6 9-6.2-.6 3.6-3.2 6.2-6.6 6.6z" fill="#C4923E"/><circle cx="37.8" cy="17.2" r="1.3" fill="#1B3A57"/><path d="M14 33c-2 2.6-2.2 5.4-.4 8" stroke="#1F5E68" stroke-width="2.2" stroke-linecap="round"/><path d="M20 34c-1.6 2.4-1.8 4.8-.4 7.2" stroke="#3E7C63" stroke-width="2" stroke-linecap="round"/></svg>` },
+};
+
+// Guided finder. Roles set the tone; goals map to the assessments that fit,
+// listed best-first. New assessments join by adding their slug to a goal.
+const FINDER_ROLES = [
+  ["anyone", "a believer"],
+  ["pastor", "a pastor or minister"],
+  ["planter", "a church planter"],
+  ["layleader", "a lay leader"],
+  ["spouse", "a ministry spouse"],
+  ["student", "a student or young adult"],
+  ["team", "on a leadership team"],
+];
+const FINDER_GOALS = [
+  { key: "gifts", label: "discover how God has gifted me", slugs: ["spiritual-gifts", "fivefold-calling"] },
+  { key: "calling", label: "find my ministry calling", slugs: ["fivefold-calling", "spiritual-gifts"] },
+  { key: "personality", label: "understand my personality", slugs: ["big-five", "enneagram"] },
+  { key: "motivation", label: "understand what really drives me", slugs: ["enneagram", "big-five"] },
+  { key: "lead", label: "understand my leadership style", slugs: ["wired-to-lead", "leadership-health"] },
+  { key: "growLead", label: "grow as a leader", slugs: ["leadership-health", "pastor-profile"] },
+  { key: "walk", label: "grow in my walk with God", slugs: ["spiritual-growth", "rooted"] },
+  { key: "mature", label: "see how deep my roots go", slugs: ["rooted", "spiritual-growth"] },
+  { key: "plant", label: "know if I'm ready to plant a church", slugs: ["church-planter"] },
+  { key: "pastorlife", label: "take an honest look at my life and ministry", slugs: ["pastor-profile"] },
+  { key: "marriage", label: "strengthen my marriage and ministry", slugs: ["called-together"] },
+  { key: "church", label: "see how healthy my church really is", slugs: ["church-health", "church-growth"] },
+  { key: "churchdir", label: "understand where my church is headed", slugs: ["church-growth", "church-health"] },
+  { key: "forgive", label: "work toward forgiving someone", slugs: ["forgiveness-profile"] },
+];
+// Light role affinity: nudge a slug up when it fits the chosen role.
+const ROLE_AFFINITY = {
+  pastor: ["pastor-profile", "leadership-health", "spiritual-growth"],
+  planter: ["church-planter", "wired-to-lead"],
+  layleader: ["spiritual-gifts", "fivefold-calling", "leadership-health"],
+  spouse: ["called-together"],
+  student: ["big-five", "enneagram", "spiritual-gifts"],
+  team: ["church-health", "leadership-health", "church-growth"],
 };
 
 export default function Home() {
@@ -38,6 +76,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [cost, setCost] = useState("all");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -52,6 +91,7 @@ export default function Home() {
   }, []);
 
   const isPaid = (a) => a.is_paid && a.price_cents > 0;
+  const anyPaid = assessments.some(isPaid);
   const costOk = (a) => cost === "all" || (cost === "paid" ? isPaid(a) : !isPaid(a));
 
   const visibleGroups = GROUPS
@@ -65,14 +105,50 @@ export default function Home() {
 
       <header className="topbar">
         <div className="hwrap topbar-in">
-          <span className="brand-lockup">
+          <a href="#assessments" className="brand-lockup">
             <img src="/musa-logo-white-h.png" alt="Mission USA" className="brand-logo" />
             <span className="brand-txt">Assessments</span>
-          </span>
-          <span className="topbar-links">
+          </a>
+          <nav className="topnav">
+            <div
+              className={`hasmega${menuOpen ? " open" : ""}`}
+              onMouseEnter={() => setMenuOpen(true)}
+              onMouseLeave={() => setMenuOpen(false)}
+            >
+              <button type="button" className="topbar-link megatrigger" onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen}>
+                Assessments <span className="caret">▾</span>
+              </button>
+              {menuOpen && (
+                <div className="mega" role="menu">
+                  <div className="mega-in">
+                    {GROUPS.map((g) => {
+                      const items = assessments.filter((a) => a.category === g.cat);
+                      if (!items.length) return null;
+                      return (
+                        <div className="mega-col" key={g.cat}>
+                          <div className="mega-h">{g.label}</div>
+                          {items.map((a) => {
+                            const c = CARD[a.slug] || {};
+                            return (
+                              <Link key={a.slug} href={`/assessment/${a.slug}`} className="mega-item" onClick={() => setMenuOpen(false)}>
+                                <span className="mega-ico" dangerouslySetInnerHTML={{ __html: c.plate || "" }} />
+                                <span className="mega-txt">
+                                  <span className="mega-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : ""}</span>
+                                  <span className="mega-desc">{c.tag || a.subtitle}</span>
+                                </span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
             <Link href="/partner" className="topbar-link">For churches</Link>
-            <Link href="/welcome" className="topbar-link">Sign in / My results →</Link>
-          </span>
+            <Link href="/welcome" className="topbar-link nav-cta">Sign in / My results →</Link>
+          </nav>
         </div>
       </header>
 
@@ -80,7 +156,7 @@ export default function Home() {
       <section className="hero">
         <div className="hero-inner">
           <div className="hero-copy">
-            <span className="hero-free"><span className="spark" />Free — A Ministry Resource of Mission USA</span>
+            <span className="hero-tag">A Ministry Resource of Mission USA</span>
             <h1>Know where you stand.<br /><span className="accent">Grow where it counts.</span></h1>
             <p>Honest, Scripture-grounded assessments for pastors, leaders, spouses, and everyday believers across the CHC family. Each one hands you a clear picture and a real next step.</p>
             <div className="hero-actions">
@@ -112,6 +188,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* GUIDED FINDER */}
+      <Finder assessments={assessments} />
+
       {/* CATALOG */}
       <section className="catalog" id="assessments">
         <div className="hwrap">
@@ -129,13 +208,21 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="filter-bar filter-cost" role="tablist">
-            {[["all", "All"], ["free", "Free"], ["paid", "Paid"]].map(([key, label]) => (
-              <button key={key} className={`filter-btn${cost === key ? " is-active" : ""}`} onClick={() => setCost(key)} role="tab" aria-selected={cost === key}>
-                {label}
-              </button>
-            ))}
-          </div>
+          {anyPaid && (
+            <>
+              <div className="filter-bar filter-cost" role="tablist">
+                {[["all", "All"], ["free", "Free"], ["paid", "Premium"]].map(([key, label]) => (
+                  <button key={key} className={`filter-btn${cost === key ? " is-active" : ""}`} onClick={() => setCost(key)} role="tab" aria-selected={cost === key}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="premium-note">
+                <strong>Premium</strong> assessments go deeper: a longer, more detailed report with extra analysis. They cost
+                more to build and run, and lean on heavier research. Everything else stays free.
+              </p>
+            </>
+          )}
 
           {loading && <p style={{ textAlign: "center", color: "var(--ink-soft)" }}>Loading assessments…</p>}
 
@@ -155,7 +242,7 @@ export default function Home() {
                         <div className="logo-plate" dangerouslySetInnerHTML={{ __html: c.plate }} />
                       </div>
                       <div className="card-body">
-                        {isPaid(a) && <span className="paid-badge">Paid · ${(a.price_cents / 100).toFixed(2)}</span>}
+                        {isPaid(a) && <span className="paid-badge">Premium · ${(a.price_cents / 100).toFixed(2)}</span>}
                         <h4>{a.name}{a.slug === "wired-to-lead" ? " (DISC Assessment)" : ""}</h4>
                         <p className="tag">{c.tag}</p>
                         <p className="desc">{c.desc}</p>
@@ -234,6 +321,65 @@ function HowCard({ step, title, body }) {
   );
 }
 
+function Finder({ assessments }) {
+  const [role, setRole] = useState("anyone");
+  const [goal, setGoal] = useState("");
+  const bySlug = Object.fromEntries(assessments.map((a) => [a.slug, a]));
+  const g = FINDER_GOALS.find((x) => x.key === goal);
+  let recs = [];
+  if (g) {
+    const aff = ROLE_AFFINITY[role] || [];
+    recs = g.slugs
+      .map((s) => bySlug[s])
+      .filter(Boolean)
+      .sort((a, b) => (aff.includes(b.slug) ? 1 : 0) - (aff.includes(a.slug) ? 1 : 0));
+  }
+  return (
+    <section className="finder" id="finder">
+      <div className="hwrap">
+        <div className="finder-card">
+          <div className="finder-eyebrow">Not sure where to start?</div>
+          <div className="finder-sentence">
+            <span>I&rsquo;m</span>
+            <span className="fsel">
+              <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Who you are">
+                {FINDER_ROLES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </span>
+            <span>and I want to</span>
+            <span className="fsel wide">
+              <select value={goal} onChange={(e) => setGoal(e.target.value)} aria-label="What you want">
+                <option value="">…pick a goal</option>
+                {FINDER_GOALS.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
+              </select>
+            </span>
+          </div>
+          {recs.length > 0 && (
+            <div className="finder-results">
+              <div className="finder-rlabel">{recs.length > 1 ? "Start with one of these" : "Here's your match"}</div>
+              <div className="finder-cards">
+                {recs.map((a) => {
+                  const c = CARD[a.slug] || {};
+                  return (
+                    <Link key={a.slug} href={`/assessment/${a.slug}`} className="finder-rc">
+                      <span className="finder-rc-ico" dangerouslySetInnerHTML={{ __html: c.plate || "" }} />
+                      <span className="finder-rc-body">
+                        <span className="finder-rc-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : ""}</span>
+                        <span className="finder-rc-desc">{c.tag || a.subtitle}</span>
+                      </span>
+                      <span className="finder-rc-go">Start →</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const CSS = `
 .hwrap{max-width:1200px;margin:0 auto;padding:0 28px;}
 .eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin:0 0 16px;}
@@ -241,8 +387,48 @@ const CSS = `
 .topbar-in{display:flex;justify-content:space-between;align-items:center;padding-top:14px;padding-bottom:14px;}
 .brand{color:#fff;font-weight:700;font-size:14px;}
 .topbar-links{display:flex;align-items:center;gap:20px;}
-.topbar-link{color:rgba(255,255,255,.82);font-size:13.5px;font-weight:600;text-decoration:none;white-space:nowrap;}
+.topbar-link{color:rgba(255,255,255,.82);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;}
 .topbar-link:hover{color:#fff;}
+.topbar-in{gap:20px;}
+.topnav{display:flex;align-items:center;gap:26px;}
+.megatrigger{background:none;border:none;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:7px;padding:0;}
+.megatrigger .caret{font-size:10px;transition:transform .2s;opacity:.8;}
+.hasmega{position:relative;}
+.hasmega.open .caret{transform:rotate(180deg);}
+.hasmega::after{content:"";position:absolute;left:0;right:0;top:100%;height:18px;}
+.nav-cta{background:var(--gold);color:#3a2a08 !important;padding:9px 16px;border-radius:9px;}
+.nav-cta:hover{filter:brightness(1.05);color:#3a2a08 !important;}
+.mega{position:absolute;top:calc(100% + 16px);right:0;z-index:60;width:min(820px,92vw);background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 34px 80px rgba(16,32,52,.30);padding:24px;}
+.mega::before{content:"";position:absolute;top:-8px;right:120px;width:16px;height:16px;background:#fff;border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg);}
+.mega-in{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+.mega-h{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-deep);margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line);}
+.mega-item{display:flex;gap:11px;align-items:flex-start;padding:8px;border-radius:10px;text-decoration:none;transition:background .15s;}
+.mega-item:hover{background:var(--mist);}
+.mega-ico{flex:0 0 auto;width:36px;height:36px;border-radius:9px;background:var(--mist2);display:flex;align-items:center;justify-content:center;}
+.mega-ico svg{width:26px;height:26px;}
+.mega-txt{display:flex;flex-direction:column;}
+.mega-name{font-size:14px;font-weight:700;color:var(--ink);line-height:1.2;}
+.mega-desc{font-size:12px;color:var(--ink-soft);margin-top:2px;line-height:1.3;}
+.hero-tag{display:inline-flex;align-self:flex-start;color:var(--teal-deep);font-size:12.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:24px;}
+.finder{background:linear-gradient(135deg,#12314e,#0E2036);padding:46px 0;}
+.finder-card{max-width:920px;margin:0 auto;text-align:center;}
+.finder-eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-soft);margin-bottom:18px;}
+.finder-sentence{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 12px;font-family:var(--display,'Fraunces');font-size:clamp(20px,2.5vw,28px);color:#fff;line-height:1.5;}
+.fsel select{font-family:var(--display,'Fraunces');font-size:inherit;color:#0E2036;background:#fff;border:none;border-radius:10px;padding:6px 40px 8px 16px;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230E2036' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 14px center;box-shadow:0 8px 22px rgba(0,0,0,.24);max-width:min(90vw,560px);}
+.fsel select:focus{outline:2px solid var(--gold);}
+.finder-results{margin-top:28px;}
+.finder-rlabel{font-size:13px;color:rgba(255,255,255,.72);margin-bottom:14px;letter-spacing:.02em;}
+.finder-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;max-width:820px;margin:0 auto;}
+.finder-rc{display:flex;align-items:center;gap:14px;background:#fff;border-radius:14px;padding:16px 18px;text-decoration:none;text-align:left;transition:transform .18s ease, box-shadow .18s ease;}
+.finder-rc:hover{transform:translateY(-3px);box-shadow:0 18px 40px rgba(0,0,0,.32);}
+.finder-rc-ico{flex:0 0 auto;width:48px;height:48px;border-radius:12px;background:var(--mist2);display:flex;align-items:center;justify-content:center;}
+.finder-rc-body{flex:1;min-width:0;}
+.finder-rc-name{display:block;font-family:var(--display,'Fraunces');font-size:17px;font-weight:600;color:var(--ink);}
+.finder-rc-desc{display:block;font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+.finder-rc-go{font-size:13.5px;font-weight:700;color:var(--teal-deep);white-space:nowrap;}
+.premium-note{max-width:640px;margin:-12px auto 26px;text-align:center;font-size:13.5px;line-height:1.55;color:var(--ink-soft);background:var(--gold-soft);border:1px solid #EADFC9;border-radius:12px;padding:12px 18px;}
+.premium-note strong{color:#8A6420;}
+@media (max-width:820px){.mega{display:none;}}
 .btn{font-family:var(--sans,'Inter');font-weight:600;font-size:15px;border-radius:10px;padding:15px 28px;text-decoration:none;display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:1.5px solid transparent;transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;}
 .btn-primary{background:var(--navy);color:#fff;box-shadow:0 6px 18px rgba(27,58,87,.18);}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(27,58,87,.26);}
@@ -307,7 +493,7 @@ const CSS = `
 .card .tag{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:0 0 16px;}
 .card p.desc{font-size:14.5px;color:var(--ink-soft);margin:0;}
 .brand-lockup{display:flex;align-items:center;gap:11px;}
-.brand-logo{height:26px;width:auto;display:block;}
+.brand-logo{height:36px;width:auto;display:block;}
 .brand-txt{color:#fff;font-size:12.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.92;}
 .paid-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#B07C2E;background:#F5EFE6;border:1px solid #EADFC9;padding:3px 9px;border-radius:999px;margin-bottom:10px;}
 .filter-cost{margin-top:-10px;margin-bottom:10px;}

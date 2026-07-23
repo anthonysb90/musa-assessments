@@ -129,6 +129,12 @@ function inlineSummary(scored, assessment) {
   if (type === "planter") {
     return `<p style="font-size:16px;margin:0;color:${INK};"><strong>${scored.tier_label || "Readiness"}</strong> · weighted score ${scored.composite ?? ""} / ${scored.scale_max || 5}</p>`;
   }
+  if (type === "big-five") {
+    const NAMES = { O: "Openness", C: "Conscientiousness", E: "Extraversion", A: "Agreeableness", ES: "Emotional Stability" };
+    const rows = [...(scored.traits || [])].sort((a, b) => b.pct - a.pct).slice(0, 3);
+    const body = rows.map((t) => li(NAMES[t.key] || t.key, `${t.pct} / 100`)).join("");
+    return `<table role="presentation" width="100%">${body}</table>`;
+  }
   return "";
 }
 
