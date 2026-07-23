@@ -287,72 +287,122 @@ function loadHtml2pdf() {
   });
 }
 
-/* ---------------- Spiritual Gifts (ranked A–Y) ---------------- */
+/* ---------------- Spiritual Gifts (ranked A–Y) ----------------
+   Signature: an illuminated top-3 triptych over a calibrated 25-gift ladder.
+   Gold + parchment, Fraunces illuminated capitals. Per-gift Scripture, ministry
+   role, and growth step. Print expands every gift study (the catalog is the point). */
+const PARCH = "radial-gradient(circle at 28% 18%, #FCF7EC, #F3E9D4 72%)";
+const firstRef = (refs) => String(refs || "").split("·")[0].trim();
+
 function GiftRank({ scored }) {
   const [open, setOpen] = useState(null);
   const ranked = useMemo(
-    () =>
-      scored.ranked.map((g, i) => ({
-        ...g, ...GIFTS[g.letter], rank: i,
-        tier: i < 3 ? "top" : i < 8 ? "mid" : "low",
-      })),
+    () => scored.ranked.map((g, i) => ({ ...g, ...GIFTS[g.letter], rank: i, tier: i < 3 ? "top" : i < 8 ? "mid" : "low" })),
     [scored]
   );
   const topThree = ranked.slice(0, 3);
   const per = scored.max_per || 15;
+  const ticks = [0, Math.round(per / 3), Math.round((2 * per) / 3), per];
+
   return (
     <>
-      <section style={{ padding: "8px 0" }}>
-        <div style={sectionLabel}>Your top gifts</div>
-        <div style={topGrid}>
+      {/* Illuminated top-3 triptych */}
+      <section style={{ padding: "6px 0 4px" }} className="avoid-break">
+        <div style={{ ...sectionLabel, color: "#B07C2E" }}>Your three strongest gifts</div>
+        <div style={gfTriptych}>
           {topThree.map((g) => (
-            <div key={g.letter} style={topCard}>
-              <div style={topRank}>{ordinal(g.rank + 1)}</div>
-              <div className="serif" style={topName}>{g.name}</div>
-              <div style={scoreRow}>
-                <span style={topScore}>{g.score}</span>
-                <span style={{ fontSize: 14, color: "#8CA0B3" }}>/ {per}</span>
+            <div key={g.letter} style={gfPanel}>
+              <div style={gfIllum}>
+                <span className="serif" style={gfCap}>{g.name.charAt(0)}</span>
+                <span style={gfRankTag}>{ordinal(g.rank + 1)}</span>
               </div>
-              <p style={topDef}>{g.def}</p>
+              <div className="serif" style={gfName}>{g.name}</div>
+              <div style={gfScoreRow}>
+                <span style={gfScore}>{g.score}</span>
+                <span style={{ fontSize: 13, color: "#A9895A", fontWeight: 600 }}>/ {per}</span>
+              </div>
+              <p style={gfPanelDef}>{g.def}</p>
+              <div style={gfVerse}>{firstRef(g.refs)}</div>
             </div>
           ))}
         </div>
         <p style={helper}>
-          These are your strongest gifts, the places you're most clearly wired to serve. Every gift
-          is ranked below so you can see your full profile.
+          These are the places you are most clearly wired to serve. Every gift you carry is ranked
+          below, on a single scale, so you can see your whole profile at a glance.
         </p>
       </section>
-      <section style={{ padding: "24px 0 8px" }}>
-        <div style={sectionLabel}>All gifts, ranked</div>
+
+      {/* The gift ladder — all 25, calibrated */}
+      <section style={{ padding: "20px 0 4px" }}>
+        <div style={sectionLabel}>Your gift ladder · all 25 ranked</div>
         <div style={chart}>
+          <div style={gfScale}>
+            <span style={gfScaleName} />
+            <span style={{ position: "relative", flex: 1, height: 14 }}>
+              {ticks.map((t) => (
+                <span key={t} style={{ position: "absolute", left: `${(t / per) * 100}%`, transform: "translateX(-50%)", fontSize: 10.5, color: "#B4BEC9", fontWeight: 600 }}>{t}</span>
+              ))}
+            </span>
+            <span style={{ width: 34 }} />
+          </div>
           {ranked.map((g) => {
-            const color = g.tier === "top" ? "#C4923E" : g.tier === "mid" ? "#2E7D8A" : "#8CA0B3";
+            const color = g.tier === "top" ? "#C4923E" : g.tier === "mid" ? "#2E7D8A" : "#9AA7B3";
             const isOpen = open === g.letter;
             return (
-              <div key={g.letter} style={{ borderBottom: "1px solid #F0F2F4" }}>
-                <button onClick={() => setOpen(isOpen ? null : g.letter)} style={barBtn} className="bar">
-                  <span style={rRank}>{g.rank + 1}</span>
-                  <span style={rName}>{g.name}</span>
-                  <span style={track}><span style={fill(g.score / per, color)} /></span>
-                  <span style={{ ...rScore, color }}>{g.score}</span>
+              <div key={g.letter} style={{ borderBottom: "1px solid #F0F2F4" }} className="avoid-break">
+                <button onClick={() => setOpen(isOpen ? null : g.letter)} style={gfRow} className="bar">
+                  <span style={{ ...gfRank, color: g.tier === "top" ? "#B07C2E" : "#8CA0B3" }}>{g.rank + 1}</span>
+                  <span style={gfRowName}>{g.name}{g.tier === "top" && <span style={{ color: "#C4923E", marginLeft: 6 }}>★</span>}</span>
+                  <span style={gfTrack}>
+                    <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, (g.score / per) * 100)}%`, background: color, borderRadius: 999 }} />
+                  </span>
+                  <span style={{ ...gfRowScore, color }}>{g.score}</span>
                   <span className="no-print" style={chevron(isOpen)}>›</span>
                 </button>
-                {isOpen && (
-                  <div style={detail}>
-                    <p style={detailP}>{g.def}</p>
-                    <Block h="Where this gift serves" t={g.roles} />
-                    <Block h="Growing in this gift" t={g.develop} />
-                    <div style={refLine}>{g.refs}</div>
+                <div className={`gift-study${isOpen ? " is-open" : ""}`} style={gfStudy}>
+                  <p style={{ ...detailP, marginTop: 0 }}>{g.def}</p>
+                  <div style={gfVerseCallout}>
+                    <span style={{ fontSize: 10.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, display: "block", marginBottom: 4 }}>In Scripture</span>
+                    {g.refs}
                   </div>
-                )}
+                  <div style={gfTwoCol}>
+                    <div><div style={blockH}>Where this gift serves</div><p style={{ ...detailP, margin: 0 }}>{g.roles}</p></div>
+                    <div><div style={blockH}>Growing in this gift</div><p style={{ ...detailP, margin: 0 }}>{g.develop}</p></div>
+                  </div>
+                </div>
               </div>
             );
           })}
         </div>
+        <p style={helper}>
+          Every gift is scored against itself, on the same scale, so the ladder shows your true order.
+          A lower gift is not a weakness; it simply is not where you are most strongly wired. Tap any
+          gift to read where it serves and how to grow in it. Your full report prints all twenty-five.
+        </p>
       </section>
     </>
   );
 }
+const gfTriptych = { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, margin: "6px 0 4px" };
+const gfPanel = { background: PARCH, border: "1px solid #E7D6B4", borderRadius: 16, padding: "22px 20px 20px", textAlign: "center", position: "relative", boxShadow: "0 10px 30px rgba(176,124,46,.12)" };
+const gfIllum = { position: "relative", width: 72, height: 72, margin: "0 auto 12px", borderRadius: 12, border: "1.5px solid #D8B877", background: "linear-gradient(160deg,#FBF3DF,#F0DFB4)", display: "grid", placeItems: "center", boxShadow: "inset 0 0 0 3px rgba(255,255,255,.55)" };
+const gfCap = { fontSize: 46, fontWeight: 600, color: "#B07C2E", lineHeight: 1 };
+const gfRankTag = { position: "absolute", top: -10, right: -10, background: "#1B3A57", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999 };
+const gfName = { fontSize: 21, color: "#3A2E18", lineHeight: 1.15 };
+const gfScoreRow = { display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, margin: "6px 0 10px" };
+const gfScore = { fontSize: 30, fontWeight: 700, color: "#C4923E", lineHeight: 1, fontFamily: "'Inter',sans-serif" };
+const gfPanelDef = { fontSize: 13, color: "#6B5B3E", lineHeight: 1.5, margin: "0 0 12px" };
+const gfVerse = { fontSize: 11.5, color: "#8A6D3B", fontWeight: 600, borderTop: "1px solid #E7D6B4", paddingTop: 10, fontStyle: "italic" };
+const gfScale = { display: "flex", alignItems: "center", gap: 14, padding: "8px 16px 2px" };
+const gfScaleName = { width: 172 };
+const gfRow = { display: "flex", alignItems: "center", gap: 14, width: "100%", padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
+const gfRank = { width: 22, fontSize: 13, fontWeight: 700, textAlign: "center", flexShrink: 0 };
+const gfRowName = { width: 150, fontSize: 14.5, fontWeight: 600, color: "#1C2B3A", flexShrink: 0 };
+const gfTrack = { position: "relative", flex: 1, height: 12, background: "#EEF1F4", borderRadius: 999, overflow: "hidden" };
+const gfRowScore = { width: 34, textAlign: "right", fontSize: 14, fontWeight: 700, flexShrink: 0 };
+const gfStudy = { padding: "0 16px 16px 58px" };
+const gfVerseCallout = { background: PARCH, border: "1px solid #E7D6B4", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#6B5B3E", lineHeight: 1.5, margin: "4px 0 12px" };
+const gfTwoCol = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 18 };
 
 /* ---------------- Fivefold Calling (ranked sum) ---------------- */
 function RankedSum({ scored }) {
@@ -2227,6 +2277,9 @@ const PRINT_CSS = `
 .bar:hover { background:#F8FAFB; }
 #report-capture, #report-capture * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .print-foot { display:none; }
+/* Spiritual Gifts per-gift study: collapsed on screen, fully expanded in print. */
+.gift-study { display:none; }
+.gift-study.is-open { display:block; }
 @media print {
   /* US Letter with the report's margin geometry (reportTokens.PRINT). */
   @page { size: letter; margin: 18mm 16mm 20mm; }
@@ -2237,6 +2290,8 @@ const PRINT_CSS = `
 
   /* Screen-only chrome never prints. */
   .no-print, .no-pdf { display:none !important; }
+  /* Every gift study prints, whether or not it was expanded on screen. */
+  .gift-study { display:block !important; }
 
   /* The report fills the printable width; drop the on-screen max-width and
      padding so the page margins alone define the text block. */

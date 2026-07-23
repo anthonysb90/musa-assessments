@@ -1,12 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { getSupabase } from "../lib/supabase";
+import AssessmentMenu from "../components/AssessmentMenu";
 
 // Public church partnership request. Submits a pending church that appears in
 // the admin for one-click approval.
 export default function PartnerRequest() {
   const supabase = useRef(getSupabase()).current;
   const [assessments, setAssessments] = useState([]);
+  const [signedIn, setSignedIn] = useState(false);
   const [f, setF] = useState({
     name: "", district: "", email: "", phone: "", admin_email: "",
     logo_color: "", logo_white: "", slugs: [], gate: false,
@@ -20,6 +23,8 @@ export default function PartnerRequest() {
         .from("assessments").select("slug,name,category").eq("is_published", true)
         .eq("allows_church_mode", true).order("category").order("name");
       setAssessments(data || []);
+      const { data: u } = await supabase.auth.getUser();
+      setSignedIn(!!u?.user);
     })();
   }, [supabase]);
 
@@ -76,9 +81,17 @@ export default function PartnerRequest() {
 
   return (
     <main style={{ background: "var(--mist)", minHeight: "100vh" }}>
+      <header style={siteHeader}>
+        <div style={siteHeaderIn}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none" }}>
+            <img src="/musa-logo-white-h.png" alt="Mission USA" style={{ height: 30 }} />
+            <span style={{ color: "#fff", fontSize: 12.5, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", opacity: .92 }}>Assessments</span>
+          </Link>
+          <AssessmentMenu signedIn={signedIn} />
+        </div>
+      </header>
       <header style={hd}>
         <div style={wrap}>
-          <img src="/musa-logo-white-h.png" alt="Mission USA" style={{ height: 30, marginBottom: 16 }} />
           <div style={kicker}>Church Partnerships</div>
           <h1 className="serif" style={{ fontSize: "clamp(28px,4vw,40px)", margin: "6px 0 8px" }}>Partner with Mission USA</h1>
           <p style={{ color: "rgba(255,255,255,.82)", fontSize: 16.5, maxWidth: 620, lineHeight: 1.6 }}>
@@ -174,6 +187,8 @@ function LogoField({ label, val, onFile, onClear, dark }) {
 }
 
 const wrap = { maxWidth: 760, margin: "0 auto", padding: "0 24px" };
+const siteHeader = { background: "#122A44", borderBottom: "1px solid rgba(255,255,255,.08)", position: "sticky", top: 0, zIndex: 60 };
+const siteHeaderIn = { maxWidth: 1120, margin: "0 auto", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 };
 const hd = { background: "linear-gradient(135deg,#1B3A57,#122A44)", color: "#fff", padding: "40px 0 34px" };
 const kicker = { fontSize: 12.5, letterSpacing: ".16em", textTransform: "uppercase", color: "#E4CE8C", fontWeight: 700 };
 const card = { background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 18, padding: "28px 26px" };
