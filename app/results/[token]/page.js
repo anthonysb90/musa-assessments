@@ -29,6 +29,8 @@ import {
   efmiBand,
   EFMI_CREDIT,
   EFMI_REFERENCES,
+  EFMI_HURT_OPTIONS,
+  EFMI_DEGREE_OPTIONS,
 } from "../../lib/content";
 import DonationCard from "../../components/DonationCard";
 import CircleInvite from "../../components/CircleInvite";
@@ -658,6 +660,50 @@ function ForgivenessReport({ scored }) {
           </p>
         </div>
       </section>
+
+      {scored.reflection?.understanding && (() => {
+        const u = scored.reflection.understanding;
+        const col = u.verdict === "accurate" ? "#2E7D8A" : u.verdict === "near" ? "#C4923E" : "#8A6D3B";
+        return (
+          <section style={{ padding: "10px 0 4px" }}>
+            <div style={sectionLabel}>Understanding of forgiveness</div>
+            <div style={{ ...topCard, borderLeft: `5px solid ${col}` }}>
+              <div className="serif" style={{ fontSize: 20, color: "#1C2B3A" }}>{u.label}</div>
+              <p style={{ ...topDef, fontSize: 14.5, marginTop: 8 }}>{u.body}</p>
+              <div style={{ marginTop: 12, fontSize: 13, color: "#5A6B7D", background: "#F7F9FA", borderRadius: 10, padding: "10px 12px" }}>
+                <span style={{ fontWeight: 700, color: "#1B3A57" }}>The definition you chose: </span>&ldquo;{u.chosen}&rdquo;
+                <div style={{ marginTop: 6, color: "#7C8A9C" }}>{u.why}</div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {scored.reflection && (() => {
+        const r = scored.reflection;
+        const hurt = (EFMI_HURT_OPTIONS.find(([v]) => v === r.hurt_level) || [])[1];
+        const degree = (EFMI_DEGREE_OPTIONS.find(([v]) => v === r.degree) || [])[1];
+        const who = r.who === "Other" ? (r.who_other || "someone") : r.who;
+        const bits = [];
+        if (who) bits.push(`someone in the role of ${String(who).toLowerCase()}`);
+        if (r.time_amount && r.time_unit) bits.push(`about ${r.time_amount} ${r.time_unit} ago`);
+        return (
+          <section style={{ padding: "10px 0 4px" }} className="no-pdf">
+            <div style={sectionLabel}>What you brought to mind</div>
+            <div style={{ ...chart, padding: "16px 20px" }}>
+              <p style={{ fontSize: 13.5, color: "#4A5B6D", lineHeight: 1.6, margin: 0 }}>
+                You reflected on a real hurt{bits.length ? ` — ${bits.join(", ")}` : ""}
+                {hurt ? `, one you rated as "${hurt.toLowerCase()}."` : "."}
+                {r.have_forgiven === "yes" ? " You said you have forgiven this person" : r.have_forgiven === "no" ? " You said you have not yet forgiven this person" : ""}
+                {degree ? `, and place yourself at "${degree.toLowerCase()}" on the way there.` : "."}
+              </p>
+              <p style={{ fontSize: 12, color: "#8CA0B3", margin: "10px 0 0" }}>
+                This reflection is private to you. It is here to anchor the motivations below in a real situation, not to be shared.
+              </p>
+            </div>
+          </section>
+        );
+      })()}
 
       <section style={{ padding: "20px 0 4px" }}>
         <div style={sectionLabel}>What moves you most</div>

@@ -4,6 +4,7 @@ import { scoreAssessment, scoreWellbeing } from "../../lib/scoring";
 import { buildResultEmail, sendEmail } from "../../lib/email";
 import { verifyTurnstile } from "../../lib/turnstile";
 import { CONSENT_VERSION, CARE_CONTACT_EMAIL, APP_URL } from "../../lib/config";
+import { efmiUnderstanding } from "../../lib/content";
 
 export const runtime = "nodejs";
 
@@ -211,6 +212,28 @@ export async function POST(req) {
 
     // 4. Score (domains only; wellbeing is never in scored_json)
     const scored = scoreAssessment(assessment, itemMap, scoredAnswers, profile);
+
+    // 4b. Forgiveness Profile reflection (instrument pages 3-4): recall context,
+    // forgiveness status, and the definition-of-forgiveness comprehension check.
+    // These aren't Likert items, so they ride on the payload and are attached
+    // to the result here, with the definition scored per the instrument.
+    if (slug === "forgiveness-profile" && body.reflection) {
+      const ref = body.reflection;
+      const defIdx = ref.definition_index === "" || ref.definition_index == null ? null : Number(ref.definition_index);
+      scored.reflection = {
+        hurt_level: ref.hurt_level === "" ? null : Number(ref.hurt_level),
+        who: ref.who || null,
+        who_other: ref.who_other || null,
+        living: ref.living || null,
+        time_amount: ref.time_amount || null,
+        time_unit: ref.time_unit || null,
+        description: ref.description || null,
+        have_forgiven: ref.have_forgiven || null,
+        degree: ref.degree === "" ? null : Number(ref.degree),
+        definition_index: defIdx,
+        understanding: defIdx != null ? efmiUnderstanding(defIdx) : null,
+      };
+    }
 
     // 5. Store results
     const { error: rse } = await supabase.from("results").insert({

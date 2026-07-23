@@ -44,6 +44,12 @@ export default function AdminPricing() {
     setTimeout(() => setSavedSlug(""), 1800);
   }
 
+  async function togglePublish(r) {
+    const next = !r.is_published;
+    edit(r.slug, { is_published: next });
+    await supabase.rpc("admin_set_published", { p_slug: r.slug, p_published: next });
+  }
+
   const addTier = (slug) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: [...(r.tiers || []), { qty: "", dollars: "" }] } : r));
   const editTier = (slug, i, patch) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: r.tiers.map((t, j) => j === i ? { ...t, ...patch } : t) } : r));
   const removeTier = (slug, i) => setRows((rs) => rs.map((r) => r.slug === slug ? { ...r, tiers: r.tiers.filter((_, j) => j !== i) } : r));
@@ -63,7 +69,13 @@ export default function AdminPricing() {
             <div style={{ ...row, borderBottom: "none", padding: 0 }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, color: "var(--ink)" }}>{r.name}{!r.is_published && <span style={draft}>unpublished</span>}</div>
-                <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{r.category}</div>
+                <div style={{ fontSize: 12.5, color: "var(--ink-soft)", display: "flex", gap: 8, alignItems: "center" }}>
+                  <span>{r.category}</span>
+                  <span style={{ color: "#C9D2DA" }}>·</span>
+                  <button onClick={() => togglePublish(r)} style={{ ...linkBtn, color: r.is_published ? "#B4703A" : "var(--teal-deep)" }}>
+                    {r.is_published ? "Unpublish" : "Publish"}
+                  </button>
+                </div>
               </div>
               <label style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 14, color: "var(--ink)" }}>
                 <input type="checkbox" checked={!!r.is_paid} onChange={(e) => edit(r.slug, { is_paid: e.target.checked })} />

@@ -692,6 +692,81 @@ export const EFMI_REFERENCES = [
   "Enright, R. D., Song, J., Li, Y., & Kim, J. (2026). Enright Forgiveness Motivation Inventory (EFMI). International Forgiveness Institute.",
 ];
 
+/* ------------------------------------------------------------------ */
+/* EFMI Reflection Scale (instrument pages 3-4). The 30 motivation      */
+/* items ask "I forgive because…", so first the person recalls a real   */
+/* offense, states where they are with forgiving it, and picks the best */
+/* definition of forgiveness. The definition question is a comprehension */
+/* check: only two of the eight options describe genuine forgiveness.    */
+/* ------------------------------------------------------------------ */
+export const EFMI_INTRO =
+  "We are sometimes unfairly hurt by other people, whether in family, friendship, school, work, or other situations. Bring to mind the most severe experience of someone being very unfair to you. For a few moments, picture what happened. Try to see the person, and try to recall what it was like. You'll answer the rest of this reflection with that one experience in mind.";
+
+export const EFMI_HURT_OPTIONS = [
+  [1, "No hurt"], [2, "A little hurt"], [3, "Some hurt"], [4, "Much hurt"], [5, "A great deal of hurt"],
+];
+export const EFMI_WHO_OPTIONS = ["Child", "Spouse", "Relative", "Parent", "Friend", "Employer", "Other"];
+export const EFMI_TIME_UNITS = ["days", "weeks", "months", "years"];
+// Degree of forgiveness so far — 1 to 5, labels anchored at 1/3/5 (per the instrument).
+export const EFMI_DEGREE_OPTIONS = [
+  [1, "Not at all"], [2, ""], [3, "In progress"], [4, ""], [5, "Complete forgiveness"],
+];
+
+// The eight definitions of forgiveness (instrument page 4). Verdicts and the
+// plain explanations follow the instrument's scoring notes (pages 12-14):
+// only "reduce resentment and offer love for the other's sake" is accurate,
+// and "be good to the one who offended you" is near-accurate. The rest are
+// common misunderstandings (reconciliation, forgetting, moving on, ceasing
+// the pursuit of justice, self-focused anger relief).
+export const EFMI_DEFINITIONS = [
+  { text: "When people forgive, they try to rise above their angry feelings by thinking positive thoughts about issues that do not necessarily relate to the injustice.",
+    verdict: "misconception",
+    why: "Forgiveness is a moral response toward a person, not a situation. Only easing your own anger keeps the focus on yourself, not on the one who acted unjustly. Forgiveness offers mercy to that person." },
+  { text: "When people forgive, they come together with the one who offended them and so they have mutual trust.",
+    verdict: "misconception",
+    why: "This describes reconciliation, not forgiveness. Reconciliation is two people coming back together in mutual trust. A person can forgive and still not reconcile." },
+  { text: "When people forgive, they stop seeking a fair solution to the problem between themselves and the people who behaved badly.",
+    verdict: "misconception",
+    why: "Forgiveness is about mercy, not justice. You can forgive and still seek a fair outcome. Forgiveness and justice can happen together." },
+  { text: "When people forgive, they try, as best they can today, to be good to the one who offended them.",
+    verdict: "near",
+    why: "This is close to a complete definition. What it is missing is the idea of reducing resentment toward the person." },
+  { text: "When people forgive, they can let go of what happened to them and so it no longer bothers those who forgive.",
+    verdict: "misconception",
+    why: "A person can move past the incident yet still quietly dismiss the offender as less than human. Forgiveness includes a change of heart toward the person, not only relief from the memory." },
+  { text: "When people forgive, they try to reduce resentment and offer love to the other for the other's sake.",
+    verdict: "accurate",
+    why: "This is an accurate definition. It reduces the negative feelings toward the offender and adds the positive, especially love offered for the other person's sake." },
+  { text: "When people forgive, the key issue is that they move on from the situation by putting it behind them.",
+    verdict: "misconception",
+    why: "This can be a way of diverting attention away from what happened and from the offender. To forgive is to have mercy on the person, not to move past the event." },
+  { text: "When people forgive, the key issue is that they try to forget the injustice that happened to them.",
+    verdict: "misconception",
+    why: "When people forgive, they stay aware that the injustice was real and still choose to offer mercy to the offender. Forgiveness is not forgetting." },
+];
+
+// Classify a chosen definition (0-based index) for the report.
+export const EFMI_UNDERSTANDING = {
+  accurate: {
+    label: "A clear understanding of forgiveness",
+    body: "You chose a definition that describes genuine forgiveness: reducing resentment and offering goodwill to the one who hurt you, for their sake. That is a strong foundation. It means the reflection you just did rests on the real thing, not a look-alike.",
+  },
+  near: {
+    label: "A close understanding of forgiveness",
+    body: "You chose a definition that is close to the real thing: choosing to be good to the one who hurt you. The one piece it leaves out is the inner work of letting resentment go. Genuine forgiveness is both, softening toward the person and offering goodwill.",
+  },
+  misconception: {
+    label: "A common misunderstanding of forgiveness",
+    body: "The definition you chose is one many people hold, but it describes something other than forgiveness, often reconciliation, forgetting, simply moving on, or easing your own anger. Genuine forgiveness means reducing resentment toward the person and offering them goodwill for their sake, while still being honest that the wrong was real. Knowing that changes how the rest of this reflection reads.",
+  },
+};
+
+export function efmiUnderstanding(defIndex) {
+  const d = EFMI_DEFINITIONS[defIndex];
+  if (!d) return null;
+  return { verdict: d.verdict, ...EFMI_UNDERSTANDING[d.verdict], chosen: d.text, why: d.why };
+}
+
 // Which metadata + report copy a domain-bands assessment uses, keyed by slug.
 export const DOMAIN_META = {
   rooted: ROOTED_MARKERS,
@@ -977,7 +1052,7 @@ export const ASSESSMENT_IMAGE = {
   "pastor-profile": pexels(18999688),
   "spiritual-growth": pexels(1112048),
   enneagram: pexels(3771069),
-  "forgiveness-profile": pexels(6303590),
+  "forgiveness-profile": pexels(34823825),
 };
 
 export function assessmentImage(slug) {

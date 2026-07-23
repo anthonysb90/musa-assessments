@@ -5,6 +5,8 @@ import { getSupabase } from "../../../lib/supabase";
 import {
   scaleOptions, WELLBEING_OPTIONS, WELLBEING_NOTICE,
   SAFETY_OPTIONS, CALLED_TOGETHER_SAFETY_NOTICE, CALLED_TOGETHER_SAFETY_CARE,
+  EFMI_INTRO, EFMI_HURT_OPTIONS, EFMI_WHO_OPTIONS, EFMI_TIME_UNITS,
+  EFMI_DEGREE_OPTIONS, EFMI_DEFINITIONS,
 } from "../../../lib/content";
 import { TURNSTILE_SITE_KEY, CONSENT_VERSION } from "../../../lib/config";
 
@@ -48,6 +50,18 @@ function AssessmentFlow() {
   const [answers, setAnswers] = useState({}); // item_id -> value
   const [page, setPage] = useState(0);
   const startedAt = useRef(null);
+
+  // Forgiveness Profile reflection (instrument pages 3-4): recall the offense,
+  // state where forgiveness stands, and pick the best definition (comprehension).
+  const [reflection, setReflection] = useState({
+    hurt_level: "", who: "", who_other: "", living: "", time_amount: "", time_unit: "",
+    description: "", have_forgiven: "", degree: "", definition_index: "",
+  });
+  const isForgiveness = slug === "forgiveness-profile";
+  const setRefl = (patch) => setReflection((r) => ({ ...r, ...patch }));
+  const reflectionComplete =
+    reflection.hurt_level !== "" && reflection.who !== "" && reflection.living !== "" &&
+    reflection.have_forgiven !== "" && reflection.degree !== "" && reflection.definition_index !== "";
 
   const assignmentToken = params.get("a") || null;
   const sourceTag = params.get("source") || null;
@@ -207,6 +221,12 @@ function AssessmentFlow() {
 
   function startQuestions() {
     startedAt.current = Date.now();
+    // Forgiveness Profile: the reflection (recall + definition) comes first.
+    setPhase(isForgiveness ? "reflection" : "questions");
+    window.scrollTo(0, 0);
+  }
+
+  function continueFromReflection() {
     setPhase("questions");
     window.scrollTo(0, 0);
   }
@@ -269,6 +289,7 @@ function AssessmentFlow() {
             consent_statement_version: CONSENT_VERSION,
           },
           answers,
+          reflection: isForgiveness ? reflection : null,
           duration_seconds: Math.round((Date.now() - startedAt.current) / 1000),
           turnstileToken: tsToken,
           honeypot,
@@ -386,6 +407,102 @@ function AssessmentFlow() {
               {isRater ? "Begin" : isCouple ? "Begin my part" : "Start the assessment"}
             </button>
           </div>
+        </>
+      )}
+
+      {phase === "reflection" && (
+        <>
+          <a href="/" style={back}>← All assessments</a>
+          <h1 className="serif" style={h1}>First, bring one experience to mind</h1>
+          <div style={{ ...wellNotice, marginBottom: 18 }}>{EFMI_INTRO}</div>
+
+          <div style={card}>
+            <RLabel n={1} text="How deeply were you hurt when it happened?" />
+            <div style={scaleRow}>
+              {EFMI_HURT_OPTIONS.map(([v, lbl]) => (
+                <button key={v} onClick={() => setRefl({ hurt_level: v })}
+                  style={{ ...scaleBtn, ...(reflection.hurt_level === v ? scaleBtnActive : {}) }}>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>{v}</span>
+                  <span style={{ fontSize: 10.5, opacity: 0.85, textAlign: "center" }}>{lbl}</span>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <Select label="Who hurt you?" v={reflection.who} on={(v) => setRefl({ who: v })} opts={EFMI_WHO_OPTIONS} />
+              {reflection.who === "Other" && (
+                <Field label="If other, who?" v={reflection.who_other} on={(v) => setRefl({ who_other: v })} />
+              )}
+            </div>
+
+            <Select label="Is that person living?" v={reflection.living} on={(v) => setRefl({ living: v })} opts={[["yes", "Yes"], ["no", "No"]]} />
+
+            <div style={fieldWrap}>
+              <span style={fieldLabel}>How long ago was the offense?</span>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input style={{ ...input, width: 120 }} type="number" min="0" placeholder="Number"
+                  value={reflection.time_amount} onChange={(e) => setRefl({ time_amount: e.target.value })} />
+                <select style={{ ...input, flex: 1 }} value={reflection.time_unit} onChange={(e) => setRefl({ time_unit: e.target.value })}>
+                  <option value="">Select</option>
+                  {EFMI_TIME_UNITS.map((u) => <option key={u} value={u}>{u} ago</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={fieldWrap}>
+              <span style={fieldLabel}>Briefly, what happened? (optional, private to you)</span>
+              <textarea style={{ ...input, minHeight: 84, resize: "vertical" }}
+                value={reflection.description} onChange={(e) => setRefl({ description: e.target.value })} />
+            </div>
+          </div>
+
+          <div style={{ ...card, marginTop: 16 }}>
+            <p style={{ marginTop: 0, color: "var(--ink-soft)", fontSize: 14.5, lineHeight: 1.6 }}>
+              These next questions are about your attitude toward this person right now, not in the past.
+            </p>
+            <Select label="Have you forgiven the person mentioned above?" v={reflection.have_forgiven}
+              on={(v) => setRefl({ have_forgiven: v })} opts={[["yes", "Yes"], ["no", "No"]]} />
+            <RLabel n={null} text="To what degree have you forgiven them?" />
+            <div style={scaleRow}>
+              {EFMI_DEGREE_OPTIONS.map(([v, lbl]) => (
+                <button key={v} onClick={() => setRefl({ degree: v })}
+                  style={{ ...scaleBtn, ...(reflection.degree === v ? scaleBtnActive : {}) }}>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>{v}</span>
+                  <span style={{ fontSize: 10.5, opacity: 0.85, textAlign: "center" }}>{lbl}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ ...card, marginTop: 16 }}>
+            <p style={{ marginTop: 0, fontWeight: 600, color: "var(--ink)" }}>
+              Which of these is the best definition of what it means to forgive another person? Choose one.
+            </p>
+            <div style={{ display: "grid", gap: 10 }}>
+              {EFMI_DEFINITIONS.map((d, i) => {
+                const active = String(reflection.definition_index) === String(i);
+                return (
+                  <button key={i} onClick={() => setRefl({ definition_index: i })}
+                    style={{ ...choiceBtn, ...(active ? choiceBtnActive : {}) }}>
+                    <span style={{ ...choiceDot, ...(active ? choiceDotActive : {}) }}>{active ? "✓" : ""}</span>
+                    <span>{d.text}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={navRow}>
+            <div style={{ flex: 1 }} />
+            <button className="btn btn-primary" disabled={!reflectionComplete} onClick={continueFromReflection}>
+              Continue to the questions →
+            </button>
+          </div>
+          {!reflectionComplete && (
+            <p style={{ ...progressLabel, textAlign: "right" }}>
+              Answer the hurt level, who, living, forgiveness status, degree, and definition to continue. The description is optional.
+            </p>
+          )}
         </>
       )}
 
