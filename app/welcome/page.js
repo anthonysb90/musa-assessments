@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSupabase } from "../lib/supabaseServer";
+import Greeting from "../components/Greeting";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function Welcome() {
     <main style={{ background: "var(--mist)", minHeight: "100vh", display: "grid", placeItems: "center", padding: "40px 24px" }}>
       <div style={{ width: "100%", maxWidth: 560 }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}>
-          <div style={kicker}>Welcome back{profile?.first_name ? `, ${profile.first_name}` : ""}</div>
+          <div style={{ ...kicker, textTransform: "none", letterSpacing: ".01em", fontSize: 14 }}><Greeting name={profile?.first_name || ""} /></div>
           <h1 className="serif" style={{ fontSize: 32, color: "var(--ink)", margin: "6px 0 6px" }}>Where would you like to go?</h1>
           <p style={{ color: "var(--ink-soft)", fontSize: 15.5 }}>You have access to more than one place. Pick one, you can switch anytime.</p>
         </div>

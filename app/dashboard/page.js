@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSupabase } from "../lib/supabaseServer";
 import { headlineFor } from "../lib/headline";
+import Greeting from "../components/Greeting";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function Dashboard() {
           <div>
             <div style={kicker}>Your dashboard</div>
             <h1 className="serif" style={{ fontSize: 34, margin: 0 }}>
-              {profile?.first_name ? `Welcome back, ${profile.first_name}` : "Welcome back"}
+              <Greeting name={profile?.first_name || ""} />
             </h1>
           </div>
           <form action="/auth/signout" method="post">

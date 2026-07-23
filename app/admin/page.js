@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerSupabase } from "../lib/supabaseServer";
 import { headlineFor } from "../lib/headline";
 import { GIFTS } from "../lib/gifts";
+import Greeting from "../components/Greeting";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ export default async function AdminPage({ searchParams }) {
   const { data: udata } = await supabase.auth.getUser();
   if (!udata?.user) redirect("/login?next=/admin");
   const { data: isAdmin } = await supabase.rpc("is_admin");
+  const { data: adminProfile } = await supabase
+    .from("profiles").select("first_name").eq("id", udata.user.id).maybeSingle();
   if (!isAdmin) {
     return (
       <Centered>
@@ -118,7 +121,9 @@ export default async function AdminPage({ searchParams }) {
       <div style={{ ...wrap, padding: "28px 24px 70px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 14, marginBottom: 20 }}>
           <div>
-            <div style={kicker}>Analytics</div>
+            <div style={{ ...kicker, textTransform: "none", letterSpacing: ".01em", fontSize: 14 }}>
+              <Greeting name={adminProfile?.first_name || ""} />
+            </div>
             <h1 className="serif" style={{ fontSize: 30, margin: "4px 0 0", color: "var(--ink)" }}>What's happening</h1>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
