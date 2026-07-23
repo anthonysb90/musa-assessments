@@ -348,10 +348,23 @@ function AssessmentFlow() {
   }
 
   const canStart =
-    form.first_name && form.last_name && emailOk(form.email) && form.phone &&
+    form.first_name && form.last_name && emailOk(form.email) &&
     form.age_band && (!form.church_id || churchAck) &&
     (!needsMarital || marital) &&
     (!TURNSTILE_SITE_KEY || tsToken);
+
+  // Human-readable list of what still blocks the details form, announced via
+  // aria-live so the taker isn't left staring at a silently-disabled button.
+  // Phone is intentionally absent — it's optional now.
+  const detailsMissing = [];
+  if (!form.first_name) detailsMissing.push("your first name");
+  if (!form.last_name) detailsMissing.push("your last name");
+  if (!emailOk(form.email)) detailsMissing.push("a valid email");
+  if (!form.age_band) detailsMissing.push("an age range");
+  if (needsMarital && !marital) detailsMissing.push("your marital status");
+  if (form.church_id && !churchAck) detailsMissing.push("the church acknowledgement");
+  if (TURNSTILE_SITE_KEY && !tsToken) detailsMissing.push("the verification check");
+  const detailsMsg = detailsMissing.length ? `Still needed: ${detailsMissing.join(", ")}.` : "";
 
   async function submit() {
     if (submitBusy.current) return;
@@ -592,15 +605,23 @@ function AssessmentFlow() {
           <div style={{ ...wellNotice, marginBottom: 18 }}>{EFMI_INTRO}</div>
 
           <div style={card}>
-            <RLabel n={1} text="How deeply were you hurt when it happened?" />
-            <div style={scaleRow}>
-              {EFMI_HURT_OPTIONS.map(([v, lbl]) => (
-                <button key={v} onClick={() => setRefl({ hurt_level: v })}
-                  style={{ ...scaleBtn, ...(reflection.hurt_level === v ? scaleBtnActive : {}) }}>
-                  <span style={{ fontWeight: 700, fontSize: 15 }}>{v}</span>
-                  <span style={{ fontSize: 10.5, opacity: 0.85, textAlign: "center" }}>{lbl}</span>
-                </button>
-              ))}
+            <RLabel n={1} id="rl-hurt" text="How deeply were you hurt when it happened?" />
+            <div style={scaleRow} role="radiogroup" aria-labelledby="rl-hurt">
+              {EFMI_HURT_OPTIONS.map(([v, lbl], oi) => {
+                const active = reflection.hurt_level === v;
+                const vals = EFMI_HURT_OPTIONS.map(([x]) => x);
+                return (
+                  <button key={v} type="button" role="radio" aria-checked={active}
+                    tabIndex={oi === rovingIndex(vals, reflection.hurt_level) ? 0 : -1}
+                    onKeyDown={(e) => handleRadioKeys(e, vals, (val) => setRefl({ hurt_level: val }))}
+                    onClick={() => setRefl({ hurt_level: v })}
+                    style={{ ...scaleBtn, ...(active ? scaleBtnActive : {}) }}>
+                    <span aria-hidden="true" style={selMark(active)}>✓</span>
+                    <span style={{ fontWeight: 700, fontSize: 15 }}>{v}</span>
+                    <span style={{ fontSize: 10.5, opacity: 0.85, textAlign: "center" }}>{lbl}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <div style={{ marginTop: 18 }}>
@@ -637,27 +658,39 @@ function AssessmentFlow() {
             </p>
             <Select label="Have you forgiven the person mentioned above?" v={reflection.have_forgiven}
               on={(v) => setRefl({ have_forgiven: v })} opts={[["yes", "Yes"], ["no", "No"]]} />
-            <RLabel n={null} text="To what degree have you forgiven them?" />
-            <div style={scaleRow}>
-              {EFMI_DEGREE_OPTIONS.map(([v, lbl]) => (
-                <button key={v} onClick={() => setRefl({ degree: v })}
-                  style={{ ...scaleBtn, ...(reflection.degree === v ? scaleBtnActive : {}) }}>
-                  <span style={{ fontWeight: 700, fontSize: 15 }}>{v}</span>
-                  <span style={{ fontSize: 10.5, opacity: 0.85, textAlign: "center" }}>{lbl}</span>
-                </button>
-              ))}
+            <RLabel n={null} id="rl-degree" text="To what degree have you forgiven them?" />
+            <div style={scaleRow} role="radiogroup" aria-labelledby="rl-degree">
+              {EFMI_DEGREE_OPTIONS.map(([v, lbl], oi) => {
+                const active = reflection.degree === v;
+                const vals = EFMI_DEGREE_OPTIONS.map(([x]) => x);
+                return (
+                  <button key={v} type="button" role="radio" aria-checked={active}
+                    tabIndex={oi === rovingIndex(vals, reflection.degree) ? 0 : -1}
+                    onKeyDown={(e) => handleRadioKeys(e, vals, (val) => setRefl({ degree: val }))}
+                    onClick={() => setRefl({ degree: v })}
+                    style={{ ...scaleBtn, ...(active ? scaleBtnActive : {}) }}>
+                    <span aria-hidden="true" style={selMark(active)}>✓</span>
+                    <span style={{ fontWeight: 700, fontSize: 15 }}>{v}</span>
+                    <span style={{ fontSize: 10.5, opacity: 0.85, textAlign: "center" }}>{lbl}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div style={{ ...card, marginTop: 16 }}>
-            <p style={{ marginTop: 0, fontWeight: 600, color: "var(--ink)" }}>
+            <p id="rl-definition" style={{ marginTop: 0, fontWeight: 600, color: "var(--ink)" }}>
               Which of these is the best definition of what it means to forgive another person? Choose one.
             </p>
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 10 }} role="radiogroup" aria-labelledby="rl-definition">
               {EFMI_DEFINITIONS.map((d, i) => {
                 const active = String(reflection.definition_index) === String(i);
+                const vals = EFMI_DEFINITIONS.map((_, x) => x);
                 return (
-                  <button key={i} onClick={() => setRefl({ definition_index: i })}
+                  <button key={i} type="button" role="radio" aria-checked={active}
+                    tabIndex={i === rovingIndex(vals, reflection.definition_index) ? 0 : -1}
+                    onKeyDown={(e) => handleRadioKeys(e, vals, (val) => setRefl({ definition_index: val }))}
+                    onClick={() => setRefl({ definition_index: i })}
                     style={{ ...choiceBtn, ...(active ? choiceBtnActive : {}) }}>
                     <span style={{ ...choiceDot, ...(active ? choiceDotActive : {}) }}>{active ? "✓" : ""}</span>
                     <span>{d.text}</span>
@@ -754,7 +787,7 @@ function AssessmentFlow() {
           <div style={progressWrap}>
             <div style={{ ...progressBar, width: `${(answeredCount / activeItems.length) * 100}%` }} />
           </div>
-          <p style={progressLabel}>
+          <p style={progressLabel} aria-live="polite">
             Page {page + 1} of {pageCount} · {answeredCount} of {activeItems.length} answered
           </p>
 
@@ -772,15 +805,21 @@ function AssessmentFlow() {
             if (isForced) {
               const chosen = answers[it.id];
               const pair = [[0, it.text], [1, it.option_b_text]];
+              const vals = pair.map(([v]) => v);
+              const pick = (v) => setAnswers({ ...answers, [it.id]: v });
               return (
                 <div key={it.id} style={qBlock}>
-                  <div style={{ ...qNum, marginBottom: it.stem ? 6 : 12, display: "block" }}>{num}.</div>
-                  {it.stem && <div style={{ fontSize: 16, color: "var(--ink)", fontWeight: 500, margin: "0 0 12px", lineHeight: 1.4 }}>{it.stem}</div>}
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {pair.map(([val, txt]) => {
+                  <div id={`q-${it.id}`} style={{ ...qNum, marginBottom: it.stem ? 6 : 12, display: "block" }}>{num}.</div>
+                  {it.stem && <div id={`q-stem-${it.id}`} style={{ fontSize: 16, color: "var(--ink)", fontWeight: 500, margin: "0 0 12px", lineHeight: 1.4 }}>{it.stem}</div>}
+                  <div style={{ display: "grid", gap: 10 }} role="radiogroup"
+                    aria-labelledby={it.stem ? `q-${it.id} q-stem-${it.id}` : `q-${it.id}`}>
+                    {pair.map(([val, txt], oi) => {
                       const active = chosen === val;
                       return (
-                        <button key={val} onClick={() => setAnswers({ ...answers, [it.id]: val })}
+                        <button key={val} type="button" role="radio" aria-checked={active}
+                          tabIndex={oi === rovingIndex(vals, chosen) ? 0 : -1}
+                          onKeyDown={(e) => handleRadioKeys(e, vals, pick)}
+                          onClick={() => setAnswers({ ...answers, [it.id]: val })}
                           style={{ ...choiceBtn, ...(active ? choiceBtnActive : {}) }}>
                           <span style={{ ...choiceDot, ...(active ? choiceDotActive : {}) }}>
                             {active ? "✓" : ""}
@@ -794,20 +833,28 @@ function AssessmentFlow() {
               );
             }
 
+            const opts = optsFor(it);
+            const vals = opts.map(([v]) => v);
+            const roving = rovingIndex(vals, answers[it.id]);
+            const pick = (v) => setAnswers({ ...answers, [it.id]: v });
             return (
               <div key={it.id}>
                 {firstWell && <div style={wellNotice}>{WELLBEING_NOTICE}</div>}
                 {it.domain === "Safety" && <div style={wellNotice}>{CALLED_TOGETHER_SAFETY_NOTICE}</div>}
                 <div style={qBlock}>
-                  <div style={qText}>
+                  <div style={qText} id={`q-${it.id}`}>
                     <span style={qNum}>{num}.</span> {itemText(it)}
                   </div>
-                  <div style={scaleRow}>
-                    {optsFor(it).map(([val, lbl]) => {
+                  <div style={scaleRow} role="radiogroup" aria-labelledby={`q-${it.id}`}>
+                    {opts.map(([val, lbl], oi) => {
                       const active = answers[it.id] === val;
                       return (
-                        <button key={val} onClick={() => setAnswers({ ...answers, [it.id]: val })}
+                        <button key={val} type="button" role="radio" aria-checked={active}
+                          tabIndex={oi === roving ? 0 : -1}
+                          onKeyDown={(e) => handleRadioKeys(e, vals, pick)}
+                          onClick={() => setAnswers({ ...answers, [it.id]: val })}
                           style={{ ...scaleBtn, ...(active ? scaleBtnActive : {}) }}>
+                          <span aria-hidden="true" style={selMark(active)}>✓</span>
                           <span style={{ fontWeight: 700, fontSize: 15 }}>{val}</span>
                           <span style={{ fontSize: 11, opacity: 0.8, textAlign: "center" }}>{lbl}</span>
                         </button>
@@ -853,7 +900,8 @@ function AssessmentFlow() {
             <Field label="First name" v={form.first_name} on={(v) => setForm({ ...form, first_name: v })} />
             <Field label="Last name" v={form.last_name} on={(v) => setForm({ ...form, last_name: v })} />
             <Field label="Email" type="email" v={form.email} on={(v) => setForm({ ...form, email: v })} />
-            <Field label="Phone" type="tel" v={form.phone} on={(v) => setForm({ ...form, phone: v })} />
+            <Field label="Phone (optional)" type="tel" v={form.phone} on={(v) => setForm({ ...form, phone: v })} />
+            <p style={helperNote}>Optional — we only use it if we need to reach you about your results.</p>
 
             <Select label="Age range" v={form.age_band} on={(v) => setForm({ ...form, age_band: v })} opts={AGE_BANDS} />
             <Select label="Your role (optional)" v={form.ministry_role} on={(v) => setForm({ ...form, ministry_role: v })} opts={ROLES} optional />
@@ -892,6 +940,9 @@ function AssessmentFlow() {
               We don't spam you, and we will never sell or give your data away.
             </p>
 
+            <div aria-live="polite" style={validationNote}>
+              {!canStart && detailsMsg ? detailsMsg : ""}
+            </div>
             <button className="btn btn-primary" disabled={!canStart} onClick={submit}
               style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
               See my results →
@@ -930,9 +981,9 @@ function Select({ label, v, on, opts, optional, disabled }) {
     </label>
   );
 }
-function RLabel({ n, text }) {
+function RLabel({ n, text, id }) {
   return (
-    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", margin: "16px 0 10px" }}>
+    <div id={id} style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", margin: "16px 0 10px" }}>
       {n != null ? <span style={{ color: "var(--teal-deep)", fontWeight: 700, marginRight: 4 }}>{n}.</span> : null}
       {text}
     </div>
@@ -941,6 +992,42 @@ function RLabel({ n, text }) {
 function Centered({ children }) {
   return <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 24 }}>{children}</main>;
 }
+
+// ---- Accessible radio-group helpers ---------------------------------------
+// The option buttons form an ARIA radio group with a roving tabindex: the
+// selected option (or the first, if none) is the group's single Tab stop.
+// rovingIndex tells each option whether it's that stop.
+function rovingIndex(values, current) {
+  const i = values.findIndex((v) => v === current);
+  return i >= 0 ? i : 0;
+}
+// Arrow/Home/End move focus within the group (and select, matching a click);
+// number keys 1-9 jump to that position. Tab is left alone so it never traps.
+// `select` is the same setter the option's onClick uses, so a keyboard choice
+// records an answer identically to a click.
+function handleRadioKeys(e, values, select) {
+  const group = e.currentTarget.parentNode;
+  if (!group) return;
+  const btns = Array.prototype.slice.call(group.querySelectorAll('[role="radio"]'));
+  const count = btns.length;
+  if (!count) return;
+  const idx = btns.indexOf(e.currentTarget);
+  const k = e.key;
+  let t = -1;
+  if (k === "ArrowRight" || k === "ArrowDown") t = (idx + 1) % count;
+  else if (k === "ArrowLeft" || k === "ArrowUp") t = (idx - 1 + count) % count;
+  else if (k === "Home") t = 0;
+  else if (k === "End") t = count - 1;
+  else if (/^[1-9]$/.test(k) && Number(k) <= count) t = Number(k) - 1;
+  else return;
+  e.preventDefault();
+  select(values[t]);
+  if (btns[t]) btns[t].focus();
+}
+// Non-color selected indicator for the scale buttons: a checkmark that reads in
+// grayscale / under magnification. Kept in the layout (opacity toggled) so the
+// button height doesn't shift between selected and unselected.
+const selMark = (active) => ({ fontSize: 11, lineHeight: "11px", height: 11, fontWeight: 800, opacity: active ? 1 : 0 });
 
 const back = { color: "var(--teal-deep)", fontSize: 14, fontWeight: 600, textDecoration: "none" };
 const h1 = { fontWeight: 500, fontSize: "clamp(30px,4vw,40px)", margin: "16px 0 4px", color: "var(--ink)" };
@@ -951,6 +1038,8 @@ const fieldLabel = { display: "block", fontSize: 13, fontWeight: 600, color: "va
 const input = { width: "100%", padding: "12px 14px", fontSize: 15, borderRadius: 10, border: "1.5px solid var(--line)", fontFamily: "inherit", background: "#fff", color: "var(--ink)" };
 const ackRow = { display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13.5, color: "var(--ink-soft)", background: "var(--blush)", padding: "12px 14px", borderRadius: 10, marginBottom: 16 };
 const consent = { fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.5, margin: "4px 0 0" };
+const helperNote = { fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.5, margin: "-8px 0 16px" };
+const validationNote = { fontSize: 13, color: "var(--teal-deep)", fontWeight: 600, lineHeight: 1.5, minHeight: 18, margin: "10px 0 0" };
 const progressWrap = { height: 8, background: "var(--mist2)", borderRadius: 999, overflow: "hidden", position: "sticky", top: 0 };
 const progressBar = { height: "100%", background: "var(--teal)", borderRadius: 999, transition: "width .3s ease" };
 const progressLabel = { fontSize: 13, color: "var(--ink-soft)", margin: "8px 0 24px" };

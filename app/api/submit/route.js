@@ -11,6 +11,7 @@ import {
 import { verifyTurnstile } from "../../lib/turnstile";
 import { CONSENT_VERSION, CARE_CONTACT_EMAIL } from "../../lib/config";
 import { efmiUnderstanding } from "../../lib/content";
+import { headlineFor } from "../../lib/headline";
 
 export const runtime = "nodejs";
 
@@ -298,10 +299,13 @@ export async function POST(req) {
       };
     }
 
-    // 5. Store results
+    // 5. Store results (with a one-line headline + type for cross-assessment
+    // synthesis and dashboards).
     const { error: rse } = await db.from("results").insert({
       session_id: session.id,
       scored_json: scored,
+      headline: headlineFor(scored),
+      result_type: scored.type || null,
     });
     if (rse) return NextResponse.json({ error: "Could not save results" }, { status: 500 });
 

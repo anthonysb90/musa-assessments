@@ -54,6 +54,8 @@ import {
 } from "../../lib/leadership";
 import DonationCard from "../../components/DonationCard";
 import CircleInvite from "../../components/CircleInvite";
+import { buildSynthesis } from "../../lib/synthesis";
+import { headlineFor } from "../../lib/headline";
 
 export default function ResultsPage() {
   const { token } = useParams();
@@ -66,6 +68,7 @@ export default function ResultsPage() {
   const [signedIn, setSignedIn] = useState(false);
   const [brand, setBrand] = useState(null); // { name, logo_url, withhold }
   const [blocked, setBlocked] = useState(false); // withheld from this viewer
+  const [synth, setSynth] = useState(null); // cross-assessment synthesis, or { empty: true }
   const reportRef = useRef(null);
 
   // Save as PDF: capture the report region and auto-download. Loads html2pdf
@@ -138,6 +141,32 @@ export default function ResultsPage() {
       setState("ready");
     })();
   }, [token]);
+
+  // Cross-assessment synthesis: once the report is loaded and visible (never for
+  // a withheld/blocked report, which never sets `scored`), ask the SECURITY
+  // DEFINER RPC for this person's OTHER completed assessments and weave them
+  // together. Empty result -> a subtle teaser instead of a full section.
+  useEffect(() => {
+    if (!scored || !token || blocked) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = getSupabase();
+      const { data, error } = await supabase.rpc("synthesis_for_token", { p_token: token });
+      if (cancelled) return;
+      if (error || !data || !data.ok || !data.others?.length) {
+        setSynth({ empty: true });
+        return;
+      }
+      const current = {
+        slug: meta?.slug,
+        name: meta?.name,
+        result_type: scored.type,
+        headline: headlineFor(scored),
+      };
+      setSynth({ result: buildSynthesis(current, data.others), others: data.others });
+    })();
+    return () => { cancelled = true; };
+  }, [scored, token, blocked, meta]);
 
   if (state === "loading") return <Centered>Loading your results…</Centered>;
   if (state === "notfound")
@@ -256,6 +285,8 @@ export default function ResultsPage() {
             </div>
           </div>
 
+          <MinistryProfile synth={synth} />
+
           {(scored.slug === "leadership-health" || scored.type === "planter") && (
             <CircleInvite token={token} kind={scored.type === "planter" ? "planter" : "leader"} />
           )}
@@ -267,6 +298,65 @@ export default function ResultsPage() {
     </main>
   );
 }
+
+/* ---------------- Your Ministry Profile (cross-assessment synthesis) ----------------
+   Renders at the very bottom of the report. Full card when the person has other
+   completed assessments; a subtle teaser when they don't. Never renders for a
+   withheld report (no `scored` -> no synthesis fetch -> `synth` stays null). */
+function MinistryProfile({ synth }) {
+  if (!synth) return null;
+
+  if (synth.empty) {
+    return (
+      <section className="avoid-break" style={{ breakInside: "avoid", marginTop: 8 }}>
+        <div style={mpTeaser}>
+          <div style={{ ...kicker, color: "#C4923E", marginBottom: 6 }}>Your Ministry Profile</div>
+          <p style={{ fontSize: 14.5, color: "#4A5B6D", lineHeight: 1.6, margin: 0 }}>
+            Take another assessment and we&rsquo;ll show you how your results fit together.{" "}
+            <a href="/" style={{ color: "var(--teal-deep,#1F5E68)", fontWeight: 600, textDecoration: "none" }}>
+              Browse assessments &rarr;
+            </a>
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  const { result, others } = synth;
+  return (
+    <section className="avoid-break" style={{ breakInside: "avoid", marginTop: 8 }}>
+      <div style={mpCard}>
+        <div style={{ ...kicker, color: "#C4923E", marginBottom: 6 }}>Bringing it together</div>
+        <h2 className="serif" style={{ fontSize: 26, color: "#1B3A57", margin: "0 0 16px", fontWeight: 500 }}>
+          Your Ministry Profile
+        </h2>
+        <p style={{ fontSize: 15, color: "#2B3A4A", lineHeight: 1.7, margin: "0 0 22px" }}>{result.narrative}</p>
+
+        <div style={{ ...sectionLabel, marginBottom: 10 }}>Where you might fit</div>
+        <ul style={{ margin: "0 0 22px", paddingLeft: 18 }}>
+          {result.fits.map((f, i) => (
+            <li key={i} style={{ fontSize: 14.5, color: "#2B3A4A", lineHeight: 1.55, marginBottom: 6 }}>{f}</li>
+          ))}
+        </ul>
+
+        <div style={{ ...sectionLabel, marginBottom: 8 }}>An invitation to grow</div>
+        <p style={{ fontSize: 14, color: "#4A5B6D", lineHeight: 1.6, margin: "0 0 22px" }}>{result.growthEdge}</p>
+
+        <div style={{ ...sectionLabel, marginBottom: 10 }}>Your other results</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {others.map((o, i) => (
+            <a key={o.result_token || i} href={`/results/${o.result_token}`} style={mpLink}>
+              View your {o.name} &rarr;
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+const mpCard = { background: "#fff", border: "1px solid #E7E9EC", borderTop: "3px solid #C4923E", borderRadius: 16, padding: "26px 26px 24px", boxShadow: "0 10px 30px rgba(27,58,87,.06)", breakInside: "avoid" };
+const mpTeaser = { background: "#F7F5EF", border: "1px dashed #E0D3B4", borderRadius: 14, padding: "18px 20px", breakInside: "avoid" };
+const mpLink = { display: "inline-flex", alignItems: "center", background: "#F4F7F8", border: "1px solid #DCE6E8", color: "#1F5E68", fontSize: 13.5, fontWeight: 600, padding: "8px 14px", borderRadius: 999, textDecoration: "none" };
 
 // html2pdf loader (CDN, bundle includes html2canvas + jsPDF). Cached on window.
 function loadHtml2pdf() {
@@ -394,6 +484,79 @@ function GiftRank({ scored }) {
               </p>
               <div style={{ fontSize: 11.5, color: "#8A6D3B", fontWeight: 600, fontStyle: "italic", borderTop: "1px solid #E7D6B4", paddingTop: 10 }}>{c.verse}</div>
             </div>
+          </section>
+        );
+      })()}
+
+      {/* Your top gift, up close — a richer deep dive on the #1 gift only */}
+      {(() => {
+        const topLetter = scored.top_letter || scored.ranked[0]?.letter;
+        const g = GIFTS[topLetter];
+        if (!g) return null;
+        const items = scored.playback?.top_items || [];
+        const devSteps = String(g.develop || "")
+          .split(". ")
+          .map((s) => s.replace(/\.$/, "").trim())
+          .filter(Boolean);
+        const weeks = [
+          {
+            label: "Week 1 · Notice",
+            body: `Watch for the places your gift of ${g.name} is already quietly at work, and thank God for each one. Sit with the passages above and ask Him to show you what this gift is for.`,
+          },
+          {
+            label: "Week 2 · Learn",
+            body: `${devSteps[0] ? devSteps[0] + "." : "Study how this gift shows up in Scripture."} Give it real, unhurried time this week rather than a passing thought.`,
+          },
+          {
+            label: "Week 3 · Practice",
+            body: `${devSteps[1] ? devSteps[1] + "." : "Take one small, low-risk step to use this gift with someone you trust."} Start small and let it be genuine rather than polished.`,
+          },
+          {
+            label: "Week 4 · Serve",
+            body: `${devSteps[2] || devSteps[1] ? (devSteps[2] || devSteps[1]) + "." : "Offer this gift in one concrete act of service."} Then ask a mature believer for honest feedback, and plan how you will keep serving from ${g.name.toLowerCase()} beyond these four weeks.`,
+          },
+        ];
+        const goldLabel = { fontSize: 10.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 6, marginTop: 16 };
+        return (
+          <section style={{ padding: "20px 0 4px" }} className="avoid-break">
+            <div style={{ ...sectionLabel, color: "#B07C2E" }}>Your top gift, up close</div>
+            <div style={{ background: "#fff", border: "1px solid #E7D6B4", borderRadius: 16, padding: "24px 24px 22px", boxShadow: "0 10px 30px rgba(176,124,46,.10)" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+                <span style={gfRankTag}>#1</span>
+                <div className="serif" style={{ fontSize: 26, color: "#3A2E18", lineHeight: 1.1 }}>{g.name}</div>
+              </div>
+              <p style={{ fontSize: 14.5, color: "#6B5B3E", lineHeight: 1.6, margin: "12px 0 4px" }}>{g.def}</p>
+
+              <div style={{ ...goldLabel, marginTop: 18 }}>Where it shows up</div>
+              <p style={{ fontSize: 13.5, color: "#6B5B3E", lineHeight: 1.55, margin: 0 }}>{g.roles}</p>
+
+              {items.length > 0 && (
+                <>
+                  <div style={goldLabel}>What your answers show</div>
+                  <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 6px" }}>The statements you scored highest on for this gift.</p>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {items.slice(0, 6).map((it, i) => (
+                      <li key={i} style={{ fontSize: 13.5, color: "#6B5B3E", lineHeight: 1.5, marginBottom: 5 }}>{it.text}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              <div style={goldLabel}>Your next four weeks</div>
+              <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 8px" }}>A simple, gentle way to keep growing in {g.name}.</p>
+              <div style={{ borderTop: "1px solid #EFE6CF" }}>
+                {weeks.map((w) => (
+                  <div key={w.label} style={{ padding: "12px 0", borderBottom: "1px solid #EFE6CF" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#B07C2E", textTransform: "uppercase", letterSpacing: ".05em" }}>{w.label}</div>
+                    <div style={{ fontSize: 14, color: "#4A3F2A", lineHeight: 1.5, marginTop: 3 }}>{w.body}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p style={helper}>
+              This deep dive is for your single strongest gift. It does not outrank the others, but it is the
+              clearest place to begin serving on purpose this season.
+            </p>
           </section>
         );
       })()}
@@ -688,10 +851,19 @@ function shortDisc(name) {
 const B5_BAND_LABEL = { high: "High", moderate: "Moderate", low: "Low" };
 const B5_BAND_COLOR = { high: "#2E7D8A", moderate: "#C4923E", low: "#8CA0B3" };
 const B5_SHORT = { O: "Openness", C: "Conscien.", E: "Extravert", A: "Agreeable", ES: "Stability" };
+// Display name for a playback item's trait key. Items are keyed by O/C/E/A/N;
+// Neuroticism (N) is reported to the reader as Emotional Stability.
+function b5TraitName(k) {
+  if (k === "N") return BIG5_TRAIT_META.ES.name;
+  return BIG5_TRAIT_META[k]?.name || k;
+}
 
 function BigFiveReport({ scored }) {
+  const [planDone, setPlanDone] = useState({}); // growth-plan checkbox state (in-memory)
   const traits = scored.traits || [];
   const facets = scored.facets || [];
+  const playback = scored.playback || { high: [], low: [] };
+  const planTargets = scored.plan_targets || [];
   const byKey = Object.fromEntries(traits.map((t) => [t.key, t]));
   const order = BIG5_TRAIT_ORDER.filter((k) => byKey[k]); // O, C, E, A, ES
 
@@ -885,6 +1057,74 @@ function BigFiveReport({ scored }) {
               ))}
             </>
           )}
+        </section>
+      )}
+
+      {/* What your answers show — plain playback of the reader's own responses */}
+      {(playback.high.length > 0 || playback.low.length > 0) && (
+        <section style={{ padding: "20px 0 4px" }}>
+          <div style={sectionLabel}>What your answers show</div>
+          <p style={{ ...helper, marginTop: 0, marginBottom: 16 }}>
+            These are simply the statements you answered most decidedly, played back to you. They are not a
+            verdict, just a mirror of your own words, and they show where your personality speaks most clearly.
+          </p>
+          <div style={ldGrid2}>
+            <div style={{ ...growCard, borderTop: "3px solid #2E7D8A" }}>
+              <div style={{ ...ldBlockH, color: "#2E7D8A" }}>Where you agreed most strongly</div>
+              <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 8px" }}>The statements that sound the most like you.</p>
+              <ul style={ldUl}>{playback.high.slice(0, 5).map((p, i) => (
+                <li key={i} style={ldLi}>{p.text} <span style={{ color: "#8CA0B3", fontWeight: 600 }}>&middot; {b5TraitName(p.trait)}</span></li>
+              ))}</ul>
+            </div>
+            <div style={{ ...growCard, borderTop: "3px solid #C4923E" }}>
+              <div style={{ ...ldBlockH, color: "#B07C2E" }}>Where you disagreed most strongly</div>
+              <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 8px" }}>The statements that sound the least like you.</p>
+              <ul style={ldUl}>{playback.low.slice(0, 5).map((p, i) => (
+                <li key={i} style={ldLi}>{p.text} <span style={{ color: "#8CA0B3", fontWeight: 600 }}>&middot; {b5TraitName(p.trait)}</span></li>
+              ))}</ul>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Your growth plan — targets the two most extreme traits, reusing bigfive.js content */}
+      {planTargets.length > 0 && (
+        <section style={{ padding: "20px 0 4px" }}>
+          <div style={sectionLabel}>Your growth plan</div>
+          <p style={{ ...helper, marginTop: 0, marginBottom: 16 }}>
+            These two traits sit farthest from the middle, so they shape how you lead more than any others.
+            Here are a few concrete steps for each, drawn straight from your trait report above. Pick one or
+            two to carry this season, not all at once.
+          </p>
+          {planTargets.map((pt) => {
+            const t = byKey[pt.key];
+            if (!t) return null;
+            const meta = BIG5_TRAIT_META[pt.key];
+            const reportBand = pt.key === "ES" ? t.n_band : t.band;
+            const rd = (pt.key === "ES" ? BIG5_TRAITS.N : BIG5_TRAITS[pt.key])[reportBand];
+            if (!rd) return null;
+            return (
+              <div key={pt.key} style={{ ...growCard, borderLeft: `4px solid ${meta.color}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+                  <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{meta.name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: B5_BAND_COLOR[t.band] }}>{pt.pct} &middot; {B5_BAND_LABEL[t.band]}</div>
+                </div>
+                <p style={{ fontSize: 13, color: "#8CA0B3", margin: "4px 0 10px" }}>Your growth edge in {meta.name.toLowerCase()}.</p>
+                <div>
+                  {rd.growth.slice(0, 3).map((step, i) => {
+                    const id = `${pt.key}-${i}`;
+                    return (
+                      <label key={id} style={{ display: "flex", gap: 12, padding: "9px 0", borderTop: i === 0 ? "none" : "1px solid #F0F2F4", cursor: "pointer", alignItems: "flex-start" }}>
+                        <input type="checkbox" checked={!!planDone[id]} onChange={(e) => setPlanDone({ ...planDone, [id]: e.target.checked })} style={{ marginTop: 3 }} />
+                        <span style={{ fontSize: 14, color: "#3A4A58", lineHeight: 1.5, textDecoration: planDone[id] ? "line-through" : "none", opacity: planDone[id] ? 0.55 : 1 }}>{step}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <Block h="In practice" t={rd.application} />
+              </div>
+            );
+          })}
         </section>
       )}
 

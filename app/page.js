@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getSupabase } from "./lib/supabase";
 import { DONATE_URL } from "./lib/config";
@@ -74,6 +74,9 @@ export default function Home() {
   const [cost, setCost] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const burgerRef = useRef(null);
+  const closeRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -88,6 +91,29 @@ export default function Home() {
       setSignedIn(!!u?.user);
     })();
   }, []);
+
+  // Mobile nav sheet: lock body scroll, close on Escape, move focus into the
+  // sheet. SSR-guarded — `document` is only touched inside the effect/handlers.
+  useEffect(() => {
+    if (typeof document === "undefined" || !mobileOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const onKey = (e) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [mobileOpen]);
+
+  // Return focus to the hamburger when the sheet closes.
+  const closeMobile = () => {
+    setMobileOpen(false);
+    if (typeof window !== "undefined") {
+      requestAnimationFrame(() => burgerRef.current?.focus());
+    }
+  };
 
   const isPaid = (a) => a.is_paid && a.price_cents > 0;
   const anyPaid = assessments.some(isPaid);
@@ -168,8 +194,53 @@ export default function Home() {
               {signedIn ? <><span style={{ color: "#7FD8A6" }}>●</span> My results →</> : "Sign in / My results →"}
             </Link>
           </nav>
+          <button
+            type="button"
+            ref={burgerRef}
+            className="navburger"
+            aria-label="Menu"
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((v) => !v)}
+          >
+            <span /><span /><span />
+          </button>
         </div>
       </header>
+
+      {mobileOpen && (
+        <div className="msheet-wrap" role="dialog" aria-modal="true" aria-label="Menu">
+          <div className="msheet-backdrop" onClick={closeMobile} />
+          <div className="msheet">
+            <div className="msheet-head">
+              <span className="msheet-title">Menu</span>
+              <button type="button" ref={closeRef} className="msheet-x" aria-label="Close menu" onClick={closeMobile}>×</button>
+            </div>
+            <div className="msheet-body">
+              <a href="#assessments" className="msheet-link" onClick={closeMobile}>Home</a>
+              {GROUPS.map((g) => {
+                const items = assessments
+                  .filter((a) => a.category === g.cat)
+                  .sort((a, b) => (!!a.is_featured === !!b.is_featured ? a.name.localeCompare(b.name) : a.is_featured ? -1 : 1));
+                if (!items.length) return null;
+                return (
+                  <div className="msheet-group" key={g.cat}>
+                    <div className="msheet-h">{g.label}</div>
+                    {items.map((a) => (
+                      <Link key={a.slug} href={`/assessment/${a.slug}`} className="msheet-item" onClick={closeMobile}>
+                        {a.is_featured && <span className="feat-star">★</span>}{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}
+                      </Link>
+                    ))}
+                  </div>
+                );
+              })}
+              <Link href="/partner" className="msheet-link" onClick={closeMobile}>For churches</Link>
+              <Link href="/welcome" className="msheet-cta" onClick={closeMobile}>
+                {signedIn ? "● My results →" : "Sign in / My results →"}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HERO */}
       <section className="hero">
@@ -656,12 +727,29 @@ const CSS = `
 .give-amt{font-weight:800;color:var(--ink);font-size:17px;}
 .give-lbl{font-size:11px;color:var(--ink-soft);text-align:center;}
 .give-cta{flex:0 0 auto;justify-content:center;}
+/* Mobile hamburger + slide-in nav sheet (navy/gold, matches the header) */
+.navburger{display:none;flex-direction:column;justify-content:center;gap:5px;width:44px;height:40px;padding:0 10px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:9px;cursor:pointer;}
+.navburger span{display:block;height:2px;width:100%;background:#fff;border-radius:2px;}
+.msheet-wrap{position:fixed;inset:0;z-index:200;}
+.msheet-backdrop{position:absolute;inset:0;background:rgba(9,20,34,.55);}
+.msheet{position:absolute;top:0;right:0;height:100%;width:min(360px,88vw);background:#122A44;box-shadow:-24px 0 60px rgba(9,20,34,.5);display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.msheet-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.10);position:sticky;top:0;background:#122A44;}
+.msheet-title{color:#fff;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.85;}
+.msheet-x{background:none;border:none;color:#fff;font-size:30px;line-height:1;cursor:pointer;padding:0 4px;}
+.msheet-body{padding:14px 20px 32px;display:flex;flex-direction:column;gap:2px;}
+.msheet-link{color:#fff;font-size:16px;font-weight:600;text-decoration:none;padding:12px 4px;border-bottom:1px solid rgba(255,255,255,.08);}
+.msheet-group{padding:8px 0 2px;}
+.msheet-h{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:10px 0 4px;}
+.msheet-item{display:block;color:rgba(255,255,255,.88);font-size:14.5px;font-weight:600;text-decoration:none;padding:9px 4px 9px 10px;}
+.msheet-item:hover,.msheet-link:hover{color:#fff;}
+.msheet-cta{margin-top:18px;background:var(--gold);color:#3a2a08;text-align:center;padding:13px 16px;border-radius:10px;font-size:15px;font-weight:700;text-decoration:none;}
 /* Mobile header — never overflow */
 @media (max-width:820px){
   .topbar-in{flex-wrap:wrap;gap:10px 14px;}
   .hasmega{display:none;}
   .brand-txt{display:none;}
-  .topnav{gap:14px;}
+  .topnav{display:none;}
+  .navburger{display:flex;}
   .topbar-link{font-size:13px;}
   .nav-cta{padding:7px 12px;font-size:12.5px;}
   .cc-in{grid-template-columns:1fr;gap:26px;}

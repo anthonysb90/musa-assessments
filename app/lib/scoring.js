@@ -78,7 +78,22 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
     const ranked = Object.entries(groups)
       .map(([letter, vals]) => ({ letter, score: vals.reduce((a, b) => a + b, 0) }))
       .sort((a, b) => b.score - a.score || a.letter.localeCompare(b.letter));
-    return { ...base, type: "gift-rank", max_per: maxCount * smax, ranked };
+
+    // Answer playback for the #1 gift (for the "top gift, up close" deep dive):
+    // the scored items belonging to the top gift letter, strongest response first.
+    const top_letter = ranked[0]?.letter || null;
+    const top_items = [];
+    for (const [itemId, value] of Object.entries(answers)) {
+      const it = itemMap[itemId];
+      if (!it || it.is_scored === false || it.gift_letter !== top_letter) continue;
+      top_items.push({ text: it.text, value: adj(it, value, smin, smax) });
+    }
+    top_items.sort((a, b) => b.value - a.value);
+
+    return {
+      ...base, type: "gift-rank", max_per: maxCount * smax, ranked,
+      top_letter, playback: { top_items: top_items.slice(0, 6) },
+    };
   }
 
   if (type === "ranked-sum") {
@@ -226,7 +241,32 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
         const s = stat(groups[k]);
         return { key: k, pct: s.pct, raw: s.sum, count: s.n, band: big5Band(s.pct).key };
       });
-    return { ...base, type: "big-five", traits, facets };
+
+    // Answer playback (for the "what your answers show" section). Walk the raw
+    // responses to the five core-trait items (domain is a trait key O/C/E/A/N),
+    // capturing the statements the person agreed with most (>= scale max) and
+    // disagreed with most (<= 2). Uses the raw answer, not the reverse-keyed
+    // value, because this plays back what they literally said. Capped at six each.
+    const TRAIT_ITEM_KEYS = ["O", "C", "E", "A", "N"];
+    const playback = { high: [], low: [] };
+    for (const [itemId, value] of Object.entries(answers)) {
+      const it = itemMap[itemId];
+      if (!it || it.is_scored === false || !TRAIT_ITEM_KEYS.includes(it.domain)) continue;
+      const v = Number(value);
+      const entry = { text: it.text, trait: it.domain };
+      if (v >= smax && playback.high.length < 6) playback.high.push(entry);
+      else if (v <= 2 && playback.low.length < 6) playback.low.push(entry);
+    }
+
+    // Plan targets: the two traits whose scores sit farthest from the middle
+    // (largest |pct - 50|). These drive the growth plan. Stable sort keeps the
+    // canonical O/C/E/A/ES order on ties.
+    const plan_targets = [...traits]
+      .sort((a, b) => Math.abs(b.pct - 50) - Math.abs(a.pct - 50))
+      .slice(0, 2)
+      .map((t) => ({ key: t.key, pct: t.pct, band: t.band, direction: t.pct >= 50 ? "high" : "low" }));
+
+    return { ...base, type: "big-five", traits, facets, playback, plan_targets };
   }
 
   if (type === "planter") {

@@ -38,4 +38,8 @@ a{color:inherit;}
 .btn-primary:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none;}
 .btn-ghost{background:var(--paper);color:var(--navy);border-color:var(--line);}
 .btn-ghost:hover{border-color:var(--navy);}
+/* Keyboard focus ring. Inline styles can't express :focus-visible, so the
+   radio-group options, links, and controls get a visible focus indicator here.
+   Only shows for keyboard/AT users, so it won't fight the mouse-hover styling. */
+:focus-visible{outline:2px solid var(--teal,#2E7D8A);outline-offset:2px;border-radius:6px;}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}

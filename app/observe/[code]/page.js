@@ -98,24 +98,33 @@ function Observe() {
 
       {phase === "questions" && (
         <>
-          <p style={progressLabel}>{Object.keys(answers).length} of {items.length} answered</p>
-          {items.map((it, i) => (
-            <div key={it.id} style={qBlock}>
-              <div style={qText}><span style={qNum}>{i + 1}.</span> {it.text}</div>
-              <div style={scaleRow}>
-                {SCALE.map(([val, lbl]) => {
-                  const active = answers[it.id] === val;
-                  return (
-                    <button key={val} onClick={() => setAnswers({ ...answers, [it.id]: val })}
-                      style={{ ...scaleBtn, ...(active ? scaleBtnActive : {}) }}>
-                      <span style={{ fontWeight: 700, fontSize: 15 }}>{val}</span>
-                      <span style={{ fontSize: 10.5, opacity: 0.8, textAlign: "center", lineHeight: 1.15 }}>{lbl}</span>
-                    </button>
-                  );
-                })}
+          <p style={progressLabel} aria-live="polite">{Object.keys(answers).length} of {items.length} answered</p>
+          {items.map((it, i) => {
+            const vals = SCALE.map(([v]) => v);
+            const roving = rovingIndex(vals, answers[it.id]);
+            const pick = (v) => setAnswers({ ...answers, [it.id]: v });
+            return (
+              <div key={it.id} style={qBlock}>
+                <div style={qText} id={`q-${it.id}`}><span style={qNum}>{i + 1}.</span> {it.text}</div>
+                <div style={scaleRow} role="radiogroup" aria-labelledby={`q-${it.id}`}>
+                  {SCALE.map(([val, lbl], oi) => {
+                    const active = answers[it.id] === val;
+                    return (
+                      <button key={val} type="button" role="radio" aria-checked={active}
+                        tabIndex={oi === roving ? 0 : -1}
+                        onKeyDown={(e) => handleRadioKeys(e, vals, pick)}
+                        onClick={() => setAnswers({ ...answers, [it.id]: val })}
+                        style={{ ...scaleBtn, ...(active ? scaleBtnActive : {}) }}>
+                        <span aria-hidden="true" style={selMark(active)}>✓</span>
+                        <span style={{ fontWeight: 700, fontSize: 15 }}>{val}</span>
+                        <span style={{ fontSize: 10.5, opacity: 0.8, textAlign: "center", lineHeight: 1.15 }}>{lbl}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <button className="btn btn-primary" disabled={!allAnswered} onClick={submit} style={{ width: "100%", justifyContent: "center", marginTop: 12 }}>
             Submit my input →
           </button>
@@ -129,6 +138,37 @@ function Observe() {
 const Center = ({ children }) => (
   <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 24, textAlign: "center", color: "var(--ink-soft)" }}><div>{children}</div></main>
 );
+
+// ---- Accessible radio-group helpers ---------------------------------------
+// Roving tabindex: the selected option (or the first, if none) is the group's
+// single Tab stop. Arrows/Home/End move focus and select (matching a click);
+// number keys 1-9 jump to that position. Tab is never trapped.
+function rovingIndex(values, current) {
+  const i = values.findIndex((v) => v === current);
+  return i >= 0 ? i : 0;
+}
+function handleRadioKeys(e, values, select) {
+  const group = e.currentTarget.parentNode;
+  if (!group) return;
+  const btns = Array.prototype.slice.call(group.querySelectorAll('[role="radio"]'));
+  const count = btns.length;
+  if (!count) return;
+  const idx = btns.indexOf(e.currentTarget);
+  const k = e.key;
+  let t = -1;
+  if (k === "ArrowRight" || k === "ArrowDown") t = (idx + 1) % count;
+  else if (k === "ArrowLeft" || k === "ArrowUp") t = (idx - 1 + count) % count;
+  else if (k === "Home") t = 0;
+  else if (k === "End") t = count - 1;
+  else if (/^[1-9]$/.test(k) && Number(k) <= count) t = Number(k) - 1;
+  else return;
+  e.preventDefault();
+  select(values[t]);
+  if (btns[t]) btns[t].focus();
+}
+// Non-color selected indicator: a checkmark that reads in grayscale / under
+// magnification, kept in the layout (opacity toggled) so height doesn't shift.
+const selMark = (active) => ({ fontSize: 11, lineHeight: "11px", height: 11, fontWeight: 800, opacity: active ? 1 : 0 });
 const h1 = { fontWeight: 500, fontSize: "clamp(28px,4vw,38px)", margin: "0 0 6px", color: "var(--ink)" };
 const introSub = { color: "var(--ink-soft)", fontSize: 16.5, margin: "0 0 22px", lineHeight: 1.55 };
 const card = { background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 18, padding: 26 };
