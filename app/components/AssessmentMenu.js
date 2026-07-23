@@ -16,7 +16,7 @@ export default function AssessmentMenu({ signedIn }) {
       const supabase = getSupabase();
       const { data } = await supabase
         .from("assessments")
-        .select("slug,name,category,is_published")
+        .select("slug,name,category,is_published,is_featured")
         .eq("is_published", true);
       setAssessments(data || []);
     })();
@@ -36,7 +36,10 @@ export default function AssessmentMenu({ signedIn }) {
               <Link href="/#assessments" className="am-mega-all" onClick={() => setOpen(false)}>See the full list →</Link>
             </div>
             {GROUPS.map((g) => {
-              const items = assessments.filter((x) => x.category === g.cat);
+              // Alphabetical within each group, but featured assessments rise to the top.
+              const items = assessments
+                .filter((x) => x.category === g.cat)
+                .sort((a, b) => (a.is_featured === b.is_featured ? a.name.localeCompare(b.name) : a.is_featured ? -1 : 1));
               if (!items.length) return null;
               return (
                 <div className="am-col" key={g.cat}>
@@ -64,7 +67,7 @@ export default function AssessmentMenu({ signedIn }) {
         ? <Link href="/welcome" className="am-cta am-cta-in">● My results →</Link>
         : <Link href="/welcome" className="am-cta">Sign in / My results →</Link>}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .am-nav{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:flex-end;}
         .am-link{color:rgba(255,255,255,.85);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;}
         .am-link:hover{color:#fff;}
@@ -90,7 +93,7 @@ export default function AssessmentMenu({ signedIn }) {
         .am-cta:hover{filter:brightness(1.05);}
         .am-cta-in{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.22);}
         @media (max-width:820px){ .am-mega{grid-template-columns:1fr;width:min(340px,92vw);} .am-link{display:none;} }
-      `}</style>
+      ` }} />
     </nav>
   );
 }

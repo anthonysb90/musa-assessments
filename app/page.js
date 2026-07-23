@@ -80,7 +80,7 @@ export default function Home() {
       const supabase = getSupabase();
       const { data } = await supabase
         .from("assessments")
-        .select("slug,name,subtitle,category,estimated_minutes,is_published,is_paid,price_cents")
+        .select("slug,name,subtitle,category,estimated_minutes,is_published,is_paid,price_cents,sort_order,is_featured")
         .eq("is_published", true);
       setAssessments(data || []);
       setLoading(false);
@@ -93,10 +93,24 @@ export default function Home() {
   const anyPaid = assessments.some(isPaid);
   const costOk = (a) => cost === "all" || (cost === "paid" ? isPaid(a) : !isPaid(a));
 
+  // Homepage card order: admin-set sort_order, then name. Featured cards are
+  // pulled into their own section at the top (only in the unfiltered view).
+  const byOrder = (a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100) || a.name.localeCompare(b.name);
+  const showFeatured = filter === "all";
+  const featuredItems = assessments.filter((a) => a.is_featured && costOk(a)).sort(byOrder);
+  const featuredGroup = showFeatured && featuredItems.length
+    ? { cat: "featured", label: "Featured", sub: "hand-picked to start with", items: featuredItems }
+    : null;
   const visibleGroups = GROUPS
     .filter((g) => filter === "all" || filter === g.cat)
-    .map((g) => ({ ...g, items: assessments.filter((a) => a.category === g.cat && costOk(a)) }))
+    .map((g) => ({
+      ...g,
+      items: assessments
+        .filter((a) => a.category === g.cat && costOk(a) && !(showFeatured && a.is_featured))
+        .sort(byOrder),
+    }))
     .filter((g) => g.items.length);
+  const renderGroups = featuredGroup ? [featuredGroup, ...visibleGroups] : visibleGroups;
 
   return (
     <main>
@@ -227,10 +241,10 @@ export default function Home() {
 
           {loading && <p style={{ textAlign: "center", color: "var(--ink-soft)" }}>Loading assessments…</p>}
 
-          {visibleGroups.map((g) => (
+          {renderGroups.map((g) => (
             <div className={`group g-${g.cat}`} key={g.cat}>
               <div className="group-head">
-                <h3>{g.label}</h3>
+                <h3>{g.cat === "featured" ? <><span style={{ color: "var(--gold)" }}>★</span> {g.label}</> : g.label}</h3>
                 <span className="gh-sub">{g.sub}</span>
                 <span className="gh-line" />
               </div>
