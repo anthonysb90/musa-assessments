@@ -34,6 +34,9 @@ export function headlineFor(scored) {
     case "kingdom-design": {
       return scored.code ? `Type: ${scored.code} · ${KDP_NAMES[scored.code] || ""}`.trim().replace(/·\s*$/, "") : "Kingdom Design Profile";
     }
+    case "leadership-stool": {
+      return scored.style_name ? `Style: ${scored.style_name} · ${scored.style_code}` : "Leadership style";
+    }
     case "domain-average": {
       const top = scored.domains?.[0];
       return top ? `Strongest: ${top.domain}` : "Results";

@@ -3,12 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabase } from "./lib/supabase";
 import { DONATE_URL } from "./lib/config";
+import { GROUPS, CARD } from "./lib/cards";
 
-const GROUPS = [
-  { cat: "personal", label: "Personal Growth & Calling", sub: "for anyone wanting to know themselves better" },
-  { cat: "ministry", label: "Marriage & Ministry Readiness", sub: "for candidates, couples, and current pastors" },
-  { cat: "church", label: "Church & Leadership Health", sub: "for pastors, boards, and leadership teams" },
-];
 
 const FILTERS = [
   ["all", "All Assessments"],
@@ -18,23 +14,6 @@ const FILTERS = [
 ];
 
 // Branded logo plates + catalog copy per assessment (matches the Mission USA design).
-const CARD = {
-  "spiritual-gifts": { tag: "Discover how God has gifted you", desc: "Every believer is gifted for a purpose. In about 20 minutes, uncover your strongest spiritual gifts from Scripture's full list, and see exactly where you're built to serve.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M24 8c3.4 3.8 5.6 7 5.6 10.8a5.6 5.6 0 0 1-11.2 0C18.4 15 20.6 11.8 24 8z" fill="#C4923E"/><path d="M24 12.5c1.7 2.2 2.8 3.9 2.8 5.9a2.8 2.8 0 0 1-5.6 0c0-2 1.1-3.7 2.8-5.9z" fill="#F0E4CB"/><path d="M13 27c1.8 0 2.6 1.4 4.2 2.3 1.9 1.1 3.2-.3 6.8-.3s4.9 1.4 6.8.3c1.6-.9 2.4-2.3 4.2-2.3" stroke="#1F5E68" stroke-width="2" stroke-linecap="round"/><path d="M12 33c2.4 0 3.4 1.8 5.6 3 2.5 1.4 4.2-.4 6.4-.4s3.9 1.8 6.4.4c2.2-1.2 3.2-3 5.6-3" stroke="#2E7D8A" stroke-width="2" stroke-linecap="round"/></svg>` },
-  rooted: { tag: "A spiritual maturity assessment", desc: "Growth isn't about looking mature, it's about being rooted so you don't move when the wind comes. See where you're deeply planted, and where your roots still need to go down.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="16" r="9" fill="#3E7C63"/><circle cx="16.5" cy="19" r="5.5" fill="#3E7C63" opacity=".8"/><circle cx="31.5" cy="19" r="5.5" fill="#3E7C63" opacity=".8"/><path d="M24 21v13" stroke="#1F5E68" stroke-width="2.4" stroke-linecap="round"/><path d="M24 34c-1.5 2-4 2.5-5.5 5M24 34c1.5 2 4 2.5 5.5 5M24 30c-1.2 1.5-3 1.8-4.5 3.5M24 30c1.2 1.5 3 1.8 4.5 3.5" stroke="#C4923E" stroke-width="1.8" stroke-linecap="round"/></svg>` },
-  "fivefold-calling": { tag: "Find your ministry lane", desc: "Apostle, prophet, evangelist, shepherd, teacher. Ephesians 4 names five ways God equips His church. Discover your primary calling, and the one right behind it.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="4.4" fill="#2E7D8A"/><g stroke="#1F5E68" stroke-width="2.2" stroke-linecap="round"><path d="M24 19.6V9"/><path d="M28.2 22.4l8.4-6.1"/><path d="M27.6 28l6.8 8"/><path d="M20.4 28l-6.8 8"/><path d="M19.8 22.4l-8.4-6.1"/></g><g fill="#C4923E"><circle cx="24" cy="8" r="2.2"/><circle cx="37.5" cy="15.5" r="2.2"/><circle cx="35" cy="37" r="2.2"/><circle cx="13" cy="37" r="2.2"/><circle cx="10.5" cy="15.5" r="2.2"/></g></svg>` },
-  "wired-to-lead": { tag: "How God wired you to lead", desc: "Every leader moves differently through people, pressure, and decisions. Discover your leadership wiring, paired with a biblical leader whose story matches your blend.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M24 10l3.6 8.8L36 22l-8.4 3.2L24 34l-3.6-8.8L12 22l8.4-3.2z" fill="#6B4E7A" opacity=".9"/><circle cx="24" cy="22" r="3.4" fill="#F5EFE6"/><g stroke="#C4923E" stroke-width="1.8" stroke-linecap="round"><path d="M24 34v4"/><path d="M12 22H8"/><path d="M40 22h-4"/></g><circle cx="24" cy="39" r="1.8" fill="#C4923E"/><circle cx="7" cy="22" r="1.8" fill="#C4923E"/><circle cx="41" cy="22" r="1.8" fill="#C4923E"/></svg>` },
-  "called-together": { tag: "A marriage & ministry assessment", desc: "Ministry puts a weight on a marriage most never carry. Take it together and get an honest read on how your marriage is really holding up, and where it needs attention next.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="19" cy="24" r="10" stroke="#C4923E" stroke-width="2.4"/><circle cx="29" cy="24" r="10" stroke="#1F5E68" stroke-width="2.4"/><path d="M24 15.5a10 10 0 0 1 0 17" stroke="#6B4E7A" stroke-width="2.4" stroke-linecap="round"/></svg>` },
-  "church-planter": { tag: "Are you ready to plant?", desc: "Most struggling plants show warning signs beforehand. Get an honest, research-backed read on your calling, character, and capacity to launch, spouse included.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M10 34h28" stroke="#1F5E68" stroke-width="2.2" stroke-linecap="round"/><path d="M24 34V18" stroke="#3E7C63" stroke-width="2.4" stroke-linecap="round"/><path d="M24 22c-1.5-3-4.5-4-8-4 0 4.5 3 6.5 8 6z" fill="#3E7C63"/><path d="M24 19c1.3-2.6 4-3.6 7-3.6 0 4-2.6 5.8-7 5.4z" fill="#C4923E"/><path d="M24 8l2.4 3.4h-4.8z" fill="#C4923E"/></svg>` },
-  "pastor-profile": { tag: "Character. Competence. Contribution.", desc: "Whether you're discerning a call to pastor or already leading, see where you're strong and where to grow across the three pillars every effective pastor needs.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M24 8l12 4v9c0 8-5.4 13-12 15.5C17.4 34 12 29 12 21v-9z" stroke="#1B3A57" stroke-width="2.2" stroke-linejoin="round"/><path d="M24 30V19c0-2.6-1.9-4.4-4.2-4.4S15.6 16.4 15.6 19" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round"/></svg>` },
-  "church-growth": { tag: "Where is your church headed?", desc: "Not where you hope, where the evidence says. Find out which of five growth stages your church is really in, from decline to multiplication, and what comes next.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M9 36h6v-6h6v-6h6v-6h6V12" stroke="#1B3A57" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><path d="M30 12h9v9" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M39 12l-9 9" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round"/></svg>` },
-  "church-health": { tag: "A leadership team assessment", desc: "How healthy is your church, really? Gather your whole leadership team's honest read across eight vital areas, including where you agree, and where you don't.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M24 37C14 31 8 25.5 8 18.5 8 13.8 11.6 10 16.4 10c3 0 5.5 1.6 7.6 4 2.1-2.4 4.6-4 7.6-4C36.4 10 40 13.8 40 18.5" stroke="#1B3A57" stroke-width="2.2" stroke-linecap="round"/><path d="M9 24h6l3-6 4 12 3-8 2 2h11" stroke="#C4923E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>` },
-  "leadership-health": { tag: "A self & team assessment", desc: "Self-awareness is where strong leadership starts. Read yourself across eight essential areas, then invite trusted voices to show you what you can't see about yourself.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1B3A57" stroke-width="2.2"/><path d="M30 18l-4.5 8.5L17 30l4.5-8.5z" fill="#C4923E"/><circle cx="24" cy="24" r="2" fill="#1B3A57"/></svg>` },
-  "spiritual-growth": { tag: "How is your walk, honestly?", desc: "Six disciplines every follower of Christ grows in, from abiding in Christ to ministering to others. Reflect on each, then see your walk drawn as a Discipleship Wheel, with your strengths and next steps.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><circle cx="24" cy="24" r="9" stroke="#2E7D8A" stroke-width="1.4" opacity=".55"/><g stroke="#1F5E68" stroke-width="1.7" stroke-linecap="round"><path d="M24 9v30"/><path d="M11 16.5l26 15"/><path d="M11 31.5l26-15"/></g><path d="M24 24l15 0A15 15 0 0 1 31.5 37z" fill="#C4923E" opacity=".85"/><circle cx="24" cy="24" r="2.6" fill="#1B3A57"/></svg>` },
-  enneagram: { tag: "Discover what drives you", desc: "Nine core motivations, narrowed to your type through 36 quick either-or choices. This one goes beneath behavior to the why underneath, then turns it toward Christ: your gift, your blind spot, and a Scripture and devotion for your type.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#1F5E68" stroke-width="2.2"/><path d="M24 9L37 31.5H11z" stroke="#1B3A57" stroke-width="1.7" stroke-linejoin="round"/><path d="M33.6 12.5L29.1 38.1L38.8 21.4L14.4 12.5L18.9 38.1L9.2 21.4z" stroke="#2E7D8A" stroke-width="1.3" opacity=".5" stroke-linejoin="round"/><g fill="#C4923E"><circle cx="24" cy="9" r="2"/><circle cx="33.6" cy="12.5" r="1.7"/><circle cx="38.8" cy="21.4" r="1.7"/><circle cx="37" cy="31.5" r="1.7"/><circle cx="29.1" cy="38.1" r="1.7"/><circle cx="18.9" cy="38.1" r="1.7"/><circle cx="11" cy="31.5" r="1.7"/><circle cx="9.2" cy="21.4" r="1.7"/><circle cx="14.4" cy="12.5" r="1.7"/></g></svg>` },
-  "big-five": { tag: "The most researched map of your personality", desc: "The Big Five is the gold standard of personality science. In about fifteen minutes, see yourself across five core traits and six expanded facets, with a full report on how each one shapes the way you lead, relate, and serve.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><polygon points="24,8 38,18.5 32.5,35 15.5,35 10,18.5" stroke="#1F5E68" stroke-width="2" fill="none" stroke-linejoin="round"/><polygon points="24,15 31,20.2 28.3,28.5 19.7,28.5 17,20.2" fill="#2E7D8A" opacity=".18"/><polygon points="24,15 31,20.2 28.3,28.5 19.7,28.5 17,20.2" stroke="#2E7D8A" stroke-width="1.4" fill="none" stroke-linejoin="round"/><g fill="#C4923E"><circle cx="24" cy="8" r="2.2"/><circle cx="38" cy="18.5" r="2"/><circle cx="32.5" cy="35" r="2"/><circle cx="15.5" cy="35" r="2"/><circle cx="10" cy="18.5" r="2"/></g><circle cx="24" cy="23" r="1.8" fill="#1B3A57"/></svg>` },
-  "kingdom-design": { tag: "Who God made you, and why", desc: "The Kingdom Design Profile joins the Myers-Briggs framework of 16 personality types to Scripture. In about fifteen minutes, find your four-letter type, then get a full report: how God wired you, your biblical mirror, your calling, and a 30-day plan.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><rect x="9" y="9" width="30" height="30" rx="7" stroke="#1B3A57" stroke-width="2"/><path d="M24 9v30M9 24h30" stroke="#1F5E68" stroke-width="1.4" opacity=".6"/><circle cx="16.5" cy="16.5" r="3" fill="#C4923E"/><circle cx="31.5" cy="16.5" r="3" fill="#2E7D8A"/><circle cx="16.5" cy="31.5" r="3" fill="#2E7D8A"/><circle cx="31.5" cy="31.5" r="3" fill="#C4923E"/><circle cx="24" cy="24" r="3.4" fill="#1B3A57"/></svg>` },
-  "forgiveness-profile": { tag: "What moves you to forgive", desc: "Forgiveness is hard, and freeing. Bring to mind someone who hurt you, then discover which of ten motivations draw your heart toward forgiveness, from your own peace to your faith. A gentle, private reflection built on established forgiveness research.", plate: `<svg width="46" height="46" viewBox="0 0 48 48" fill="none"><path d="M8 32c8 3 17 1 23-6 2.4-2.8 5.6-4 9-3.4-1 6-6 12-14 13-6.6.8-13-.6-18-3.6z" fill="#2E7D8A"/><path d="M31 22.6c1.4-3.6 4.6-6 9-6.2-.6 3.6-3.2 6.2-6.6 6.6z" fill="#C4923E"/><circle cx="37.8" cy="17.2" r="1.3" fill="#1B3A57"/><path d="M14 33c-2 2.6-2.2 5.4-.4 8" stroke="#1F5E68" stroke-width="2.2" stroke-linecap="round"/><path d="M20 34c-1.6 2.4-1.8 4.8-.4 7.2" stroke="#3E7C63" stroke-width="2" stroke-linecap="round"/></svg>` },
-};
 
 // Guided finder. Roles set the tone; goals map to the assessments that fit,
 // listed best-first. New assessments join by adding their slug to a goal.
@@ -53,8 +32,8 @@ const FINDER_GOALS = [
   { key: "personality", label: "understand my personality", slugs: ["big-five", "kingdom-design", "enneagram"] },
   { key: "type", label: "find my personality type (Myers-Briggs)", slugs: ["kingdom-design", "big-five"] },
   { key: "motivation", label: "understand what really drives me", slugs: ["enneagram", "big-five"] },
-  { key: "lead", label: "understand my leadership style", slugs: ["wired-to-lead", "leadership-health"] },
-  { key: "growLead", label: "grow as a leader", slugs: ["leadership-health", "pastor-profile"] },
+  { key: "lead", label: "understand my leadership style", slugs: ["discover-leadership-style", "wired-to-lead", "leadership-health"] },
+  { key: "growLead", label: "grow as a leader", slugs: ["discover-leadership-style", "leadership-health", "pastor-profile"] },
   { key: "walk", label: "grow in my walk with God", slugs: ["spiritual-growth", "rooted"] },
   { key: "mature", label: "see how deep my roots go", slugs: ["rooted", "spiritual-growth"] },
   { key: "plant", label: "know if I'm ready to plant a church", slugs: ["church-planter"] },
@@ -64,14 +43,28 @@ const FINDER_GOALS = [
   { key: "churchdir", label: "understand where my church is headed", slugs: ["church-growth", "church-health"] },
   { key: "forgive", label: "work toward forgiving someone", slugs: ["forgiveness-profile"] },
 ];
+// Donation quick-give tiers (mirrors the end-of-report DonationCard). Each
+// deep-links to Tithe.ly with the amount pre-filled in cents.
+const GIVE_TIERS = [
+  [10, "Cover a report"],
+  [25, "Bless a few others"],
+  [50, "Help us keep going"],
+  [100, "A month of hosting"],
+];
+function giveUrl(dollars) {
+  const cents = Math.max(1, Math.round(Number(dollars) || 0)) * 100;
+  const sep = DONATE_URL.includes("?") ? "&" : "?";
+  return `${DONATE_URL}${sep}amount=${cents}`;
+}
+
 // Light role affinity: nudge a slug up when it fits the chosen role.
 const ROLE_AFFINITY = {
-  pastor: ["pastor-profile", "leadership-health", "spiritual-growth"],
-  planter: ["church-planter", "wired-to-lead"],
-  layleader: ["spiritual-gifts", "fivefold-calling", "leadership-health"],
+  pastor: ["pastor-profile", "discover-leadership-style", "leadership-health", "spiritual-growth"],
+  planter: ["church-planter", "discover-leadership-style", "wired-to-lead"],
+  layleader: ["spiritual-gifts", "fivefold-calling", "discover-leadership-style", "leadership-health"],
   spouse: ["called-together"],
   student: ["big-five", "enneagram", "spiritual-gifts"],
-  team: ["church-health", "leadership-health", "church-growth"],
+  team: ["church-health", "leadership-health", "discover-leadership-style", "church-growth"],
 };
 
 export default function Home() {
@@ -330,18 +323,36 @@ export default function Home() {
             <h3 className="give-h">Free for the whole CHC family, and kept that way by giving.</h3>
             <p className="give-p">Almost every assessment here is free, and always will be. But servers, security, email, and honest research all cost real money to keep running. If one of these reports served you, a gift of any size helps us keep them free for the next pastor, leader, or believer who needs one.</p>
           </div>
-          <a className="btn btn-primary give-cta" href={DONATE_URL} target="_blank" rel="noopener noreferrer">Give to Mission USA <span className="btn-arrow">→</span></a>
+          <div className="give-give">
+            <div className="give-tiers">
+              {GIVE_TIERS.map(([amt, label]) => (
+                <a key={amt} className="give-tier" href={giveUrl(amt)} target="_blank" rel="noopener noreferrer">
+                  <span className="give-amt">${amt}</span>
+                  <span className="give-lbl">{label}</span>
+                </a>
+              ))}
+            </div>
+            <a className="btn btn-primary give-cta" href={DONATE_URL} target="_blank" rel="noopener noreferrer">Give another amount <span className="btn-arrow">→</span></a>
+          </div>
         </div>
       </section>
 
       {/* FINAL CTA */}
       <section className="final">
         <div className="hwrap">
-          <p className="eyebrow" style={{ color: "var(--teal)" }}>Mission USA</p>
-          <h2>A free gift to the whole CHC family</h2>
-          <p>These assessments exist so every pastor, leader, spouse, and layperson in our movement has a clear, honest tool for growth. At no cost, always.</p>
+          <p className="eyebrow" style={{ color: "var(--teal)" }}>Grow churches. Equip leaders.</p>
+          <h2>A resource for the whole CHC family</h2>
+          <p>These assessments give every pastor, leader, spouse, and layperson in our movement a clear, honest tool for growth. Most are free. A few premium reports go deeper, and they help keep the rest free for everyone.</p>
           <a href="#assessments" className="btn btn-primary">Browse assessments <span className="btn-arrow">→</span></a>
-          <p className="foot-meta">Ministry Assessments · A Free Resource of Mission USA · Congregational Holiness Church</p>
+        </div>
+        <div className="hwrap foot-org">
+          <img src="/musa-logo.png" alt="Mission USA" className="foot-logo" />
+          <p className="foot-blurb">
+            Mission USA is the home missions arm of the Congregational Holiness Church. We plant new churches,
+            revitalize existing ones, and train and credential leaders across the United States, supplying pastors
+            with practical resources for ministry. These assessments are one part of that work.
+          </p>
+          <p className="foot-meta">Ministry Assessments · A Resource of Mission USA · Congregational Holiness Church</p>
         </div>
       </section>
     </main>
@@ -393,6 +404,7 @@ function Finder({ assessments }) {
               <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Who you are">
                 {FINDER_ROLES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
+              <span className="fsel-hint">choose one</span>
             </span>
             <span>and I want to</span>
             <span className="fsel wide">
@@ -400,6 +412,7 @@ function Finder({ assessments }) {
                 <option value="">…pick a goal</option>
                 {FINDER_GOALS.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
               </select>
+              <span className="fsel-hint">choose one</span>
             </span>
           </div>
           {recs.length > 0 && (
@@ -464,8 +477,12 @@ const CSS = `
 .finder-card{max-width:920px;margin:0 auto;text-align:center;}
 .finder-eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-soft);margin-bottom:18px;}
 .finder-sentence{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 12px;font-family:var(--display,'Fraunces');font-size:clamp(20px,2.5vw,28px);color:#fff;line-height:1.5;}
-.fsel select{font-family:var(--display,'Fraunces');font-size:inherit;color:#0E2036;background:#fff;border:none;border-radius:10px;padding:6px 40px 8px 16px;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230E2036' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 14px center;box-shadow:0 8px 22px rgba(0,0,0,.24);max-width:min(90vw,560px);}
-.fsel select:focus{outline:2px solid var(--gold);}
+.fsel{position:relative;display:inline-flex;flex-direction:column;align-items:center;}
+.fsel select{font-family:var(--display,'Fraunces');font-style:italic;font-size:inherit;color:#F2ECDD;background:transparent;border:none;border-bottom:1.5px solid rgba(240,225,180,.45);border-radius:0;padding:2px 30px 4px 6px;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23E4CE8C' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 4px center;max-width:min(90vw,560px);transition:border-color .15s ease;text-align:center;text-align-last:center;}
+.fsel select:hover{border-bottom-color:var(--gold);}
+.fsel select:focus{outline:none;border-bottom-color:var(--gold);}
+.fsel select option{color:#0E2036;font-style:normal;}
+.fsel-hint{font-family:var(--sans,'Inter');font-style:normal;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:rgba(240,225,180,.6);margin-top:5px;}
 .finder-results{margin-top:28px;}
 .finder-rlabel{font-size:13px;color:rgba(255,255,255,.72);margin-bottom:14px;letter-spacing:.02em;}
 .finder-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;max-width:820px;margin:0 auto;}
@@ -569,9 +586,12 @@ const CSS = `
 .verse-inner .mark{font-family:var(--display,'Fraunces');font-size:60px;line-height:0;color:var(--gold);opacity:.7;}
 .verse-inner blockquote{font-family:var(--display,'Fraunces');font-weight:400;font-style:italic;font-size:clamp(24px,3vw,34px);line-height:1.3;margin:18px 0 20px;color:#fff;letter-spacing:-.3px;}
 .verse-inner cite{font-style:normal;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-soft);}
-.final{padding:90px 0;text-align:center;background:var(--mist);}
-.final p{font-size:17px;color:var(--ink-soft);max-width:540px;margin:0 auto 32px;}
-.final .foot-meta{margin-top:40px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#93A0AD;}
+.final{padding:90px 0 60px;text-align:center;background:var(--mist);}
+.final>.hwrap p{font-size:17px;color:var(--ink-soft);max-width:560px;margin:0 auto 32px;}
+.foot-org{margin-top:56px;padding-top:36px;border-top:1px solid var(--line);display:flex;flex-direction:column;align-items:center;text-align:center;}
+.foot-logo{height:42px;width:auto;opacity:.9;margin-bottom:18px;}
+.foot-blurb{font-size:14px;color:var(--ink-soft);line-height:1.65;max-width:600px;margin:0 auto 22px;}
+.foot-meta{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#93A0AD;margin:0;}
 /* For-churches band (mirrors the landing page) */
 .churchband{background:var(--mist);padding:20px 0 60px;}
 .churchcard{position:relative;overflow:hidden;background:linear-gradient(135deg,#1B3A57,#0E2036);border-radius:26px;padding:52px 48px;}
@@ -592,7 +612,13 @@ const CSS = `
 .give-mark{flex:0 0 auto;width:60px;height:60px;border-radius:16px;background:var(--gold-soft);display:flex;align-items:center;justify-content:center;}
 .give-h{font-family:var(--display,'Fraunces');font-weight:500;color:var(--ink);font-size:clamp(20px,2.4vw,26px);line-height:1.2;margin:6px 0 8px;}
 .give-p{color:var(--ink-soft);font-size:15px;line-height:1.6;margin:0;max-width:640px;}
-.give-cta{flex:0 0 auto;}
+.give-give{flex:0 0 auto;display:flex;flex-direction:column;gap:12px;align-items:stretch;min-width:230px;}
+.give-tiers{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.give-tier{display:flex;flex-direction:column;align-items:center;gap:2px;padding:11px 10px;border:1.5px solid var(--line);border-radius:11px;background:#fff;text-decoration:none;transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease;}
+.give-tier:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 10px 24px rgba(196,146,62,.16);}
+.give-amt{font-weight:800;color:var(--ink);font-size:17px;}
+.give-lbl{font-size:11px;color:var(--ink-soft);text-align:center;}
+.give-cta{flex:0 0 auto;justify-content:center;}
 /* Mobile header — never overflow */
 @media (max-width:820px){
   .topbar-in{flex-wrap:wrap;gap:10px 14px;}

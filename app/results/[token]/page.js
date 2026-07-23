@@ -47,6 +47,10 @@ import {
   KDP_PAIRS,
   KDP_EMBLEMS,
 } from "../../lib/kingdom";
+import {
+  LEGS, SEAT, LEG_ORDER, FOUNDATIONS, FOUNDATION_ORDER_BY_LEG,
+  STYLES, STYLE_ORDER, BANDS, leadBand, BOOK, ASSETS, pairingsFor,
+} from "../../lib/leadership";
 import DonationCard from "../../components/DonationCard";
 import CircleInvite from "../../components/CircleInvite";
 
@@ -101,7 +105,7 @@ export default function ResultsPage() {
       const { data: result } = await supabase
         .from("results").select("scored_json,created_at").eq("session_id", session.id).single();
       const { data: assessment } = await supabase
-        .from("assessments").select("name,subtitle").eq("id", session.assessment_id).single();
+        .from("assessments").select("name,subtitle,is_paid,price_cents").eq("id", session.assessment_id).single();
       if (!result) { setState("notfound"); return; }
       // Wellbeing (owner or Mission USA care/admin only, by RLS). Returns
       // nothing for anyone else, so the card simply doesn't render for them.
@@ -165,11 +169,16 @@ export default function ResultsPage() {
     );
 
   const contact = scored.contact || {};
-  const suppressDonation = ["mip", "church-class"].includes(contact.source_tag);
+  // Don't ask for a donation on a premium report — they already paid.
+  const isPaidReport = !!(meta?.is_paid && meta?.price_cents > 0);
+  const suppressDonation = isPaidReport || ["mip", "church-class"].includes(contact.source_tag);
 
   return (
     <main style={{ background: "var(--mist)", minHeight: "100vh" }}>
-      <style>{PRINT_CSS}</style>
+      <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
+      <div className="print-foot" aria-hidden="true">
+        {contact.first_name} {contact.last_name} · {meta?.name} · Mission USA
+      </div>
       <div ref={reportRef} id="report-capture">
         <header style={hd}>
           <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px" }}>
@@ -201,10 +210,9 @@ export default function ResultsPage() {
 
         <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 28px 60px" }}>
           <div className="no-print no-pdf" style={actions}>
-            <button className="btn btn-primary" onClick={downloadPdf} disabled={dl}>
-              {dl ? "Preparing PDF…" : "⬇ Save as PDF"}
+            <button className="btn btn-primary" onClick={() => window.print()}>
+              ⬇ Save as PDF / Print
             </button>
-            <button className="btn btn-ghost" onClick={() => window.print()}>🖨 Print</button>
             {isAdmin ? (
               <a className="btn btn-ghost" href="/admin">← Back to Admin</a>
             ) : (
@@ -213,6 +221,12 @@ export default function ResultsPage() {
                 <a className="btn btn-ghost" href="/dashboard">See all my results →</a>
               </>
             )}
+          </div>
+          <div className="no-print no-pdf" style={{ fontSize: 12.5, color: "#8CA0B3", margin: "-4px 0 16px", lineHeight: 1.5 }}>
+            Opens your print dialog — choose <strong>Save as PDF</strong> as the destination for a crisp, shareable copy.{" "}
+            <button onClick={downloadPdf} disabled={dl} style={{ background: "none", border: "none", padding: 0, color: "var(--teal-deep)", textDecoration: "underline", cursor: "pointer", font: "inherit" }}>
+              {dl ? "Preparing…" : "Trouble printing? Download a simple copy."}
+            </button>
           </div>
 
           <div className="no-print no-pdf" style={savedNote}>
@@ -238,6 +252,7 @@ export default function ResultsPage() {
             {scored.type === "level-matrix" && <GrowthReport scored={scored} />}
             {scored.type === "disc-blend" && <DiscReport scored={scored} />}
             {scored.type === "pillar" && <PastorReport scored={scored} />}
+            {scored.type === "leadership-stool" && <LeadershipReport scored={scored} />}
             {scored.type === "domain-average" && <DomainReport scored={scored} />}
 
             {wb && <WellbeingCard wb={wb} />}
@@ -1714,16 +1729,547 @@ const growCard = { background: "#fff", border: "1px solid #E7E9EC", borderRadius
 const transitionBox = { background: "var(--blush,#F5EFE6)", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", marginTop: 14, fontSize: 14, color: "#4A5B6D", lineHeight: 1.55 };
 const ft = { textAlign: "center", padding: "34px 0 0", fontSize: 12.5, color: "#7C8A9C" };
 
+/* ================= Discover Your Leadership Style ================= */
+const LD_BAND = Object.fromEntries(BANDS.map((b) => [b.key, b]));
+
+// The signature visual: a stool drawn to the taker's scores. Three legs fill to
+// their leg score; the gold seat carries the Leadership score. Hovering (or
+// focusing) a leg surfaces its detail. Animates on mount; static in print.
+function LeadershipStool({ legs, seat, active, setActive, grown }) {
+  // Positive rotation splays a leg's foot to the left, negative to the right —
+  // so the outer legs lean OUT into a stable tripod stance.
+  const TOP_Y = 116, LEN = 186, W = 24;
+  const legDefs = [
+    { key: "SP", ax: 132, deg: 17 },
+    { key: "CH", ax: 220, deg: 0 },
+    { key: "ST", ax: 308, deg: -17 },
+  ];
+  const rad = (d) => (d * Math.PI) / 180;
+  const foot = (l) => ({ x: l.ax - LEN * Math.sin(rad(l.deg)), y: TOP_Y + LEN * Math.cos(rad(l.deg)) });
+  return (
+    <svg viewBox="0 0 440 350" width="100%" style={{ maxWidth: 468, display: "block", margin: "0 auto" }}
+      role="img" aria-label="Your leadership stool">
+      <defs>
+        <linearGradient id="ld-seat" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#E0B25A" /><stop offset="1" stopColor="#C08E38" />
+        </linearGradient>
+        {legDefs.map((l) => (
+          <clipPath key={l.key} id={`ld-clip-${l.key}`}>
+            <rect x={-W / 2} y="0" width={W} height={LEN} rx={W / 2} />
+          </clipPath>
+        ))}
+      </defs>
+
+      {/* ground shadow */}
+      <ellipse cx="220" cy="322" rx="164" ry="14" fill="#1C2B3A" opacity="0.09" />
+
+      {/* legs (drawn before the seat so the seat overlaps their tops) */}
+      {legDefs.map((l) => {
+        const leg = legs[l.key], meta = LEGS[l.key];
+        const isOn = active === l.key;
+        const fillH = grown ? Math.max(6, (leg.pct / 100) * LEN) : 5;
+        return (
+          <g key={l.key} transform={`translate(${l.ax} ${TOP_Y}) rotate(${l.deg})`}
+            style={{ cursor: "pointer" }} tabIndex={0}
+            onMouseEnter={() => setActive(l.key)} onMouseLeave={() => setActive(null)}
+            onFocus={() => setActive(l.key)} onBlur={() => setActive(null)}>
+            <rect x={-W / 2} y="0" width={W} height={LEN} rx={W / 2} fill={meta.soft}
+              stroke={isOn ? meta.color : "#E3E1EC"} strokeWidth={isOn ? 2.5 : 1} />
+            <g clipPath={`url(#ld-clip-${l.key})`}>
+              <rect x={-W / 2} width={W} y={LEN - fillH} height={fillH} fill={meta.color}
+                style={{ transition: "y .9s cubic-bezier(.2,.7,.2,1), height .9s cubic-bezier(.2,.7,.2,1)" }} />
+              <rect x={-W / 2 + 3} width="4" y={LEN - fillH} height={fillH} fill="#fff" opacity="0.22"
+                style={{ transition: "y .9s, height .9s" }} rx="2" />
+            </g>
+          </g>
+        );
+      })}
+
+      {/* score chips at each foot (drawn upright, always readable) */}
+      {legDefs.map((l) => {
+        const meta = LEGS[l.key], leg = legs[l.key], f = foot(l);
+        return (
+          <g key={l.key} style={{ pointerEvents: "none" }}>
+            <ellipse cx={f.x} cy={f.y + 2} rx="13" ry="5" fill="#1C2B3A" opacity="0.08" />
+            <rect x={f.x - 20} y={f.y - 30} width="40" height="24" rx="12" fill={meta.color} />
+            <text x={f.x} y={f.y - 13} textAnchor="middle" fontSize="14" fontWeight="700" fill="#fff"
+              style={{ fontFamily: "Inter,system-ui,sans-serif" }}>{leg.pct}</text>
+          </g>
+        );
+      })}
+
+      {/* seat */}
+      <g>
+        <ellipse cx="220" cy="120" rx="140" ry="25" fill="#8A5E20" />
+        <rect x="80" y="100" width="280" height="20" fill="#8A5E20" />
+        <ellipse cx="220" cy="100" rx="140" ry="25" fill="url(#ld-seat)" stroke="#A87A2E" strokeWidth="1" />
+        <ellipse cx="220" cy="100" rx="140" ry="25" fill="none" stroke="#F0DFB0" strokeWidth="1.2" opacity="0.6" />
+        <text x="220" y="97" textAnchor="middle" fontSize="13" fontWeight="700" letterSpacing="2.5"
+          fill="#4A3410" style={{ fontFamily: "Inter,system-ui,sans-serif" }}>LEADERSHIP</text>
+        <text x="220" y="112" textAnchor="middle" fontSize="11" fontWeight="600"
+          fill="#6B4B18" style={{ fontFamily: "Inter,system-ui,sans-serif" }}>the seat · {seat.pct}</text>
+      </g>
+    </svg>
+  );
+}
+
+function LeadershipReport({ scored }) {
+  const [grown, setGrown] = useState(false);
+  const [active, setActive] = useState(null);
+  const [peek, setPeek] = useState(null); // style code being previewed
+  const [done, setDone] = useState({}); // 90-day checkbox state (in-memory)
+  useEffect(() => { const t = setTimeout(() => setGrown(true), 80); return () => clearTimeout(t); }, []);
+
+  const legs = scored.legs || {};
+  const seat = scored.seat || { pct: 0, band: "growth" };
+  const ranked = scored.ranked || ["ST", "CH", "SP"];
+  const style = STYLES[scored.style_code] || STYLES["ST-CH-SP"];
+  const accent = LEGS[style.order[0]].color;
+  const foundation = scored.foundation || {};
+  const comps = scored.components || [];
+  const patterns = scored.patterns || { low: [], high: [] };
+  const roleLabelStr = scored.role?.label;
+  const bandOf = (k) => LD_BAND[k] || BANDS[BANDS.length - 1];
+
+  const strongLeg = ranked[0], midLeg = ranked[1], weakLeg = ranked[2];
+  const lowF = FOUNDATIONS[scored.lowest_foundation];
+  const topF = FOUNDATIONS[scored.strongest_foundation];
+  const pair = pairingsFor(style.code);
+  const pairName = pair[0] ? STYLES[pair[0].code].name : "a complementary leader";
+
+  const activeLeg = active ? legs[active] : null;
+  const activeMeta = active ? LEGS[active] : null;
+
+  const snapshot = [
+    { key: "ST", ...legs.ST }, { key: "CH", ...legs.CH }, { key: "SP", ...legs.SP },
+  ].sort((a, b) => b.pct - a.pct);
+
+  return (
+    <>
+      {/* Masthead */}
+      <section style={{ padding: "4px 0 8px" }}>
+        <div style={ldRibbon}>
+          {LEG_ORDER.map((k) => <span key={k} style={{ flex: legs[k].pct + 8, background: LEGS[k].color }} />)}
+        </div>
+        <div style={{ ...sectionLabel, color: accent, marginTop: 18 }}>Your leadership style</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <h2 className="serif" style={{ fontSize: "clamp(30px,5vw,44px)", color: "#1C2B3A", margin: "2px 0 6px", lineHeight: 1.04 }}>{style.name}</h2>
+            <div style={ldCode}>{style.code.split("-").map((c, i) => (
+              <span key={c}><span style={{ color: LEGS[c].color }}>{LEGS[c].name}</span>{i < 2 ? <span style={{ color: "#C9D2DA", margin: "0 7px" }}>›</span> : null}</span>
+            ))}</div>
+            <p className="serif" style={{ fontSize: 19, color: "#4A5B6D", fontStyle: "italic", margin: "12px 0 0", maxWidth: 460, lineHeight: 1.4 }}>{style.headline}</p>
+            {roleLabelStr && <div style={{ fontSize: 13, color: "#8CA0B3", marginTop: 10 }}>Role version: {roleLabelStr}</div>}
+          </div>
+        </div>
+      </section>
+
+      {/* The stool */}
+      <section style={{ padding: "12px 0 4px" }} className="avoid-break">
+        <div style={{ ...chart, padding: "20px 16px 22px", background: "linear-gradient(180deg,#FCFAF6,#fff)" }}>
+          <LeadershipStool legs={legs} seat={seat} active={active} setActive={setActive} grown={grown} />
+          {/* leg legend / interactive detail */}
+          <div style={ldLegRow}>
+            {LEG_ORDER.map((k) => {
+              const meta = LEGS[k], leg = legs[k], b = bandOf(leg.band);
+              const on = active === k;
+              return (
+                <button key={k} type="button"
+                  onMouseEnter={() => setActive(k)} onMouseLeave={() => setActive(null)}
+                  onFocus={() => setActive(k)} onBlur={() => setActive(null)}
+                  style={{ ...ldLegCard, borderColor: on ? meta.color : "#EAECEF", boxShadow: on ? `0 8px 22px ${meta.soft}` : "none" }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: meta.color, display: "inline-block" }} />
+                  <span style={{ fontWeight: 700, color: "#1C2B3A", fontSize: 14 }}>{meta.name}</span>
+                  <span style={{ fontSize: 26, fontWeight: 700, color: meta.color, lineHeight: 1 }}>{leg.pct}</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: b.color, textTransform: "uppercase", letterSpacing: ".04em" }}>{b.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ ...ldDetail, borderColor: activeMeta ? activeMeta.color : "#EAECEF" }}>
+            {activeLeg ? (
+              <><strong style={{ color: activeMeta.color }}>{activeMeta.name}</strong> · {activeMeta.call}. {activeMeta.def}</>
+            ) : (
+              <>Three legs hold your leadership up: <strong style={{ color: LEGS.SP.color }}>Spirituality</strong> (loving God),
+                <strong style={{ color: LEGS.CH.color }}> Chemistry</strong> (loving people), and
+                <strong style={{ color: LEGS.ST.color }}> Strategy</strong> (loving the world). The gold seat is Leadership itself.
+                Hover a leg to read it. The goal isn't three identical legs; it's knowing which one carries your weight.</>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Snapshot bars */}
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>Your snapshot</div>
+        <div style={chart}>
+          {snapshot.map((s) => {
+            const meta = LEGS[s.key], b = bandOf(s.band);
+            return (
+              <div key={s.key} style={{ padding: "13px 16px", borderBottom: "1px solid #F0F2F4" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2B3A" }}>{meta.name} <span style={{ fontWeight: 400, color: "#8CA0B3", fontSize: 13 }}>· {meta.call}</span></span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: b.color }}>{s.pct} · {b.label}</span>
+                </div>
+                <div style={ldTrack}><div style={{ ...ldFill, width: grown ? `${s.pct}%` : "0%", background: meta.color }} /></div>
+              </div>
+            );
+          })}
+          <div style={{ padding: "13px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2B3A" }}>{SEAT.name} <span style={{ fontWeight: 400, color: "#8CA0B3", fontSize: 13 }}>· the seat</span></span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: bandOf(seat.band).color }}>{seat.pct} · {bandOf(seat.band).label}</span>
+            </div>
+            <div style={ldTrack}><div style={{ ...ldFill, width: grown ? `${seat.pct}%` : "0%", background: SEAT.color }} /></div>
+          </div>
+        </div>
+        <p style={helper}>Every score is percent-of-maximum against the leg itself, never against other people. Bands: {BANDS.map((b, i) => `${b.label} (${b.min}${b.key === "signature" ? "-100" : b.key === "growth" ? " and below" : `-${BANDS[i - 1].min - 1}`})`).join(", ")}.</p>
+      </section>
+
+      {/* Style in depth */}
+      <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+        <div style={sectionLabel}>Your style in depth</div>
+        <div style={{ ...ldFeature, borderTop: `4px solid ${accent}` }}>
+          <div style={ldGrid2}>
+            <div>
+              <div style={ldBlockH}>The genius</div>
+              <p style={ldP}>{style.genius}</p>
+            </div>
+            <div>
+              <div style={ldBlockH}>The shadow</div>
+              <p style={ldP}>{style.shadow}</p>
+            </div>
+          </div>
+          <div style={ldBiblical}>
+            <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 6 }}>Biblical picture · {style.biblical.name}</div>
+            <p style={{ margin: 0, fontSize: 15, color: "#4A3F2A", lineHeight: 1.55 }}><em>{style.biblical.text}</em> <span style={{ color: "#8A6D3B", fontWeight: 600 }}>({style.biblical.ref})</span></p>
+          </div>
+          <div style={ldGrid2}>
+            <div><div style={ldBlockH}>Best-fit roles</div><p style={ldP}>{style.bestFit}</p></div>
+            <div><div style={ldBlockH}>Your key pairing</div><p style={ldP}>{style.pairing}</p></div>
+          </div>
+        </div>
+      </section>
+
+      {/* Where you land among the six */}
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>The six styles</div>
+        <div style={ldSixGrid}>
+          {STYLE_ORDER.map((code) => {
+            const s = STYLES[code], mine = code === style.code, open = peek === code;
+            const ac = LEGS[s.order[0]].color;
+            return (
+              <button key={code} type="button" onClick={() => setPeek(open ? null : code)}
+                style={{ ...ldSix, borderColor: mine ? ac : "#EAECEF", background: mine ? `${LEGS[s.order[0]].soft}` : "#fff" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ display: "inline-flex" }}>{s.order.map((lk) => <span key={lk} style={{ width: 7, height: 7, borderRadius: 2, background: LEGS[lk].color, marginRight: 2, display: "inline-block" }} />)}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14.5, color: "#1C2B3A" }}>{s.name}</span>
+                  {mine && <span style={{ fontSize: 10, fontWeight: 800, color: ac, letterSpacing: ".06em", marginLeft: "auto" }}>YOU</span>}
+                </div>
+                <div style={{ fontSize: 12.5, color: "#5A6A78", marginTop: 5, lineHeight: 1.45 }}>{s.headline}</div>
+                {open && <div style={{ fontSize: 12.5, color: "#4A5B6D", marginTop: 8, lineHeight: 1.5, borderTop: "1px solid #EEF1F4", paddingTop: 8 }}>{s.genius}</div>}
+              </button>
+            );
+          })}
+        </div>
+        <p style={helper}>No style is better than another. Each is a stewardship with a genius and a shadow, and the Church needs all six. Tap any style to read its genius.</p>
+      </section>
+
+      {/* Nine foundations */}
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>Your nine foundations</div>
+        <div style={chart}>
+          {LEG_ORDER.map((legKey) => {
+            const meta = LEGS[legKey];
+            return (
+              <div key={legKey} style={{ padding: "10px 16px 4px", borderBottom: "1px solid #F0F2F4" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: meta.color, textTransform: "uppercase", letterSpacing: ".06em", margin: "4px 0 8px" }}>{meta.name}</div>
+                {FOUNDATION_ORDER_BY_LEG[legKey].map((fk) => {
+                  const f = foundation[fk], fm = FOUNDATIONS[fk], b = bandOf(f.band);
+                  const isTop = fk === scored.strongest_foundation, isLow = fk === scored.lowest_foundation;
+                  return (
+                    <div key={fk} style={{ margin: "0 0 12px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                        <span style={{ fontSize: 13.5, color: "#1C2B3A", fontWeight: 600 }}>
+                          {fm.name}
+                          {isTop && <span style={ldTag("#1F7A4D")}>★ strongest</span>}
+                          {isLow && <span style={ldTag("#B4653A")}>↑ start here</span>}
+                        </span>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: b.color }}>{f.pct}</span>
+                      </div>
+                      <div style={ldTrackSm}><div style={{ ...ldFill, width: grown ? `${f.pct}%` : "0%", background: meta.color }} /></div>
+                      <div style={{ fontSize: 12, color: "#8CA0B3", marginTop: 4, lineHeight: 1.45 }}>{fm.blurb}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}><strong style={{ color: "#1C2B3A" }}>{topF.name}</strong> is your strongest foundation — lead from it deliberately. <strong style={{ color: "#1C2B3A" }}>{lowF.name}</strong> is your single highest-leverage growth target in this report.</p>
+      </section>
+
+      {/* Leg by leg */}
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>Leg by leg</div>
+        {[["Your strongest leg", strongLeg], ["Your middle leg", midLeg], ["Your weakest leg", weakLeg]].map(([label, lk]) => {
+          const meta = LEGS[lk], leg = legs[lk], b = bandOf(leg.band);
+          const fs = FOUNDATION_ORDER_BY_LEG[lk].map((k) => ({ ...foundation[k], name: FOUNDATIONS[k].name }));
+          const hi = [...fs].sort((a, z) => z.pct - a.pct)[0], lo = [...fs].sort((a, z) => a.pct - z.pct)[0];
+          const narr = lk === strongLeg
+            ? `This is where God most consistently uses you. It makes ${meta.call.toLowerCase()} your native instinct, and it is the leg others feel first. Steward it on purpose, and watch the temptation that rides with every strength: leaning on it so hard that the other two legs quietly weaken.`
+            : lk === midLeg
+              ? `This leg supports your strength. It is present and usable, and growth here usually comes fastest because the raw material is already there. Your highest foundation in it is ${hi.name}; your lowest is ${lo.name}.`
+              : `This is the neglected leg, and left alone it is what will cost you most in five years. Name it plainly, then take heart: this leg responds to practice, partnership, and grace. Brace it with partners, but do not outsource it entirely — feed it personally, starting with ${lo.name}.`;
+          return (
+            <div key={lk} style={{ ...ldLegDeep, borderLeft: `4px solid ${meta.color}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "#8CA0B3", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{label}</div>
+                  <div className="serif" style={{ fontSize: 24, color: "#1C2B3A", marginTop: 2 }}>{meta.name}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 30, fontWeight: 700, color: meta.color, lineHeight: 1 }}>{leg.pct}</div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: b.color, textTransform: "uppercase", letterSpacing: ".05em" }}>{b.label}</div>
+                </div>
+              </div>
+              <p style={{ ...ldP, marginTop: 12 }}>{narr}</p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                {fs.map((f) => (
+                  <span key={f.name} style={ldMini}>{f.name} <strong style={{ color: meta.color }}>{f.pct}</strong></span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* The seat */}
+      <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+        <div style={sectionLabel}>The seat · your Leadership score ({seat.pct})</div>
+        <div style={chart}>
+          {comps.map((c) => {
+            const fm = FOUNDATIONS[c.key];
+            const words = { high: "A clear strength", medium: "Developing and reliable in parts", low: "An area to grow into" };
+            const col = c.level === "high" ? "#1F7A4D" : c.level === "medium" ? "#C4923E" : "#B4653A";
+            return (
+              <div key={c.key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", borderBottom: "1px solid #F0F2F4" }}>
+                <div style={{ minWidth: 150 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2B3A" }}>{fm.name.replace("Leadership ", "")}</div>
+                  <div style={{ fontSize: 12, color: "#8CA0B3" }}>{fm.blurb}</div>
+                </div>
+                <div style={{ flex: 1 }}><div style={ldTrackSm}><div style={{ ...ldFill, width: grown ? `${c.pct}%` : "0%", background: SEAT.color }} /></div></div>
+                <div style={{ minWidth: 120, textAlign: "right", fontSize: 12.5, fontWeight: 700, color: col }}>{c.pct} · {words[c.level]}</div>
+              </div>
+            );
+          })}
+        </div>
+        <p style={helper}>The seat rises as the legs strengthen. A growing walk with God, deepening relationships, and sharper strategy lift instinct, fruit, and multiplication together.</p>
+      </section>
+
+      {/* Response patterns */}
+      {(patterns.high.length > 0 || patterns.low.length > 0) && (
+        <section style={{ padding: "18px 0 4px" }}>
+          <div style={sectionLabel}>What your answers show</div>
+          <div style={ldGrid2}>
+            <div style={{ ...growCard, borderTop: "3px solid #1F7A4D" }}>
+              <div style={{ ...ldBlockH, color: "#1F7A4D" }}>Where grace and gifting already meet</div>
+              <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 8px" }}>Your “Almost Always” answers. Thank God for these, and build your role around them.</p>
+              <ul style={ldUl}>{patterns.high.slice(0, 6).map((p, i) => <li key={i} style={ldLi}>{p.text}</li>)}</ul>
+            </div>
+            <div style={{ ...growCard, borderTop: "3px solid #C4923E" }}>
+              <div style={{ ...ldBlockH, color: "#B07C2E" }}>Invitations, not condemnation</div>
+              <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 8px" }}>Your “Not Really” and “Occasionally” answers. Pick two, not ten, to address this quarter.</p>
+              <ul style={ldUl}>{patterns.low.slice(0, 6).map((p, i) => <li key={i} style={ldLi}>{p.text}</li>)}</ul>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 90-day plan */}
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>Your 90-day development plan</div>
+        <div style={chart}>
+          {[
+            ["Weeks 1–2", "Awareness", `Share this report with one trusted mentor and your supervisor or board chair. Ask: “Does this match what you see?”`],
+            ["Weeks 3–6", `Weakest foundation · ${lowF.name}`, `Choose one concrete, repeatable practice that feeds ${lowF.name.toLowerCase()}. Start small and daily, not heroic and occasional, and track it like you track results.`],
+            ["Weeks 3–6", `Strongest leg · ${LEGS[strongLeg].name}`, `Deploy your ${LEGS[strongLeg].name.toLowerCase()} for the body: take one assignment that puts ${topF.name.toLowerCase()} to work for people other than yourself.`],
+            ["Weeks 7–10", "Partnership", `Identify a ${pairName} on your team. Set a standing rhythm with that person to cover your weakest leg.`],
+            ["Weeks 11–12", "Accountability", `Establish or renew one relationship with permission to ask about ${LEGS[weakLeg].name} monthly.`],
+            ["Week 13", "Review", "Retake the inventory or review your answers. Note the movement. Set the next 90 days."],
+          ].map(([wk, focus, action], i) => (
+            <label key={i} style={{ display: "flex", gap: 12, padding: "13px 16px", borderBottom: "1px solid #F0F2F4", cursor: "pointer", alignItems: "flex-start" }}>
+              <input type="checkbox" checked={!!done[i]} onChange={(e) => setDone({ ...done, [i]: e.target.checked })} style={{ marginTop: 3 }} />
+              <div>
+                <div style={{ fontSize: 12, color: "#8CA0B3", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{wk} · {focus}</div>
+                <div style={{ fontSize: 14, color: "#3A4A58", lineHeight: 1.5, marginTop: 3, textDecoration: done[i] ? "line-through" : "none", opacity: done[i] ? 0.55 : 1 }}>{action}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      {/* Team pairings */}
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>Your style on a team</div>
+        <div style={chart}>
+          <div style={{ ...ldPairRow, background: "#FAFBFC", fontWeight: 700, color: "#8CA0B3", fontSize: 12, textTransform: "uppercase", letterSpacing: ".04em" }}>
+            <span>Partner</span><span>They bring</span><span>You bring</span><span>Watch for</span>
+          </div>
+          {pair.map((p) => (
+            <div key={p.code} style={ldPairRow}>
+              <span style={{ fontWeight: 700, color: LEGS[STYLES[p.code].order[0]].color }}>{STYLES[p.code].name}</span>
+              <span style={ldPairCell}>{p.they}</span>
+              <span style={ldPairCell}>{p.you}</span>
+              <span style={ldPairCell}>{p.watch}</span>
+            </div>
+          ))}
+        </div>
+        <p style={helper}>A healthy team covers all three legs. Map your whole team's codes on one page and look for the leg no one carries. That leg is your team's silent risk.</p>
+      </section>
+
+      {/* Ten practices */}
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>Ten practices for a {style.name}</div>
+        <div style={chart}>
+          <ol style={{ margin: 0, padding: "8px 20px 8px 40px", columns: 1 }}>
+            {style.practices.map((pr, i) => (
+              <li key={i} style={{ fontSize: 14, color: "#3A4A58", lineHeight: 1.5, margin: "8px 0", paddingLeft: 4 }}>{pr}</li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Coaching + scripture */}
+      <section style={{ padding: "18px 0 4px" }}>
+        <div style={ldGrid2}>
+          <div style={growCard}>
+            <div style={ldBlockH}>Coaching conversation guide</div>
+            <ol style={ldUl}>
+              <li style={ldLi}>Where in this report did you feel most seen? Most resistant?</li>
+              <li style={ldLi}>What would your ministry look like in five years if your weakest leg stayed exactly where it is?</li>
+              <li style={ldLi}>Which of the ten practices for your style will you start this month?</li>
+              <li style={ldLi}>Who on your team compensates for you today? Do they know it?</li>
+              <li style={ldLi}>What does loving God, loving people, and loving the world look like in your calendar next week?</li>
+            </ol>
+          </div>
+          <div style={{ ...growCard, background: "#FBF7EE", border: "1px solid #EADFC9" }}>
+            <div style={{ ...ldBlockH, color: "#B07C2E" }}>Scripture for the journey</div>
+            <p style={ldScrip}>“Love the Lord your God with all your heart… Love your neighbor as yourself.” <span style={ldRef}>Matthew 22:37–39</span> · “Go and make disciples.” <span style={ldRef}>Matthew 28:19</span></p>
+            <p style={ldScrip}><strong>Your strongest leg:</strong> gratitude — <span style={ldRef}>1 Corinthians 4:7</span></p>
+            <p style={ldScrip}><strong>Your weakest leg:</strong> grace and growth — <span style={ldRef}>Philippians 1:6; 2 Peter 1:5–8</span></p>
+            <p style={ldScrip}><strong>The seat:</strong> servant leadership — <span style={ldRef}>Mark 10:42–45</span></p>
+          </div>
+        </div>
+      </section>
+
+      {/* Book credit + buy */}
+      <section style={{ padding: "18px 0 8px" }} className="avoid-break">
+        <div style={ldBook}>
+          <div>
+            <div style={{ fontSize: 11.5, letterSpacing: ".12em", textTransform: "uppercase", color: "#8CA0B3", fontWeight: 700 }}>The framework behind this report</div>
+            <div className="serif" style={{ fontSize: 21, color: "#1C2B3A", margin: "8px 0 4px", lineHeight: 1.2 }}>{BOOK.title}</div>
+            <div style={{ fontSize: 14, color: "#5A6A78" }}><em>{BOOK.subtitle}</em></div>
+            <div style={{ fontSize: 13.5, color: "#8CA0B3", marginTop: 6 }}>by {BOOK.author} · {BOOK.publisher}</div>
+            <p style={{ fontSize: 13.5, color: "#5A6A78", lineHeight: 1.55, margin: "12px 0 0", maxWidth: 460 }}>
+              This assessment is an original recreation. The three-legged Leadership Stool model — Spirituality, Chemistry, and Strategy — is drawn from David T. Olson's book. To go deeper into the framework, read the book.
+            </p>
+          </div>
+          <a href={BOOK.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary no-print" style={{ whiteSpace: "nowrap", alignSelf: "center" }}>Get the book →</a>
+        </div>
+      </section>
+
+      <section style={{ padding: "10px 0 8px" }}>
+        <p style={helper}>
+          Your style is not a box. It is a description of which leg carries your weight today, which supports it, and which needs bracing.
+          Scores describe present practice, not permanent identity. Every leg can grow.
+        </p>
+      </section>
+    </>
+  );
+}
+
+// Leadership report styles
+const ldRibbon = { display: "flex", height: 6, borderRadius: 999, overflow: "hidden", gap: 3 };
+const ldCode = { display: "flex", alignItems: "center", flexWrap: "wrap", fontSize: 14, fontWeight: 700, marginTop: 2 };
+const ldLegRow = { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 18 };
+const ldLegCard = { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "12px 8px", borderRadius: 12, border: "1.5px solid #EAECEF", background: "#fff", cursor: "pointer", fontFamily: "inherit", transition: "all .15s ease" };
+const ldDetail = { marginTop: 14, padding: "14px 16px", borderRadius: 12, border: "1px solid #EAECEF", background: "#fff", fontSize: 14, color: "#4A5B6D", lineHeight: 1.6, transition: "border-color .15s ease" };
+const ldTrack = { position: "relative", height: 14, borderRadius: 999, overflow: "hidden", background: "#EEF1F4" };
+const ldTrackSm = { position: "relative", height: 9, borderRadius: 999, overflow: "hidden", background: "#EEF1F4" };
+const ldFill = { position: "absolute", top: 0, bottom: 0, left: 0, borderRadius: 999, transition: "width 1s cubic-bezier(.2,.7,.2,1)" };
+const ldFeature = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 16, padding: "22px 22px 8px" };
+const ldGrid2 = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 20 };
+const ldBlockH = { fontSize: 12, fontWeight: 700, color: "#1C2B3A", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 };
+const ldP = { fontSize: 14.5, color: "#4A5B6D", lineHeight: 1.6, margin: "0 0 16px" };
+const ldBiblical = { background: "#FBF7EE", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", margin: "2px 0 18px" };
+const ldSixGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 10 };
+const ldSix = { textAlign: "left", padding: "14px 15px", borderRadius: 12, border: "1.5px solid #EAECEF", background: "#fff", cursor: "pointer", fontFamily: "inherit" };
+const ldTag = (c) => ({ fontSize: 10.5, fontWeight: 800, color: c, marginLeft: 8, letterSpacing: ".03em" });
+const ldLegDeep = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 14, padding: "18px 20px", marginBottom: 14 };
+const ldMini = { fontSize: 12.5, color: "#5A6A78", background: "#F6F8FA", borderRadius: 8, padding: "5px 10px" };
+const ldUl = { margin: 0, paddingLeft: 18 };
+const ldLi = { fontSize: 13.5, color: "#4A5B6D", lineHeight: 1.5, marginBottom: 7 };
+const ldPairRow = { display: "grid", gridTemplateColumns: "1.1fr 1.3fr 1.3fr 1.5fr", gap: 12, padding: "12px 16px", borderBottom: "1px solid #F0F2F4", alignItems: "start", fontSize: 13 };
+const ldPairCell = { fontSize: 13, color: "#4A5B6D", lineHeight: 1.45 };
+const ldScrip = { fontSize: 13.5, color: "#4A3F2A", lineHeight: 1.6, margin: "0 0 10px", fontStyle: "italic" };
+const ldRef = { color: "#8A6D3B", fontWeight: 600, fontStyle: "normal" };
+const ldBook = { display: "flex", justifyContent: "space-between", gap: 20, alignItems: "center", flexWrap: "wrap", background: "linear-gradient(180deg,#FCFAF6,#F6F1E7)", border: "1px solid #EADFC9", borderRadius: 16, padding: "22px 24px" };
+
+// Print stylesheet — the primary PDF path. window.print() → the browser's
+// "Save as PDF" produces a vector, text-selectable, font-embedded document
+// (fonts are self-hosted; see globals.css). This sheet enforces US-Letter
+// geometry, break control, and print-safe color so the on-screen report and
+// the PDF are the same DOM in two presentations. The html2pdf raster path is
+// retained only as a degraded fallback (see downloadPdf).
 const PRINT_CSS = `
 .report-credit{ text-align:center; font-size:12px; color:#7C8A9C; margin-top:30px; padding-top:16px; border-top:1px solid #E7E9EC; line-height:1.5; }
 .bar:hover { background:#F8FAFB; }
 #report-capture, #report-capture * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.print-foot { display:none; }
 @media print {
-  @page { margin: 12mm; }
-  .no-print, .no-pdf { display:none !important; }
+  /* US Letter with the report's margin geometry (reportTokens.PRINT). */
+  @page { size: letter; margin: 18mm 16mm 20mm; }
+
   html, body { background:#fff !important; }
+  main { background:#fff !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  .sheet section { break-inside: avoid; page-break-inside: avoid; }
+
+  /* Screen-only chrome never prints. */
+  .no-print, .no-pdf { display:none !important; }
+
+  /* The report fills the printable width; drop the on-screen max-width and
+     padding so the page margins alone define the text block. */
+  #report-capture { width:100% !important; }
+  #report-capture > div { max-width:none !important; padding-left:0 !important; padding-right:0 !important; }
+
+  /* Break control — the rules that turn a scrolling page into a document. */
+  h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
+  h1, h2, h3, h4 { break-inside: avoid; }
+  p { orphans: 3; widows: 3; }
+  .sheet section, section { break-inside: avoid; page-break-inside: avoid; }
+  .chart, .card, figure, .avoid-break, table, li { break-inside: avoid; page-break-inside: avoid; }
+  .break-before { break-before: page; page-break-before: always; }
+  /* Table headers repeat on every page; rows stay with their header. */
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+
+  /* Flatten screen surfaces that read as heavy or blurry on paper:
+     shadows off, rounded corners softened, translucent fills made solid. */
+  * { box-shadow: none !important; }
+
+  /* Animated chart reveals print in their final static state. */
+  * { animation: none !important; transition: none !important; }
+
+  /* Running footer: repeats on every printed page (position:fixed is paginated
+     by Chromium). Page numbers require the headless print route and are added
+     there; this gives every page an attribution mark meanwhile. */
+  .print-foot {
+    display:block; position:fixed; bottom:0; left:0; right:0;
+    font-family:'Inter',sans-serif; font-size:8pt; color:#8CA0B3;
+    text-align:center; padding-bottom:2mm;
+  }
+
   .report-credit{ display:block !important; }
 }
 `;

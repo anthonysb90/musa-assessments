@@ -23,6 +23,10 @@ import {
   efmiTotalBand,
 } from "./content";
 import { big5Band } from "./bigfive";
+import {
+  LEGS, SEAT, LEG_ORDER, FOUNDATIONS, FOUNDATION_ORDER_BY_LEG,
+  leadBand, roleLabel, STYLES,
+} from "./leadership";
 import { CONSENT_VERSION } from "./config";
 
 function contactBlock(profile) {
@@ -332,6 +336,80 @@ export function scoreAssessment(assessment, itemMap, answers, profile) {
       return { pillar: p, average, count: ds.length };
     });
     return { ...base, type: "pillar", scale_max: smax, domains, pillars };
+  }
+
+  if (type === "leadership-stool") {
+    // Three legs (Spirituality, Chemistry, Strategy) + a Leadership seat, each
+    // built on three foundations of 4 items (1-5). Percent-of-maximum keeps
+    // everything transparent: foundation % = (raw-4)/16*100; leg % = (raw-12)/48*100.
+    const groups = groupBy(itemMap, answers, (it) => it.domain, smin, smax);
+    const fSum = (k) => (groups[k] || []).reduce((a, b) => a + b, 0);
+    const fN = (k) => (groups[k] || []).length;
+
+    // Foundation scores (all 12: 9 leg foundations + 3 seat components).
+    const foundation = {};
+    for (const k of Object.keys(FOUNDATIONS)) {
+      const raw = fSum(k), n = fN(k) || 4;
+      const pct = Math.round(((raw - n) / (4 * n)) * 100);
+      foundation[k] = { key: k, raw, pct, leg: FOUNDATIONS[k].leg, band: leadBand(pct).key };
+    }
+
+    // Leg scores (sum the three foundations that make up each leg).
+    const legOf = (legKey) => {
+      const fs = legKey === "L" ? SEAT.components : FOUNDATION_ORDER_BY_LEG[legKey];
+      const raw = fs.reduce((a, k) => a + fSum(k), 0);
+      const nTotal = fs.reduce((a, k) => a + (fN(k) || 4), 0) || 12;
+      const pct = Math.round(((raw - nTotal) / (4 * nTotal)) * 100);
+      return { key: legKey, raw, pct, band: leadBand(pct).key };
+    };
+    const legs = {}; for (const k of LEG_ORDER) legs[k] = legOf(k);
+    const seat = legOf("L");
+
+    // Rank SP/CH/ST for the style. Tie-break: higher single foundation within the
+    // leg, then a fixed SP>CH>ST order for determinism.
+    const topFoundationPct = (legKey) =>
+      Math.max(...FOUNDATION_ORDER_BY_LEG[legKey].map((k) => foundation[k].pct));
+    const fixed = { SP: 0, CH: 1, ST: 2 };
+    const ranked = [...LEG_ORDER].sort((a, b) =>
+      legs[b].pct - legs[a].pct ||
+      topFoundationPct(b) - topFoundationPct(a) ||
+      fixed[a] - fixed[b]
+    );
+    const code = ranked.join("-");
+    const style = STYLES[code];
+
+    // Seat components with a plain-language level.
+    const level = (p) => (p >= 60 ? "high" : p >= 40 ? "medium" : "low");
+    const components = SEAT.components.map((k) => ({
+      key: k, pct: foundation[k].pct, level: level(foundation[k].pct),
+    }));
+
+    // Strongest + lowest of the nine leg foundations (drives the plan).
+    const nine = Object.values(foundation).filter((f) => f.leg !== "L");
+    const strongest = nine.reduce((a, b) => (b.pct > a.pct ? b : a));
+    const lowest = nine.reduce((a, b) => (b.pct < a.pct ? b : a));
+
+    // Response pattern buckets (for the "what your answers show" section).
+    const patterns = { low: [], high: [] }; // items answered 1-2 vs 5
+    for (const [itemId, value] of Object.entries(answers)) {
+      const it = itemMap[itemId];
+      if (!it || it.is_scored === false || !it.domain) continue;
+      const v = Number(value);
+      const entry = { text: it.text, foundation: it.domain, leg: FOUNDATIONS[it.domain]?.leg };
+      if (v <= 2) patterns.low.push(entry);
+      else if (v >= 5) patterns.high.push(entry);
+    }
+
+    return {
+      ...base, type: "leadership-stool",
+      role: { key: profile?.leadership_role_key || null, label: profile?.leadership_role || roleLabel(profile?.leadership_role_key) || null },
+      legs, ranked, seat, components,
+      style_code: code, style_name: style?.name || null,
+      foundation,
+      strongest_foundation: strongest.key,
+      lowest_foundation: lowest.key,
+      patterns,
+    };
   }
 
   // Generic domain-average fallback (used only if an unexpected slug submits)

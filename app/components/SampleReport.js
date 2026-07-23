@@ -97,6 +97,16 @@ const SAMPLE = {
     // [label, A pole, B pole, winning letter, winning count, total, clarity]
     scales: [["Energy", "E", "I", "I", 12, 15, "Clear"], ["Information", "S", "N", "N", 13, 15, "Clear"], ["Decisions", "T", "F", "F", 11, 15, "Moderate"], ["Lifestyle", "J", "P", "J", 15, 15, "Very Clear"]],
   },
+  "discover-leadership-style": {
+    type: "leadership", style: "Building Leader", code: "ST-CH-SP", seat: 62,
+    // [name, pct, color, band]
+    legs: [["Strategy", 87, "#2E7D8A", "Signature strength"], ["Chemistry", 65, "#C57B57", "Solid strength"], ["Spirituality", 41, "#6A5AA0", "Developing"]],
+  },
+  "called-together": {
+    type: "couple",
+    // [area, lower-of-the-two score, band]
+    domains: [["Shared Calling", 4.5, "Thriving"], ["Spiritual Partnership", 4.1, "Thriving"], ["Communication", 3.7, "Healthy"], ["Support & Encouragement", 3.9, "Healthy"], ["Rhythm & Boundaries", 3.1, "Growing"], ["Handling Conflict", 2.8, "Tend to this"]],
+  },
 };
 
 export default function SampleReportButton({ slug, name }) {
@@ -155,8 +165,72 @@ function Report({ sample }) {
     case "forgiveness": return <Forgiveness s={sample} />;
     case "big-five": return <BigFive s={sample} />;
     case "kingdom-design": return <Kingdom s={sample} />;
+    case "leadership": return <Leadership s={sample} />;
+    case "couple": return <Couple s={sample} />;
     default: return null;
   }
+}
+
+function Leadership({ s }) {
+  return (
+    <>
+      <Section label="Your leadership style">
+        <div style={{ ...card, borderLeft: `5px solid ${s.legs[0][2]}` }}>
+          <div className="serif" style={{ fontSize: 24, color: "#1C2B3A" }}>{s.style}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#8CA0B3", marginTop: 2 }}>{s.code}</div>
+        </div>
+      </Section>
+      <Section label="Your three legs + the seat" style={{ padding: "16px 0 4px" }}>
+        <div style={card}>
+          {s.legs.map(([name, pct, color, band]) => (
+            <div key={name} style={{ padding: "11px 4px", borderBottom: "1px solid #F0F2F4" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1C2B3A" }}>{name}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color }}>{pct} · {band}</span>
+              </div>
+              <div style={{ height: 10, background: "#EEF1F4", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 999 }} />
+              </div>
+            </div>
+          ))}
+          <div style={{ padding: "11px 4px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1C2B3A" }}>Leadership (the seat)</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>{s.seat} · Solid strength</span>
+            </div>
+            <div style={{ height: 10, background: "#EEF1F4", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${s.seat}%`, background: GOLD, borderRadius: 999 }} />
+            </div>
+          </div>
+        </div>
+        <p style={{ ...defP, marginTop: 10 }}>Your full report draws your leadership stool to these scores, then adds your style in depth, nine foundations, a leg-by-leg analysis, a 90-day plan, team pairings, and a coaching guide.</p>
+      </Section>
+    </>
+  );
+}
+
+function Couple({ s }) {
+  const bc = { Thriving: "#1F7A4D", Healthy: "#2E7D8A", Growing: "#C4923E", "Tend to this": "#B4653A" };
+  return (
+    <>
+      <Section label="Where you stand together">
+        <div style={card}>
+          {s.domains.map(([area, score, band]) => (
+            <div key={area} style={{ padding: "11px 4px", borderBottom: "1px solid #F0F2F4" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1C2B3A" }}>{area}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: bc[band] || TEAL }}>{score.toFixed(1)} · {band}</span>
+              </div>
+              <div style={{ height: 10, background: "#EEF1F4", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${(score / 5) * 100}%`, background: bc[band] || TEAL, borderRadius: 999 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ ...defP, marginTop: 10 }}>Each of you answers privately. Your couple report shows the picture at the lower of your two scores, so you always see the true state of things and can talk it through together, side by side.</p>
+      </Section>
+    </>
+  );
 }
 
 function Kingdom({ s }) {

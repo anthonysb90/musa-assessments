@@ -33,7 +33,7 @@ export async function GET() {
 export async function POST(req) {
   if (!STRIPE_SECRET) return NextResponse.json({ error: "Checkout is not configured yet." }, { status: 503 });
   try {
-    const { kind, slug, email, name, seats, tier_qty } = await req.json();
+    const { kind, slug, email, name, first_name, last_name, phone, seats, tier_qty, coupon } = await req.json();
     let nSeats = Math.max(1, Math.min(1000, Number(seats) || 1));
     const supabase = getServerSupabase();
 
@@ -57,10 +57,22 @@ export async function POST(req) {
     }
 
     if (amount < 50) return NextResponse.json({ error: "Amount too low." }, { status: 400 });
-
-    // Platform fee: read from settings (admin-editable), computed on the base
-    // amount server-side, never trusted from the client. Percent + fixed cents.
     const subtotal = amount;
+
+    // Coupon: validated server-side (security-definer RPC). Discount applies to
+    // the subtotal; the platform fee is then computed on the discounted amount.
+    let discount = 0, couponLabel = "", couponCode = "";
+    if (coupon && String(coupon).trim()) {
+      const { data: cv } = await supabase.rpc("validate_coupon", {
+        p_code: String(coupon).trim(), p_slug: slug, p_bundle: bundle || null, p_subtotal_cents: subtotal,
+      });
+      if (cv?.ok) { discount = Number(cv.discount_cents) || 0; couponLabel = cv.label || "Discount"; couponCode = String(coupon).trim().toUpperCase(); }
+      else return NextResponse.json({ error: "That coupon code isn't valid." }, { status: 400 });
+    }
+    const discountedSubtotal = Math.max(0, subtotal - discount);
+
+    // Platform fee: read from settings (admin-editable), computed on the
+    // discounted amount server-side, never trusted from the client.
     let fee = 0, feeLabel = "Platform fee";
     {
       const { data: s } = await supabase
@@ -68,14 +80,26 @@ export async function POST(req) {
         .select("fee_fixed_cents,fee_percent,fee_label,fee_enabled")
         .eq("id", 1)
         .maybeSingle();
-      if (s && s.fee_enabled) {
+      if (s && s.fee_enabled && discountedSubtotal > 0) {
         const pct = Number(s.fee_percent) || 0;
         const fixed = Number(s.fee_fixed_cents) || 0;
-        fee = Math.round((subtotal * pct) / 100) + fixed;
+        fee = Math.round((discountedSubtotal * pct) / 100) + fixed;
         feeLabel = s.fee_label || feeLabel;
       }
     }
-    amount = subtotal + fee;
+    amount = discountedSubtotal + fee;
+
+    // Free order (a full-discount coupon): skip Stripe entirely and issue the
+    // access code directly. This is also the safe end-to-end test path.
+    if (amount < 50) {
+      const { data: freeCode, error: fe } = await supabase.rpc("redeem_free_order", {
+        p_email: email || null, p_name: name || null, p_slug: kind === "bundle" ? null : slug,
+        p_bundle: kind === "bundle" ? (bundle || slug) : null, p_seats: nSeats, p_kind: kind || "assessment",
+        p_code: couponCode,
+      });
+      if (fe || !freeCode) return NextResponse.json({ error: "Couldn't apply that free code." }, { status: 400 });
+      return NextResponse.json({ free: true, code: freeCode, seats: nSeats, amount: 0, subtotal, discount, coupon_label: couponLabel });
+    }
 
     const form = new URLSearchParams();
     form.append("amount", String(amount));
@@ -90,8 +114,13 @@ export async function POST(req) {
     form.append("metadata[seats]", String(nSeats));
     form.append("metadata[email]", email || "");
     form.append("metadata[name]", name || "");
+    form.append("metadata[first_name]", first_name || "");
+    form.append("metadata[last_name]", last_name || "");
+    form.append("metadata[phone]", phone || "");
     form.append("metadata[subtotal]", String(subtotal));
     form.append("metadata[fee]", String(fee));
+    form.append("metadata[discount]", String(discount));
+    form.append("metadata[coupon]", couponCode);
 
     const res = await fetch("https://api.stripe.com/v1/payment_intents", {
       method: "POST",
@@ -100,7 +129,7 @@ export async function POST(req) {
     });
     const pi = await res.json();
     if (!res.ok) return NextResponse.json({ error: pi?.error?.message || "Stripe error" }, { status: 400 });
-    return NextResponse.json({ client_secret: pi.client_secret, amount, subtotal, fee, fee_label: feeLabel });
+    return NextResponse.json({ client_secret: pi.client_secret, amount, subtotal, fee, fee_label: feeLabel, discount, coupon_label: couponLabel });
   } catch (e) {
     return NextResponse.json({ error: e.message || "Server error" }, { status: 500 });
   }

@@ -102,8 +102,8 @@ export default function PartnerRequest() {
           <div style={privacyNote}>
             <strong>A note on privacy.</strong> A few of our most personal assessments, like the ones touching
             marriage, mental and emotional health, and private reflection, are not eligible for church
-            partnership or dashboard viewing. We would never hand a church that data. Those results always stay
-            between the individual and God. Only the assessments below can be shared with a church.
+            partnership or dashboard viewing. Those results stay between the individual and God. Only the
+            assessments below can be shared with a church.
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {assessments.map((a) => {
@@ -128,8 +128,8 @@ export default function PartnerRequest() {
           <div style={sec}>Your church logo (optional)</div>
           <p style={{ fontSize: 13.5, color: "var(--ink-soft)", margin: "0 0 12px", lineHeight: 1.55 }}>
             If you'd like your church's logo on your members' reports, upload a <strong>PNG with a transparent background</strong>,
-            both a <strong>color version</strong> and a <strong>white version</strong>. If you don't upload one, we simply won't
-            include a church logo on the reports.
+            both a <strong>color version</strong> and a <strong>white version</strong>. This step is completely optional, your
+            reports will look great either way.
           </p>
           <div style={grid2}>
             <LogoField label="Color logo (PNG, no background)" val={f.logo_color} onFile={(e) => onLogo("logo_color", e)} onClear={() => setF({ ...f, logo_color: "" })} dark={false} />

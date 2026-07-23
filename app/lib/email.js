@@ -139,6 +139,12 @@ function inlineSummary(scored, assessment) {
     const rows = (scored.scales || []).map((s) => li(s.key.split("").join("/"), `${s.letter} · ${(s.clarity || "").replace("-", " ")}`)).join("");
     return `<p style="font-size:18px;margin:0 0 8px;color:${NAVY};font-weight:bold;">${scored.code || ""}</p><table role="presentation" width="100%">${rows}</table>`;
   }
+  if (type === "leadership-stool") {
+    const LNAME = { SP: "Spirituality", CH: "Chemistry", ST: "Strategy" };
+    const legs = scored.legs || {};
+    const rows = (scored.ranked || []).map((k) => li(LNAME[k] || k, `${legs[k]?.pct ?? ""} / 100`)).join("");
+    return `<p style="font-size:18px;margin:0 0 8px;color:${NAVY};font-weight:bold;">${scored.style_name || ""} · ${scored.style_code || ""}</p><table role="presentation" width="100%">${rows}</table>`;
+  }
   return "";
 }
 

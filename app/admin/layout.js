@@ -9,6 +9,7 @@ const TABS = [
   ["/admin/people", "People"],
   ["/admin/churches", "Churches"],
   ["/admin/pricing", "Pricing"],
+  ["/admin/gifts", "Gifts & Coupons"],
   ["/admin/pages", "Pages"],
   ["/admin/bundles", "Bundles"],
   ["/admin/embed", "Embed"],

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSupabase } from "../../lib/supabaseServer";
 import { assessmentImage, ASSESSMENT_LANDING } from "../../lib/content";
 import SampleReportButton from "../../components/SampleReport";
+import AssessmentMenu from "../../components/AssessmentMenu";
 
 export const dynamic = "force-dynamic";
 
@@ -84,13 +85,7 @@ export default async function AssessmentLanding({ params, searchParams }) {
             <img src="/musa-logo-white-h.png" alt="Mission USA" style={{ height: 32 }} />
             <span style={{ color: "#fff", fontSize: 12.5, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", opacity: .92 }}>Assessments</span>
           </Link>
-          <nav style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <Link href="/" style={navLink}>← All assessments</Link>
-            <Link href="/partner" style={navLink}>For churches</Link>
-            {signedIn
-              ? <Link href="/welcome" style={{ ...navCta, background: "rgba(255,255,255,.14)", color: "#fff" }}>● My results →</Link>
-              : <Link href="/welcome" style={navCta}>Sign in / My results →</Link>}
-          </nav>
+          <AssessmentMenu signedIn={signedIn} />
         </div>
       </header>
 

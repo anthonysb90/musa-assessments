@@ -23,12 +23,19 @@ function loadStripe(pk) {
 export default function Checkout({ kind = "assessment", slug, name, priceCents, allowSeats = true, tiers = [], onDone }) {
   const [phase, setPhase] = useState("form"); // form | pay | working | error
   const [email, setEmail] = useState("");
-  const [buyer, setBuyer] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const buyer = `${firstName} ${lastName}`.trim();
   const [group, setGroup] = useState(false);
   const [seats, setSeats] = useState(1);
   const [amount, setAmount] = useState(priceCents || 0);
   const [err, setErr] = useState("");
   const [feeCfg, setFeeCfg] = useState(null); // { fee_fixed_cents, fee_percent, fee_label, fee_enabled }
+  const [coupon, setCoupon] = useState("");
+  const [discount, setDiscount] = useState(0);
+  const [couponLabel, setCouponLabel] = useState("");
+  const [bd, setBd] = useState(null); // server breakdown { subtotal, discount, fee, total }
   const stripeRef = useRef(null);
   const elementsRef = useRef(null);
 
@@ -75,14 +82,19 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
     setErr("");
     try {
       const payload = options
-        ? { kind, slug, email, name: buyer, tier_qty: tierQty > 1 ? tierQty : undefined, seats: 1 }
-        : { kind, slug, email, name: buyer, seats: group ? Number(seats) || 1 : 1 };
+        ? { kind, slug, email, name: buyer, first_name: firstName, last_name: lastName, phone, coupon, tier_qty: tierQty > 1 ? tierQty : undefined, seats: 1 }
+        : { kind, slug, email, name: buyer, first_name: firstName, last_name: lastName, phone, coupon, seats: group ? Number(seats) || 1 : 1 };
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const out = await res.json();
       if (!res.ok) throw new Error(out.error || "Could not start checkout.");
+      // A full-discount coupon returns the access code with no payment needed.
+      if (out.free && out.code) { onDone?.(out.code, out.seats || 1); return; }
+      setDiscount(Number(out.discount) || 0);
+      setCouponLabel(out.coupon_label || "");
+      setBd({ subtotal: Number(out.subtotal) || amount, discount: Number(out.discount) || 0, fee: Number(out.fee) || 0, total: Number(out.amount) || amount });
       const stripe = await loadStripe(PUBK);
       stripeRef.current = stripe;
       const elements = stripe.elements({
@@ -136,11 +148,19 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
       {phase === "form" && (
         <form onSubmit={toPayment}>
           <div style={priceRow}><span>{name}</span><strong>{dollars(priceCents)}{group && seats > 1 ? ` × ${seats}` : ""}</strong></div>
-          <label style={fw}><span style={fl}>Your name</span>
-            <input style={inp} required value={buyer} onChange={(e) => setBuyer(e.target.value)} />
-          </label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <label style={fw}><span style={fl}>First name</span>
+              <input style={inp} required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            </label>
+            <label style={fw}><span style={fl}>Last name</span>
+              <input style={inp} required value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            </label>
+          </div>
           <label style={fw}><span style={fl}>Email (for your receipt and access code)</span>
             <input style={inp} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label style={fw}><span style={fl}>Phone</span>
+            <input style={inp} type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
           </label>
           {options ? (
             <div style={fw}>
@@ -175,6 +195,10 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
               )}
             </>
           ) : null}
+          <label style={{ ...fw, marginTop: 4 }}><span style={fl}>Coupon or gift code (optional)</span>
+            <input style={{ ...inp, textTransform: "uppercase" }} value={coupon} placeholder="Enter a code"
+              onChange={(e) => setCoupon(e.target.value)} />
+          </label>
           <div style={subRow}><span>Subtotal</span><span>{dollars(amount)}</span></div>
           {feeCents > 0 && (
             <div style={subRow}>
@@ -182,7 +206,8 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
               <span>{dollars(feeCents)}</span>
             </div>
           )}
-          <div style={totalRow}><span>Total</span><strong>{dollars(grandTotal)}</strong></div>
+          <div style={totalRow}><span>Total{coupon ? " (before code)" : ""}</span><strong>{dollars(grandTotal)}</strong></div>
+          {coupon && <p style={{ fontSize: 12, color: "#8CA0B3", margin: "6px 0 0" }}>Your code is applied on the next step.</p>}
           {feeCents > 0 && (
             <p style={feeNote}>
               The {feeLabel.toLowerCase()} helps cover secure payment processing and keeps most of our
@@ -197,12 +222,16 @@ export default function Checkout({ kind = "assessment", slug, name, priceCents, 
       )}
       {phase === "pay" && (
         <div>
-          <div style={subRow}><span>Subtotal</span><span>{dollars(amount)}</span></div>
-          {feeCents > 0 && <div style={subRow}><span>{feeLabel}</span><span>{dollars(feeCents)}</span></div>}
-          <div style={totalRow}><span>Total</span><strong>{dollars(grandTotal)}</strong></div>
+          <div style={subRow}><span>Subtotal</span><span>{dollars(bd ? bd.subtotal / 100 : amount)}</span></div>
+          {bd && bd.discount > 0 && (
+            <div style={subRow}><span style={{ color: "#1F7A4D" }}>Discount{couponLabel ? ` (${couponLabel})` : ""}</span><span style={{ color: "#1F7A4D" }}>−{dollars(bd.discount / 100)}</span></div>
+          )}
+          {bd && bd.fee > 0 && <div style={subRow}><span>{feeLabel}</span><span>{dollars(bd.fee / 100)}</span></div>}
+          {!bd && feeCents > 0 && <div style={subRow}><span>{feeLabel}</span><span>{dollars(feeCents)}</span></div>}
+          <div style={totalRow}><span>Total</span><strong>{dollars(bd ? bd.total / 100 : grandTotal)}</strong></div>
           <div id="payment-element" style={{ margin: "16px 0" }} />
           <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={pay}>
-            Pay {dollars(grandTotal)}
+            Pay {dollars(bd ? bd.total / 100 : grandTotal)}
           </button>
           {err && <p style={{ color: "#B4443A", fontSize: 13, marginTop: 8 }}>{err}</p>}
         </div>

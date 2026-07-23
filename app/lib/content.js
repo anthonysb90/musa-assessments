@@ -40,6 +40,10 @@ export const SCORING_TYPE = {
   // Kingdom Design Profile (Myers-Briggs): 60 forced-choice items, 4 dichotomies
   // (EI/SN/TF/JP), a 4-letter type + clarity per letter, and a full type report.
   "kingdom-design": "kingdom-design",
+  // Discover Your Leadership Style (based on David T. Olson's Leadership Stool):
+  // 48 items, 12 foundations (4 each) → 3 legs + a Leadership seat, ranked into
+  // one of six styles. Role-adaptive item wording chosen at the start.
+  "discover-leadership-style": "leadership-stool",
   // seeded but unpublished (dedicated flows pending)
   "called-together": "couple-lower",
   "church-health": "multi-rater",
@@ -85,6 +89,9 @@ export const SCALE_OPTIONS = {
   "big-five": [
     [1, "Very Inaccurate"], [2, "Moderately Inaccurate"], [3, "Neither"],
     [4, "Moderately Accurate"], [5, "Very Accurate"],
+  ],
+  "discover-leadership-style": [
+    [1, "Not Really"], [2, "Occasionally"], [3, "Sometimes"], [4, "Often"], [5, "Almost Always"],
   ],
 };
 
@@ -1066,6 +1073,7 @@ export const ASSESSMENT_IMAGE = {
   "forgiveness-profile": pexels(34823825),
   "big-five": pexels(1181671),
   "kingdom-design": "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1600&h=1000&q=70",
+  "discover-leadership-style": "https://d8j0ntlcm91z4.cloudfront.net/user_3GoBKZ7LDxzXwROWee1djylMiED/hf_20260723_060448_5853fdcc-6c6a-4f4a-89c4-0fc68749876c.png",
 };
 
 export function assessmentImage(slug) {
@@ -1327,5 +1335,28 @@ export const ASSESSMENT_LANDING = {
     ],
     demo: { headline: "Your type: INFJ · The Counselor", sub: "4 preferences · 16 types · clarity",
       bars: [["Introversion", 12, 15], ["Intuition", 13, 15], ["Feeling", 11, 15], ["Judging", 10, 15]] },
+  },
+  "discover-leadership-style": {
+    tagline: "Which leg carries your weight, which supports it, and which needs bracing.",
+    about:
+      "Christian leadership rests on a three-legged stool. Spirituality is loving God. Chemistry is loving people. Strategy is loving the world by fulfilling God's mission. On top of the legs sits Leadership itself. In about five minutes, 48 honest statements adapted to your exact ministry role, this assessment measures all three legs and nine foundations, names your leadership style from the six possible orderings, and hands you a full report: your genius and your shadow, a biblical mirror, a 90-day plan, team pairings, and a coaching guide. No style is better than another. Each is a stewardship, and the Church needs all six.",
+    measures: [
+      "3 legs: Spirituality, Chemistry, Strategy, each on a 0-100 scale",
+      "9 foundations plus a separate Leadership seat score",
+      "Your style, one of six, from the rank order of your three legs",
+    ],
+    youGet: [
+      "Your leadership stool, drawn to your actual scores",
+      "Your style in depth: genius, shadow, biblical picture, and best-fit roles",
+      "A 90-day development plan, team pairings, and a coaching guide",
+    ],
+    demo: { headline: "Your style: Building Leader · ST-CH-SP", sub: "3 legs · 9 foundations · 6 styles",
+      bars: [["Strategy", 87, 100], ["Chemistry", 65, 100], ["Spirituality", 41, 100]] },
+    credit: {
+      text: "Based on the Leadership Stool framework from David T. Olson's book",
+      book: "Discovering Your Leadership Style: The Power of Chemistry, Strategy and Spirituality",
+      publisher: "InterVarsity Press",
+      url: "https://amzn.to/4bRzkvZ",
+    },
   },
 };

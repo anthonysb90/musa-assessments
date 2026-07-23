@@ -36,6 +36,9 @@ export async function POST(req) {
     });
     if (error) return NextResponse.json({ error: "Could not record your purchase." }, { status: 500 });
 
+    // Count the coupon redemption, if one was used (best-effort).
+    if (m.coupon) { try { await supabase.rpc("redeem_coupon", { p_code: m.coupon }); } catch { /* non-blocking */ } }
+
     // Email the buyer their access code (best-effort).
     try {
       if (email) {

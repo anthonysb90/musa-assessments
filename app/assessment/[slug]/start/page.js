@@ -8,6 +8,7 @@ import {
   EFMI_INTRO, EFMI_HURT_OPTIONS, EFMI_WHO_OPTIONS, EFMI_TIME_UNITS,
   EFMI_DEGREE_OPTIONS, EFMI_DEFINITIONS,
 } from "../../../lib/content";
+import { ROLE_ORDER, ROLES as LEAD_ROLES, roleLabel, applyRoleWording } from "../../../lib/leadership";
 import { TURNSTILE_SITE_KEY, CONSENT_VERSION } from "../../../lib/config";
 
 const AGE_BANDS = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
@@ -46,6 +47,7 @@ function AssessmentFlow() {
   const [coupleName, setCoupleName] = useState("");
   const [safetyFlagged, setSafetyFlagged] = useState(false);
   const [accessCode, setAccessCode] = useState("");
+  const [leadRole, setLeadRole] = useState(""); // Discover Your Leadership Style role key
 
   const [answers, setAnswers] = useState({}); // item_id -> value
   const [page, setPage] = useState(0);
@@ -219,6 +221,9 @@ function AssessmentFlow() {
       : it.domain === "Safety" ? SAFETY_OPTIONS
       : scaleOptions(assessment);
   const isForced = slug === "enneagram" || slug === "kingdom-design";
+  const isLeadership = slug === "discover-leadership-style";
+  // Item text with role-adaptive {TOKENS} filled in for the chosen role.
+  const itemText = (it) => (isLeadership ? applyRoleWording(it.text, leadRole) : it.text);
 
   function startQuestions() {
     startedAt.current = Date.now();
@@ -284,6 +289,8 @@ function AssessmentFlow() {
             is_chc: form.is_chc === "yes" ? true : form.is_chc === "no" ? false : null,
             church_id: form.church_id || null,
             marital_status: marital || null,
+            leadership_role_key: isLeadership ? leadRole : null,
+            leadership_role: isLeadership ? roleLabel(leadRole) : null,
             assignment_token: assignmentToken,
             source_tag: sourceTag || "public",
             cohort,
@@ -389,6 +396,20 @@ function AssessmentFlow() {
               <Select label="Marital status" v={marital} on={setMarital} opts={[["married", "Married"], ["single", "Single"]]} />
             )}
 
+            {isLeadership && (
+              <>
+                <Select
+                  label="Which best describes your role? (we tailor the questions to it)"
+                  v={leadRole} on={setLeadRole}
+                  opts={ROLE_ORDER.map((k) => [k, LEAD_ROLES[k].label])}
+                />
+                <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "-6px 0 4px", lineHeight: 1.5 }}>
+                  Your role only changes a few words so the statements fit your world. Everyone's results
+                  stay comparable.
+                </p>
+              </>
+            )}
+
             {isCouple && (
               <Field label="Your first name" v={coupleName} on={setCoupleName} />
             )}
@@ -403,7 +424,7 @@ function AssessmentFlow() {
               </div>
             )}
 
-            <button className="btn btn-primary" disabled={(needsMarital && !marital) || (isCouple && !coupleName.trim())} onClick={startQuestions}
+            <button className="btn btn-primary" disabled={(needsMarital && !marital) || (isCouple && !coupleName.trim()) || (isLeadership && !leadRole)} onClick={startQuestions}
               style={{ width: "100%", justifyContent: "center", marginTop: 8 }}>
               {isRater ? "Begin" : isCouple ? "Begin my part" : "Start the assessment"}
             </button>
@@ -626,7 +647,7 @@ function AssessmentFlow() {
                 {it.domain === "Safety" && <div style={wellNotice}>{CALLED_TOGETHER_SAFETY_NOTICE}</div>}
                 <div style={qBlock}>
                   <div style={qText}>
-                    <span style={qNum}>{num}.</span> {it.text}
+                    <span style={qNum}>{num}.</span> {itemText(it)}
                   </div>
                   <div style={scaleRow}>
                     {optsFor(it).map(([val, lbl]) => {

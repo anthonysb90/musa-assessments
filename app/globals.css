@@ -1,3 +1,16 @@
+/* Self-hosted fonts (no runtime CDN). Static weights only — static instances
+   embed as proper CID-keyed outline fonts in Chromium PDF output (a variable
+   font would degrade to Type 3), keeping print text crisp and selectable.
+   Files live in /public/fonts and the key faces are preloaded in layout.js.
+   font-display:block so text paints in the intended face (print/PDF fidelity). */
+@font-face{ font-family:'Fraunces'; font-style:normal; font-weight:400; font-display:block; src:url('/fonts/fraunces-400.woff2') format('woff2'); }
+@font-face{ font-family:'Fraunces'; font-style:normal; font-weight:500; font-display:block; src:url('/fonts/fraunces-500.woff2') format('woff2'); }
+@font-face{ font-family:'Fraunces'; font-style:normal; font-weight:600; font-display:block; src:url('/fonts/fraunces-600.woff2') format('woff2'); }
+@font-face{ font-family:'Inter'; font-style:normal; font-weight:400; font-display:block; src:url('/fonts/inter-400.woff2') format('woff2'); }
+@font-face{ font-family:'Inter'; font-style:normal; font-weight:500; font-display:block; src:url('/fonts/inter-500.woff2') format('woff2'); }
+@font-face{ font-family:'Inter'; font-style:normal; font-weight:600; font-display:block; src:url('/fonts/inter-600.woff2') format('woff2'); }
+@font-face{ font-family:'Inter'; font-style:normal; font-weight:700; font-display:block; src:url('/fonts/inter-700.woff2') format('woff2'); }
+
 :root{
   --ink:#1C2B3A; --ink-soft:#4A5B6D; --line:#E7E9EC; --paper:#FFFFFF;
   --mist:#F6F8FA; --mist2:#EEF3F6; --navy:#1B3A57; --navy-deep:#122A44;
