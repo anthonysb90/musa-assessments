@@ -1371,7 +1371,7 @@ const kdpFact = { fontSize: 15, fontWeight: 600, color: "#1C2B3A" };
 /* ---------------- Enneagram (forced-choice type pick) ---------------- */
 function EnneagramReport({ scored }) {
   const [open, setOpen] = useState(scored.primary);
-  const ranked = scored.ranked; // [{type, score}] sorted desc
+  const ranked = Array.isArray(scored.ranked) ? scored.ranked : []; // [{type, score}] sorted desc
   const total = scored.total || 36;
   const per = scored.max_per ?? 8; // each type appears in this many pairs
   const top3 = ranked.slice(0, 3);
@@ -1380,18 +1380,96 @@ function EnneagramReport({ scored }) {
     const s = top3[idx]?.score;
     return (top3[idx - 1] && top3[idx - 1].score === s) || (top3[idx + 1] && top3[idx + 1].score === s);
   };
-  const primaryType = ENNEAGRAM_TYPES[scored.primary] || {};
+  const coreKey = String(scored.primary);
+  const primaryType = ENNEAGRAM_TYPES[coreKey] || {};
   const close = ranked[1] && ranked[0] && ranked[0].score - ranked[1].score <= 1;
+
+  // ---- Enneagram map geometry, all derived from live data ----
+  // Fixed node coordinates on the circle (matches the reference template).
+  const ENNEA_POS = {
+    "1": [296.4, 85.1], "2": [347.7, 173.9], "3": [329.9, 275], "4": [251.3, 340.9],
+    "5": [148.7, 340.9], "6": [70.1, 275], "7": [52.3, 173.9], "8": [103.6, 85.1], "9": [200, 50],
+  };
+  const nameOf = (k) => ENNEAGRAM_TYPES[String(k)]?.name || `Type ${k}`;
+  const dyn = enneagramDynamics(coreKey); // may be null — guard every access
+  const cNum = parseInt(coreKey, 10) || 0;
+  // Wings are the two nodes adjacent to the core on the circle (core ±1, wrapping 1..9).
+  const wrap = (n) => ((((n - 1) % 9) + 9) % 9) + 1;
+  const wingKeys = cNum ? [String(wrap(cNum - 1)), String(wrap(cNum + 1))] : [];
+  // Arrow targets come straight from the dynamics table (never assumed).
+  const growthKey = dyn?.arrows?.growth?.toward != null ? String(dyn.arrows.growth.toward) : null;
+  const stressKey = dyn?.arrows?.stress?.toward != null ? String(dyn.arrows.stress.toward) : null;
+
+  const ROLE_STYLE = {
+    core:   { r: 24, fill: "#C4923E", stroke: "#fff", sw: 3, tc: "#fff", fs: 19 },
+    wing:   { r: 17, fill: "#E7F0F1", stroke: "#2E7D8A", sw: 2, tc: "#1F5E68", fs: 14 },
+    growth: { r: 16, fill: "#EAF1EC", stroke: "#3E7C63", sw: 2, tc: "#3E7C63", fs: 14 },
+    stress: { r: 14, fill: "#fff", stroke: "#B4703A", sw: 2, tc: "#B4703A", fs: 14 },
+    plain:  { r: 14, fill: "#fff", stroke: "#CBD4DC", sw: 1.6, tc: "#5E7183", fs: 14 },
+  };
+  // Precedence protects against odd data: core > growth > stress > wing > plain.
+  const roleOf = (k) =>
+    k === coreKey ? "core" : k === growthKey ? "growth" : k === stressKey ? "stress"
+      : wingKeys.includes(k) ? "wing" : "plain";
+  // Draw the core node last so it sits on top of everything.
+  const nodeKeys = Object.keys(ENNEA_POS).sort((a, b) => (a === coreKey ? 1 : 0) - (b === coreKey ? 1 : 0));
+  // A dashed arrow from the core node toward a target, trimmed at both ends so
+  // the arrowhead clears the target circle and the tail clears the core circle.
+  const arrow = (targetKey) => {
+    if (!targetKey || !ENNEA_POS[targetKey] || !ENNEA_POS[coreKey]) return null;
+    const a = ENNEA_POS[coreKey], b = ENNEA_POS[targetKey];
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const startPad = ROLE_STYLE.core.r + 5;
+    const endPad = (ROLE_STYLE[roleOf(targetKey)]?.r || 14) + 12;
+    return {
+      x1: (a[0] + ux * startPad).toFixed(1), y1: (a[1] + uy * startPad).toFixed(1),
+      x2: (b[0] - ux * endPad).toFixed(1), y2: (b[1] - uy * endPad).toFixed(1),
+    };
+  };
+  const growthArrow = arrow(growthKey);
+  const stressArrow = arrow(stressKey);
+
+  const legend = [
+    { sw: { background: "#C4923E" }, t: `Core · ${nameOf(coreKey)}`, s: `Type ${coreKey} — your home base` },
+    {
+      sw: { background: "#E7F0F1", border: "2px solid #2E7D8A" },
+      t: wingKeys.length ? `Wings · ${wingKeys[0]} & ${wingKeys[1]}` : "Wings",
+      s: wingKeys.length ? `${nameOf(wingKeys[0])} & ${nameOf(wingKeys[1])}` : "The two types beside your core",
+    },
+    ...(growthKey ? [{ sw: { background: "#EAF1EC", border: "2px solid #3E7C63" }, t: `In growth → ${nameOf(growthKey)}`, s: `Type ${growthKey} — where health takes you` }] : []),
+    ...(stressKey ? [{ sw: { border: "2px solid #B4703A" }, t: `Under stress → ${nameOf(stressKey)}`, s: `Type ${stressKey} — where strain takes you` }] : []),
+  ];
+
+  // Ranking band mark: core = gold circle; then teal circle / gold diamond /
+  // grey square by score fraction (mirrors the template's stateOf thresholds).
+  const bandOf = (r) => {
+    if (r.type === coreKey) return { color: "#C4923E", shape: "circle" };
+    const f = per ? r.score / per : 0;
+    if (f >= 0.6) return { color: "#2E7D8A", shape: "circle" };
+    if (f >= 0.375) return { color: "#C4923E", shape: "diamond" };
+    return { color: "#8CA0B3", shape: "square" };
+  };
+  const rankMark = (shape, color) => {
+    const base = { width: 9, height: 9, background: color, display: "inline-block", flex: "none" };
+    if (shape === "diamond") return <span style={{ ...base, transform: "rotate(45deg)" }} />;
+    if (shape === "square") return <span style={base} />;
+    return <span style={{ ...base, borderRadius: "50%" }} />;
+  };
+
   return (
     <>
+      {/* CORE TYPE — gold left-border card */}
       <section style={{ padding: "8px 0" }}>
         <div style={sectionLabel}>Your core type</div>
-        <div style={{ ...topCard, borderLeft: "5px solid #C4923E" }}>
-          <div style={topRank}>Type {scored.primary} · {primaryType.tagline}</div>
-          <div className="serif" style={{ fontSize: 28, color: "#1C2B3A", marginTop: 4 }}>
-            {primaryType.name}
+        <div style={{ ...topCard, borderLeft: "4px solid var(--gold)", breakInside: "avoid" }}>
+          <div style={{ fontFamily: FONT_SERIF, fontSize: 12.5, fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--gold-deep-text)", marginBottom: 6 }}>
+            Type {coreKey} · {primaryType.tagline}
           </div>
-          <p style={{ ...topDef, fontSize: 15, marginTop: 10 }}>{primaryType.essence}</p>
+          <h2 className="serif" style={{ fontSize: 32, margin: "0 0 12px", color: COLOR.navy, fontWeight: 500, letterSpacing: "-.01em" }}>
+            {primaryType.name}
+          </h2>
+          <p style={{ ...topDef, fontSize: 16, margin: 0, lineHeight: 1.55 }}>{primaryType.essence}</p>
         </div>
         {close && (
           <div style={transitionBox}>
@@ -1401,47 +1479,104 @@ function EnneagramReport({ scored }) {
         )}
       </section>
 
-      <section style={{ padding: "20px 0 4px" }}>
+      {/* THE ENNEAGRAM MAP — signature visual, static & print-safe */}
+      <section style={{ padding: "22px 0 4px", breakInside: "avoid" }} className="avoid-break">
+        <div style={sectionLabel}>Where you sit on the map</div>
+        <h2 className="serif" style={{ ...discH2, margin: "0 0 4px" }}>The shape of your type</h2>
+        <p style={{ ...topDef, fontSize: 14.5, maxWidth: 540, marginBottom: 14 }}>
+          Your core is <strong style={{ color: COLOR.navy }}>Type {coreKey}, {primaryType.name}</strong>.
+          {wingKeys.length > 0 && <> The two points beside it — Types {wingKeys[0]} and {wingKeys[1]} — are your <em>wings</em>.</>}
+          {(growthKey || stressKey) && <> The arrows show where you move:{growthKey && <> toward <strong style={{ color: "#3E7C63" }}>{nameOf(growthKey)}</strong> when you grow</>}{growthKey && stressKey ? "," : ""}{stressKey && <> toward <strong style={{ color: "#B4703A" }}>{nameOf(stressKey)}</strong> under stress</>}.</>}
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1.15fr .85fr", gap: 28, alignItems: "center" }}>
+          <svg viewBox="0 0 400 400" style={{ width: "100%", height: "auto" }} role="img" aria-label={`Enneagram map with Type ${coreKey} highlighted`}>
+            <circle cx="200" cy="200" r="150" fill="none" stroke="var(--line)" strokeWidth="2" />
+            <path d="M200 50 L329.9 275 L70.1 275 Z" fill="none" stroke="#CBD4DC" strokeWidth="1.4" />
+            <path d="M296.4 85.1 L251.3 340.9 L347.7 173.9 L103.6 85.1 L148.7 340.9 L52.3 173.9 Z" fill="none" stroke="#CBD4DC" strokeWidth="1.4" />
+            <defs>
+              <marker id="ennea-grow" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3E7C63" /></marker>
+              <marker id="ennea-stress" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#B4703A" /></marker>
+            </defs>
+            {growthArrow && (
+              <line x1={growthArrow.x1} y1={growthArrow.y1} x2={growthArrow.x2} y2={growthArrow.y2}
+                stroke="#3E7C63" strokeWidth="2.4" strokeDasharray="1 7" strokeLinecap="round" markerEnd="url(#ennea-grow)" />
+            )}
+            {stressArrow && (
+              <line x1={stressArrow.x1} y1={stressArrow.y1} x2={stressArrow.x2} y2={stressArrow.y2}
+                stroke="#B4703A" strokeWidth="2.4" strokeDasharray="1 7" strokeLinecap="round" markerEnd="url(#ennea-stress)" />
+            )}
+            {nodeKeys.map((k) => {
+              const s = ROLE_STYLE[roleOf(k)];
+              const [x, y] = ENNEA_POS[k];
+              return (
+                <g key={k}>
+                  <circle cx={x} cy={y} r={s.r} fill={s.fill} stroke={s.stroke} strokeWidth={s.sw} />
+                  <text x={x} y={y + s.fs * 0.34} fill={s.tc} fontSize={s.fs} fontWeight="700" textAnchor="middle" fontFamily={FONT_SANS}>{k}</text>
+                </g>
+              );
+            })}
+          </svg>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {legend.map((L, i) => (
+              <div key={i} style={{ display: "flex", gap: 11, alignItems: "flex-start" }}>
+                <span style={{ flex: "none", width: 15, height: 15, borderRadius: "50%", marginTop: 2, ...L.sw }} />
+                <div>
+                  <div style={{ fontWeight: 700, color: COLOR.ink, fontSize: 13.5 }}>{L.t}</div>
+                  <div style={{ fontSize: 12.5, color: COLOR.inkSoft }}>{L.s}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* TOP THREE — colored top-border cards */}
+      <section style={{ padding: "24px 0 4px", breakInside: "avoid" }} className="avoid-break">
         <div style={sectionLabel}>Your top three</div>
-        <div style={topGrid}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
           {top3.map((r, i) => {
             const t = ENNEAGRAM_TYPES[r.type] || {};
+            const isCore = r.type === coreKey;
+            const accent = isCore ? COLOR.gold : COLOR.teal;
+            const rankLabel = i === 0 ? "Core" : tiedAt(i) ? "Tied" : ordinal(i + 1);
             return (
-              <div key={r.type} style={topCard}>
-                <div style={topRank}>{i === 0 ? "Core" : tiedAt(i) ? "Tied" : ordinal(i + 1)}</div>
-                <div className="serif" style={{ ...topName, fontSize: 20 }}>{r.type} · {t.name}</div>
-                <div style={{ ...scoreRow, marginTop: 4 }}>
-                  <span style={{ ...topScore, fontSize: 26 }}>{r.score}</span>
-                  <span style={{ fontSize: 13, color: "#8CA0B3" }}>/ {per}</span>
+              <div key={r.type} style={{ border: `1px solid ${COLOR.line}`, borderTop: `3px solid ${accent}`, borderRadius: 14, padding: "20px 18px", background: COLOR.paper }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: isCore ? "var(--gold-deep-text)" : COLOR.tealDeep }}>{rankLabel}</div>
+                <div className="serif" style={{ fontSize: 19, color: COLOR.navy, margin: "8px 0 2px", fontWeight: 500 }}>{r.type} · {t.name}</div>
+                <div style={{ fontSize: 34, fontWeight: 700, color: accent, fontVariantNumeric: NUM, lineHeight: 1 }}>
+                  {r.score}<span style={{ fontSize: 15, color: COLOR.inkMute, fontWeight: 600 }}> / {per}</span>
                 </div>
-                <p style={topDef}>{t.tagline}</p>
+                <div style={{ fontSize: 12.5, color: COLOR.inkSoft, marginTop: 8 }}>{t.tagline}</div>
               </div>
             );
           })}
         </div>
-        <p style={helper}>
-          A type is a starting point for growth, not a label to live inside. Every type reflects part of
-          God's image and every type has a way it gets pulled off center. Tap any type below to read its
-          profile, Scripture, and a short devotion.
-        </p>
       </section>
 
-      <section style={{ padding: "20px 0 8px" }}>
+      {/* ALL NINE TYPES — ranked bars, click to expand full profiles */}
+      <section style={{ padding: "24px 0 8px" }}>
         <div style={sectionLabel}>All nine types</div>
+        <h2 className="serif" style={{ ...discH2, margin: "0 0 16px" }}>Your full ranking</h2>
         <div style={chart}>
-          {ranked.map((r) => {
+          {ranked.map((r, idx) => {
             const t = ENNEAGRAM_TYPES[r.type] || {};
-            const isTop = r.type === scored.primary;
-            const color = isTop ? "#C4923E" : r.score >= (ranked[2]?.score || 0) ? "#2E7D8A" : "#8CA0B3";
+            const band = bandOf(r);
             const isOpen = open === r.type;
             return (
-              <div key={r.type} style={{ borderBottom: "1px solid #F0F2F4" }}>
-                <button onClick={() => setOpen(isOpen ? null : r.type)} style={barBtn} className="bar">
+              <div key={r.type} style={{ borderTop: idx === 0 ? "none" : "1px solid #F0F2F4" }}>
+                <button onClick={() => setOpen(isOpen ? null : r.type)} className="bar"
+                  style={{ width: "100%", display: "grid", gridTemplateColumns: "26px minmax(140px,1.15fr) 2.2fr 46px 16px", alignItems: "center", gap: 14, padding: "12px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
                   <span style={rRank}>{r.type}</span>
-                  <span style={rName}>{t.name}</span>
-                  <BarTrack frac={r.score / per} color={color} refs={[0.5]} />
-                  <span style={{ ...rScore, color, display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
-                    <span aria-hidden="true" style={{ fontSize: 9, color }}>{glyphFor(color)}</span>{r.score}
+                  <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                    {rankMark(band.shape, band.color)}
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: COLOR.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</span>
+                      <span style={{ display: "block", fontSize: 11.5, color: COLOR.inkMute }}>{t.tagline}</span>
+                    </span>
+                  </span>
+                  <BarTrack frac={per ? r.score / per : 0} color={band.color} />
+                  <span style={{ ...rScore, color: band.color, display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                    <span aria-hidden="true" style={{ fontSize: 9, color: band.color }}>{glyphFor(band.color)}</span>{r.score}
                   </span>
                   <span className="no-print" style={chevron(isOpen)}>›</span>
                 </button>
@@ -1460,41 +1595,79 @@ function EnneagramReport({ scored }) {
           })}
         </div>
         <p style={helper}>
-          Based on {total} choices. The Enneagram is a mirror to help you see yourself and grow toward
-          Christ, never the final word on who you are. In Him your truest identity is settled: loved,
-          chosen, and being made new.
+          A type is a starting point for growth, not a label to live inside. The Enneagram is a mirror to help
+          you see yourself and grow toward Christ, never the final word on who you are. In Him your truest
+          identity is settled: loved, chosen, and being made new. Based on {total} choices.
         </p>
       </section>
 
-      {/* Wings and growth — always rendered so it prints, never gated on a click */}
-      {(() => {
-        const dyn = enneagramDynamics(scored.primary);
-        if (!dyn) return null;
-        return (
-          <section style={{ padding: "20px 0 8px" }} className="avoid-break">
-            <div style={sectionLabel}>Wings and growth</div>
-            <div style={topGrid}>
+      {/* DEEP DIVE — gift / watch / grow, from the core type */}
+      <section style={{ padding: "24px 0 8px", breakInside: "avoid" }} className="avoid-break break-before">
+        <div style={sectionLabel}>A closer look</div>
+        <h2 className="serif" style={{ ...discH2, margin: "0 0 18px" }}>Inside {primaryType.name || "your type"}</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+            <div style={{ ...blockH, color: COLOR.tealDeep }}>Your gift to the body</div>
+            <p style={{ ...topDef, margin: "10px 0 0", fontSize: 14.5 }}>{primaryType.gift}</p>
+          </div>
+          <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+            <div style={{ ...blockH, color: "var(--gold-deep-text)" }}>Watch for</div>
+            <p style={{ ...topDef, margin: "10px 0 0", fontSize: 14.5 }}>{primaryType.watch}</p>
+          </div>
+        </div>
+        <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.mist, marginTop: 16, breakInside: "avoid" }}>
+          <div style={{ ...blockH, color: COLOR.tealDeep }}>Where you grow</div>
+          <p style={{ ...topDef, margin: "10px 0 0", fontSize: 14.5 }}>{primaryType.grows}</p>
+        </div>
+      </section>
+
+      {/* DEVOTION — blush card */}
+      {(primaryType.devotion || primaryType.verse) && (
+        <div style={{ marginTop: 26, breakInside: "avoid", background: "var(--blush)", border: "1px solid #EADFC9", borderRadius: 20, padding: "34px 38px" }} className="avoid-break">
+          <div aria-hidden="true" style={{ fontFamily: FONT_SERIF, fontSize: 52, lineHeight: 0.4, color: COLOR.gold, opacity: 0.55 }}>&ldquo;</div>
+          <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 21, lineHeight: 1.4, color: COLOR.ink, margin: "6px 0 16px" }}>{primaryType.devotion}</div>
+          <div style={{ fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--clay-text)", fontWeight: 700 }}>A Devotion · {primaryType.verse}</div>
+        </div>
+      )}
+
+      {/* WINGS & GROWTH — wing cards + colored-left-border arrow cards */}
+      {dyn && (
+        <section style={{ padding: "24px 0 8px" }} className="avoid-break">
+          <div style={sectionLabel}>Wings &amp; growth</div>
+          <h2 className="serif" style={{ ...discH2, margin: "0 0 6px" }}>The colors around your core</h2>
+          <p style={{ ...topDef, fontSize: 14.5, maxWidth: 560, marginBottom: 16 }}>
+            Your wings are the two types beside yours that color how your core shows up. The arrows show where
+            you tend to move when you are growing and when you are under strain, so you can lean into one and
+            watch for the other.
+          </p>
+          {Object.values(dyn.wings || {}).length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               {Object.values(dyn.wings).map((w) => (
-                <div key={w.label} style={{ ...topCard, breakInside: "avoid" }}>
-                  <div className="serif" style={{ ...topName, fontSize: 18 }}>{w.label}</div>
-                  <p style={{ ...topDef, marginTop: 8 }}>{w.body}</p>
+                <div key={w.label} style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                  <div className="serif" style={{ fontSize: 18, color: COLOR.navy, fontWeight: 600 }}>{w.label}</div>
+                  <p style={{ ...topDef, margin: "10px 0 0", fontSize: 14.5 }}>{w.body}</p>
                 </div>
               ))}
             </div>
-            <div style={{ ...growCard, marginTop: 16, breakInside: "avoid" }}>
-              <div style={blockH}>In growth (toward {dyn.arrows.growth.toward})</div>
-              <p style={{ ...detailP, margin: "0 0 14px" }}>{dyn.arrows.growth.body}</p>
-              <div style={blockH}>Under stress (toward {dyn.arrows.stress.toward})</div>
-              <p style={{ ...detailP, margin: 0 }}>{dyn.arrows.stress.body}</p>
+          )}
+          {(dyn.arrows?.growth || dyn.arrows?.stress) && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+              {dyn.arrows?.growth && (
+                <div style={{ border: `1px solid ${COLOR.line}`, borderLeft: "4px solid #3E7C63", borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                  <div style={{ ...blockH, color: "#3E7C63" }}>In growth → toward {nameOf(dyn.arrows.growth.toward)}</div>
+                  <p style={{ ...topDef, margin: "10px 0 0", fontSize: 14.5 }}>{dyn.arrows.growth.body}</p>
+                </div>
+              )}
+              {dyn.arrows?.stress && (
+                <div style={{ border: `1px solid ${COLOR.line}`, borderLeft: "4px solid #B4703A", borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                  <div style={{ ...blockH, color: "#B07C2E" }}>Under stress → toward {nameOf(dyn.arrows.stress.toward)}</div>
+                  <p style={{ ...topDef, margin: "10px 0 0", fontSize: 14.5 }}>{dyn.arrows.stress.body}</p>
+                </div>
+              )}
             </div>
-            <p style={helper}>
-              Your wings are the two types beside yours that color how your core shows up. The arrows show
-              where you tend to move when you are growing and when you are under strain, so you can lean into
-              one and watch for the other.
-            </p>
-          </section>
-        );
-      })()}
+          )}
+        </section>
+      )}
     </>
   );
 }
