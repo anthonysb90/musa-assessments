@@ -286,12 +286,17 @@ export async function POST(req) {
       try { await supabase.rpc("consume_seat", { p_code: body.access_code }); } catch { /* non-fatal */ }
     }
 
-    // Withheld churches: the taker never receives their own report (it's
-    // revealed in person). Look this up once; it gates the taker email below.
+    // Withheld results: per church + assessment. When the church gated THIS
+    // assessment, the taker never receives their own report (revealed in person).
     let churchWithhold = false;
     if (profile?.church_id) {
       try {
-        const { data: cw } = await supabase.from("churches").select("withhold_from_taker").eq("id", profile.church_id).maybeSingle();
+        const { data: cw } = await supabase
+          .from("church_assessments")
+          .select("withhold_from_taker")
+          .eq("church_id", profile.church_id)
+          .eq("assessment_id", assessment.id)
+          .maybeSingle();
         churchWithhold = cw?.withhold_from_taker === true;
       } catch { /* non-fatal */ }
     }

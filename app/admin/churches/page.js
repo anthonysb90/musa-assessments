@@ -13,6 +13,7 @@ export default function AdminChurches() {
   const [churches, setChurches] = useState([]);
   const [assessments, setAssessments] = useState([]);
   const [copied, setCopied] = useState("");
+  const [tab, setTab] = useState("active"); // active | pending
 
   async function load() {
     const { data } = await supabase.rpc("admin_churches");
@@ -46,14 +47,68 @@ export default function AdminChurches() {
 
       <NewChurch supabase={supabase} onDone={load} assessments={assessments} />
 
-      <div style={{ marginTop: 26, display: "grid", gap: 18 }}>
-        {churches.map((c) => (
-          <ChurchCard key={c.id} c={c} supabase={supabase} assessments={assessments}
-            onChange={load} copied={copied} setCopied={setCopied} />
-        ))}
-        {churches.length === 0 && <p style={{ color: "var(--ink-soft)" }}>No churches yet. Add your first one above.</p>}
-      </div>
+      {(() => {
+        const pending = churches.filter((c) => c.status === "pending");
+        const active = churches.filter((c) => c.status !== "pending");
+        const list = tab === "pending" ? pending : active;
+        return (
+          <>
+            <div style={{ display: "flex", gap: 4, background: "#EEF1F4", borderRadius: 10, padding: 4, marginTop: 24, width: "fit-content" }}>
+              <button onClick={() => setTab("active")} style={{ ...seg, ...(tab === "active" ? segOn : {}) }}>Active ({active.length})</button>
+              <button onClick={() => setTab("pending")} style={{ ...seg, ...(tab === "pending" ? segOn : {}) }}>
+                Requests{pending.length ? ` (${pending.length})` : ""}
+              </button>
+            </div>
+            <div style={{ marginTop: 18, display: "grid", gap: 18 }}>
+              {tab === "pending"
+                ? list.map((c) => <PendingCard key={c.id} c={c} supabase={supabase} onChange={load} setTab={setTab} />)
+                : list.map((c) => <ChurchCard key={c.id} c={c} supabase={supabase} assessments={assessments} onChange={load} copied={copied} setCopied={setCopied} />)}
+              {list.length === 0 && (
+                <p style={{ color: "var(--ink-soft)" }}>
+                  {tab === "pending" ? "No pending partnership requests." : "No active churches yet. Add one above."}
+                </p>
+              )}
+            </div>
+          </>
+        );
+      })()}
     </main>
+  );
+}
+
+function PendingCard({ c, supabase, onChange, setTab }) {
+  const [busy, setBusy] = useState(false);
+  async function approve() {
+    setBusy(true);
+    await supabase.rpc("admin_approve_church", { p_id: c.id });
+    setBusy(false); setTab("active"); onChange();
+  }
+  return (
+    <div style={{ ...card, borderLeft: "5px solid #C4923E" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <span style={{ ...badge, marginBottom: 6, display: "inline-block" }}>Partnership request</span>
+          <div className="serif" style={{ fontSize: 21, color: "var(--ink)" }}>{c.name}</div>
+          <div style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 4, lineHeight: 1.7 }}>
+            {c.district ? <>District: {c.district}<br /></> : null}
+            Email: {c.recipient_email || "—"}{c.phone ? ` · ${c.phone}` : ""}<br />
+            {c.admin_email ? <>Extra admin: {c.admin_email}<br /></> : null}
+            Assessments requested: {(c.requested_slugs || []).length ? c.requested_slugs.join(", ") : "none specified"}<br />
+            Reveal results in person: <strong>{c.requested_gate ? "Yes" : "No"}</strong>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            {c.logo_url && <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 10px" }}><img src={c.logo_url} alt="color logo" style={{ height: 30 }} /></span>}
+            {c.logo_white_url && <span style={{ background: "#1B3A57", borderRadius: 8, padding: "6px 10px" }}><img src={c.logo_white_url} alt="white logo" style={{ height: 30 }} /></span>}
+          </div>
+        </div>
+        <button className="btn btn-primary" disabled={busy} onClick={approve} style={{ padding: "10px 22px" }}>
+          {busy ? "Approving…" : "Approve →"}
+        </button>
+      </div>
+      <div style={{ fontSize: 12.5, color: "#8CA0B3", marginTop: 12 }}>
+        Approving activates the church, assigns the requested assessments (with the gate they chose), and gives the contacts dashboard access.
+      </div>
+    </div>
   );
 }
 
@@ -97,7 +152,7 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
   const [f, setF] = useState({
     name: c.name, city: c.city || "", state: c.state || "", district: c.district || "",
     email: c.recipient_email || "", email2: c.recipient_email_2 || "", visibility: c.results_visibility,
-    withhold: !!c.withhold_from_taker, logo: c.logo_url || "",
+    logo: c.logo_url || "",
   });
   const [assigned, setAssigned] = useState(new Set(c.assigned_slugs || []));
   const [invite, setInvite] = useState("");
@@ -109,7 +164,7 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
       p_id: c.id, p_name: f.name, p_city: f.city, p_state: f.state, p_district: f.district,
       p_email: f.email, p_email2: f.email2, p_visibility: f.visibility,
     });
-    await supabase.rpc("admin_set_church_branding", { p_church_id: c.id, p_withhold: f.withhold, p_logo: f.logo });
+    await supabase.rpc("admin_set_church_branding", { p_church_id: c.id, p_withhold: false, p_logo: f.logo });
     setBusy(""); setEdit(false); onChange();
   }
   async function toggleAssessment(slug) {
@@ -118,6 +173,29 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
     setAssigned(next);
     await supabase.rpc("admin_set_church_assessments", { p_church_id: c.id, p_slugs: [...next] });
     onChange();
+  }
+  // Per-assessment gate: hold this assessment's results back from the taker.
+  async function setGate(slug, withhold) {
+    await supabase.rpc("admin_set_assessment_gate", { p_church_id: c.id, p_slug: slug, p_withhold: withhold });
+    onChange();
+  }
+  // Logo upload: read, resize in a canvas, store as a data URI on the church.
+  function onLogoFile(e) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, 360 / img.width);
+        const cnv = document.createElement("canvas");
+        cnv.width = Math.round(img.width * scale); cnv.height = Math.round(img.height * scale);
+        cnv.getContext("2d").drawImage(img, 0, 0, cnv.width, cnv.height);
+        const type = file.type === "image/png" ? "image/png" : "image/jpeg";
+        setF((s) => ({ ...s, logo: cnv.toDataURL(type, 0.9) }));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   }
   async function inviteUser() {
     if (!invite.trim()) return;
@@ -149,7 +227,7 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
             Results to: {c.recipient_email || "—"}{c.recipient_email_2 ? `, ${c.recipient_email_2}` : ""}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-            {c.withhold_from_taker && <span style={badge}>Results withheld from taker</span>}
+            {(c.links || []).some((l) => l.withhold) && <span style={badge}>{(c.links || []).filter((l) => l.withhold).length} revealed in person</span>}
             {c.logo_url && <span style={{ ...badge, background: "#EAF3F4", color: "#1F5E68", borderColor: "#CFE3E5" }}>Church-branded reports</span>}
           </div>
         </div>
@@ -173,55 +251,61 @@ function ChurchCard({ c, supabase, assessments, onChange, copied, setCopied }) {
               <option value="aggregate_only">Aggregate only</option>
             </select>
           </label>
-          <label style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13.5, color: "var(--ink)", background: "#F7F9FA", borderRadius: 10, padding: "12px 14px", margin: "0 0 12px" }}>
-            <input type="checkbox" checked={f.withhold} onChange={(e) => setF({ ...f, withhold: e.target.checked })} style={{ marginTop: 3 }} />
-            <span>
-              <strong>Withhold results from the taker.</strong> The person does not see their own report. Only the church and Mission USA can, so a leader can reveal and discuss results in person.
-            </span>
-          </label>
           <div style={{ marginBottom: 12 }}>
-            <Field label="Church logo URL (brands this church's reports)" v={f.logo} on={(v) => setF({ ...f, logo: v })} />
-            <div style={{ fontSize: 12, color: "#8CA0B3", marginTop: 4 }}>Paste a public image URL (PNG/JPG). It appears on the reports of members who take assessments through this church.</div>
+            <span style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>Church logo (brands this church's reports)</span>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              {f.logo && <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}><img src={f.logo} alt="logo" style={{ height: 34 }} /></span>}
+              <label className="btn btn-ghost" style={{ padding: "8px 14px", cursor: "pointer" }}>
+                {f.logo ? "Replace logo" : "Upload logo"}
+                <input type="file" accept="image/png,image/jpeg" onChange={onLogoFile} style={{ display: "none" }} />
+              </label>
+              {f.logo && <button onClick={() => setF({ ...f, logo: "" })} style={linkBtn}>Remove</button>}
+            </div>
+            <div style={{ fontSize: 12, color: "#8CA0B3", marginTop: 4 }}>PNG or JPG. It appears alongside the Mission USA logo on members' reports. Remember to Save.</div>
           </div>
           <button className="btn btn-primary" disabled={busy === "info"} onClick={saveInfo}>{busy === "info" ? "Saving…" : "Save church"}</button>
         </div>
       )}
 
       <div style={{ marginTop: 16 }}>
-        <div style={secH}>Assessments this church receives</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {assessments.map((a) => {
-            const on = assigned.has(a.slug);
+        <div style={secH}>Assigned assessments</div>
+        <div style={{ display: "grid", gap: 8 }}>
+          {(c.links || []).map((l) => {
+            const url = `${APP_URL}/assessment/${l.slug}?a=${l.token}`;
+            const key = c.id + l.slug;
             return (
-              <button key={a.slug} onClick={() => toggleAssessment(a.slug)}
-                style={{ ...chip, ...(on ? chipOn : {}) }}>
-                {on ? "✓ " : ""}{a.name}
-              </button>
+              <div key={l.slug} style={{ background: "#F7F9FA", borderRadius: 10, padding: "10px 12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{l.name}</span>
+                  <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                    <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, color: l.withhold ? "#B07C2E" : "var(--ink-soft)", fontWeight: l.withhold ? 700 : 400 }}>
+                      <input type="checkbox" checked={!!l.withhold} onChange={(e) => setGate(l.slug, e.target.checked)} />
+                      Reveal in person
+                    </label>
+                    <button onClick={() => toggleAssessment(l.slug)} style={linkBtn}>Remove</button>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+                  <code style={code}>{url}</code>
+                  <button className="btn btn-ghost" style={{ padding: "5px 12px", fontSize: 13 }} onClick={() => copy(url, key)}>{copied === key ? "Copied ✓" : "Copy link"}</button>
+                </div>
+              </div>
             );
           })}
+          {(c.links || []).length === 0 && <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>No assessments assigned yet.</span>}
         </div>
+        {assessments.filter((a) => !assigned.has(a.slug)).length > 0 && (
+          <>
+            <div style={{ fontSize: 12, color: "#8CA0B3", margin: "12px 0 6px" }}>Add an assessment:</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {assessments.filter((a) => !assigned.has(a.slug)).map((a) => (
+                <button key={a.slug} onClick={() => toggleAssessment(a.slug)} style={chip}>+ {a.name}</button>
+              ))}
+            </div>
+          </>
+        )}
+        <div style={{ fontSize: 12, color: "#8CA0B3", marginTop: 8 }}>"Reveal in person" hides that assessment's results from the member so a leader can go over them together. The church and Mission USA still see everything.</div>
       </div>
-
-      {(c.links || []).length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div style={secH}>Pre-filled assignment links (share with the church)</div>
-          <div style={{ display: "grid", gap: 6 }}>
-            {c.links.map((l) => {
-              const url = `${APP_URL}/assessment/${l.slug}?a=${l.token}`;
-              const key = c.id + l.slug;
-              return (
-                <div key={l.token} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", minWidth: 150 }}>{l.name}</span>
-                  <code style={code}>{url}</code>
-                  <button className="btn btn-ghost" style={{ padding: "5px 12px", fontSize: 13 }} onClick={() => copy(url, key)}>
-                    {copied === key ? "Copied ✓" : "Copy"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div style={{ marginTop: 16 }}>
         <div style={secH}>Church dashboard users</div>
@@ -267,3 +351,5 @@ const chipOn = { background: "var(--navy)", borderColor: "var(--navy)", color: "
 const code = { fontSize: 12, color: "#4A5B6D", wordBreak: "break-all", background: "#F6F8FA", padding: "6px 8px", borderRadius: 8, flex: 1 };
 const linkBtn = { background: "transparent", border: "none", color: "#B4703A", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline" };
 const badge = { fontSize: 11, fontWeight: 700, color: "#B07C2E", background: "#F5EFE6", border: "1px solid #EADFC9", padding: "3px 9px", borderRadius: 999, letterSpacing: ".02em" };
+const seg = { border: "none", background: "transparent", color: "var(--ink-soft)", fontSize: 13.5, fontWeight: 600, padding: "7px 16px", borderRadius: 7, cursor: "pointer" };
+const segOn = { background: "var(--navy)", color: "#fff" };
