@@ -112,21 +112,51 @@ function PendingCard({ c, supabase, onChange, setTab }) {
   );
 }
 
+const EMPTY = { name: "", city: "", state: "", district: "", email: "", email2: "", visibility: "individual_named", logo: "", slugs: [], gates: {} };
 function NewChurch({ supabase, onDone, assessments }) {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ name: "", city: "", state: "", district: "", email: "", email2: "", visibility: "individual_named" });
+  const [f, setF] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+
+  const toggleSlug = (slug) => setF((s) => ({ ...s, slugs: s.slugs.includes(slug) ? s.slugs.filter((x) => x !== slug) : [...s.slugs, slug] }));
+  const toggleGate = (slug) => setF((s) => ({ ...s, gates: { ...s.gates, [slug]: !s.gates[slug] } }));
+  function onLogo(e) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, 360 / img.width);
+        const cnv = document.createElement("canvas");
+        cnv.width = Math.round(img.width * scale); cnv.height = Math.round(img.height * scale);
+        cnv.getContext("2d").drawImage(img, 0, 0, cnv.width, cnv.height);
+        const type = file.type === "image/png" ? "image/png" : "image/jpeg";
+        setF((s) => ({ ...s, logo: cnv.toDataURL(type, 0.9) }));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function save() {
     if (!f.name.trim()) return;
     setSaving(true);
-    await supabase.rpc("admin_upsert_church", {
+    const { data: id } = await supabase.rpc("admin_upsert_church", {
       p_id: null, p_name: f.name, p_city: f.city, p_state: f.state, p_district: f.district,
       p_email: f.email, p_email2: f.email2, p_visibility: f.visibility,
     });
-    setSaving(false); setOpen(false);
-    setF({ name: "", city: "", state: "", district: "", email: "", email2: "", visibility: "individual_named" });
-    onDone();
+    if (id) {
+      if (f.logo) await supabase.rpc("admin_set_church_branding", { p_church_id: id, p_withhold: false, p_logo: f.logo });
+      if (f.slugs.length) {
+        await supabase.rpc("admin_set_church_assessments", { p_church_id: id, p_slugs: f.slugs });
+        for (const slug of f.slugs) {
+          if (f.gates[slug]) await supabase.rpc("admin_set_assessment_gate", { p_church_id: id, p_slug: slug, p_withhold: true });
+        }
+      }
+    }
+    setSaving(false); setOpen(false); setF(EMPTY); onDone();
   }
+
   if (!open) return <button className="btn btn-primary" onClick={() => setOpen(true)}>+ Onboard a church</button>;
   return (
     <div style={{ ...card, marginTop: 8 }}>
@@ -139,9 +169,42 @@ function NewChurch({ supabase, onDone, assessments }) {
         <Field label="Results recipient email" v={f.email} on={(v) => setF({ ...f, email: v })} />
         <Field label="Second recipient (optional)" v={f.email2} on={(v) => setF({ ...f, email2: v })} />
       </div>
-      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+
+      <div style={{ ...secH, marginTop: 18 }}>Church logo (optional)</div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        {f.logo && <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}><img src={f.logo} alt="logo" style={{ height: 32 }} /></span>}
+        <label className="btn btn-ghost" style={{ padding: "8px 14px", cursor: "pointer" }}>
+          {f.logo ? "Replace logo" : "Upload logo"}
+          <input type="file" accept="image/png,image/jpeg" onChange={onLogo} style={{ display: "none" }} />
+        </label>
+        {f.logo && <button onClick={() => setF({ ...f, logo: "" })} style={linkBtn}>Remove</button>}
+      </div>
+
+      <div style={{ ...secH, marginTop: 18 }}>Assessments for this church</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {assessments.map((a) => {
+          const on = f.slugs.includes(a.slug);
+          return <button key={a.slug} onClick={() => toggleSlug(a.slug)} style={{ ...chip, ...(on ? chipOn : {}) }}>{on ? "✓ " : ""}{a.name}</button>;
+        })}
+      </div>
+      {f.slugs.length > 0 && (
+        <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+          <div style={{ fontSize: 12, color: "#8CA0B3" }}>Reveal results in person (hide from the taker) for:</div>
+          {f.slugs.map((slug) => {
+            const a = assessments.find((x) => x.slug === slug);
+            return (
+              <label key={slug} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, color: f.gates[slug] ? "#B07C2E" : "var(--ink)" }}>
+                <input type="checkbox" checked={!!f.gates[slug]} onChange={() => toggleGate(slug)} />
+                {a?.name || slug}
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
         <button className="btn btn-primary" disabled={saving || !f.name.trim()} onClick={save}>{saving ? "Saving…" : "Create church"}</button>
-        <button className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
+        <button className="btn btn-ghost" onClick={() => { setOpen(false); setF(EMPTY); }}>Cancel</button>
       </div>
     </div>
   );
