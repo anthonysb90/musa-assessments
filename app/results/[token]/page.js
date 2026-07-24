@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getSupabase } from "../../lib/supabase";
 import { REPORT_CREDIT } from "../../lib/config";
@@ -182,6 +182,43 @@ export default function ResultsPage() {
   );
 }
 
+/* ---------------- ReportBoundary ----------------
+   Contains any render fault in a single report so a bad renderer shows a clear,
+   contained message instead of blanking the whole app with a client exception.
+   In preview mode it surfaces the actual error so an admin can report it. */
+class ReportBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    // Surface to the console for debugging; kept out of the printed report.
+    if (typeof console !== "undefined") console.error("Report render error:", error, info);
+  }
+  render() {
+    if (this.state.error) {
+      const dev = this.props.preview;
+      return (
+        <div style={{ margin: "24px 0", background: "#FDF7F2", border: "1px solid #EADFC9", borderLeft: "4px solid var(--gold,#C4923E)", borderRadius: 12, padding: "18px 20px", lineHeight: 1.55 }}>
+          <div style={{ fontWeight: 700, color: "#1B3A57", marginBottom: 6 }}>This section couldn't be displayed.</div>
+          <div style={{ fontSize: 14, color: "#5A6A78" }}>
+            The rest of your report is intact. If this keeps happening, let us know which assessment it was.
+          </div>
+          {dev && this.state.error?.message && (
+            <pre style={{ marginTop: 12, whiteSpace: "pre-wrap", fontSize: 12.5, color: "#9B2C2C", background: "#fff", border: "1px solid #F3C9C9", borderRadius: 8, padding: "10px 12px", overflow: "auto" }}>
+              {String(this.state.error.message)}
+            </pre>
+          )}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /* ---------------- ReportView (shared report presentation) ----------------
    The complete report — cover, Save PDF / Print actions, the scored.type
    renderer switch, wellbeing card, Ministry Profile, CircleInvite, footer, and
@@ -267,6 +304,7 @@ export function ReportView({ scored, meta, contact, brand, wb, synth, isAdmin, t
           </div>
 
           <div className="sheet">
+            <ReportBoundary preview={preview}>
             {scored.type === "gift-rank" && <GiftRank scored={scored} />}
             {scored.type === "ranked-sum" && <RankedSum scored={scored} />}
             {scored.type === "domain-bands" &&
@@ -283,6 +321,7 @@ export function ReportView({ scored, meta, contact, brand, wb, synth, isAdmin, t
             {scored.type === "pillar" && <PastorReport scored={scored} />}
             {scored.type === "leadership-stool" && <LeadershipReport scored={scored} />}
             {scored.type === "domain-average" && <DomainReport scored={scored} />}
+            </ReportBoundary>
 
             {wb && <WellbeingCard wb={wb} />}
 
@@ -389,23 +428,23 @@ const firstRef = (refs) => String(refs || "").split("·")[0].trim();
 function GiftRank({ scored }) {
   const [open, setOpen] = useState(null);
   const ranked = useMemo(
-    () => scored.ranked.map((g, i) => ({ ...g, ...GIFTS[g.letter], rank: i, tier: i < 3 ? "top" : i < 8 ? "mid" : "low" })),
+    () => (Array.isArray(scored?.ranked) ? scored.ranked : []).map((g, i) => ({ ...g, ...GIFTS[g.letter], rank: i, tier: i < 3 ? "top" : i < 8 ? "mid" : "low" })),
     [scored]
   );
   const topThree = ranked.slice(0, 3);
-  const per = scored.max_per || 15;
-  const ticks = [0, Math.round(per / 3), Math.round((2 * per) / 3), per];
-  // Per-gift denominator: each gift's own max (its item count times the max
-  // score per item) so bars are comparable even when gifts have different
-  // numbers of items. Falls back to the shared `per` whenever count/smax
-  // aren't available yet (older scoring), so nothing crashes.
-  const smax = scored.smax;
+  const per = scored?.max_per || 15;
+  // Per-gift denominator: each gift's own max (item count times max score per
+  // item) so bars are comparable even when gifts have different item counts.
+  // Falls back to the shared `per` whenever count/smax aren't available yet
+  // (older scoring), so nothing crashes.
+  const smax = scored?.smax;
   const counts = ranked.map((g) => g.count).filter((c) => typeof c === "number");
   const maxCount = counts.length ? Math.max(...counts) : undefined;
   const denomFor = (g) => {
     const c = g.count ?? maxCount;
     return (typeof c === "number" && typeof smax === "number") ? c * smax : per;
   };
+  const tierColor = (t) => (t === "top" ? COLOR.gold : t === "mid" ? COLOR.teal : "#8CA0B3");
   // Tie disclosure for the top of the ladder (ranks 1-4): equal scores are
   // equal strengths, so we say so rather than implying a strict order.
   const tiePairs = [];
@@ -418,74 +457,75 @@ function GiftRank({ scored }) {
   const tieNote = tieClauses.length
     ? `Your ${tieClauses.join(", and your ")} gifts scored the same, so hold them as equal strengths rather than a strict order.`
     : null;
+  const goldLabel = { ...blockH, color: "var(--gold-deep-text)" };
 
   return (
     <>
-      {/* Illuminated top-3 triptych */}
-      <section style={{ padding: "6px 0 4px" }} className="avoid-break">
-        <div style={{ ...sectionLabel, color: "#B07C2E" }}>Your three strongest gifts</div>
-        <div style={gfTriptych}>
-          {topThree.map((g) => (
-            <div key={g.letter} style={gfPanel}>
-              <div style={gfIllum}>
-                <span className="serif" style={gfCap}>{g.name.charAt(0)}</span>
-                <span style={gfRankTag}>{ordinal(g.rank + 1)}</span>
+      {/* STRONGEST GIFTS — signature top-three feature */}
+      <section style={{ padding: "8px 0 4px" }} className="avoid-break">
+        <div style={sectionLabel}>Your strongest gifts</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+          {topThree.map((g, i) => {
+            const accent = i === 0 ? COLOR.gold : COLOR.teal;
+            const grad = i === 0
+              ? "linear-gradient(135deg,#C4923E,#A87A2E)"
+              : "linear-gradient(135deg,#2E7D8A,#1F5E68)";
+            return (
+              <div key={g.letter} style={{ position: "relative", border: `1px solid ${COLOR.line}`, borderTop: `3px solid ${accent}`, borderRadius: 16, padding: "24px 20px 22px", background: COLOR.paper, textAlign: "center", boxShadow: "0 10px 30px rgba(27,58,87,.06)", breakInside: "avoid" }}>
+                <span style={{ position: "absolute", top: 14, right: 14, fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: i === 0 ? "var(--gold-deep-text)" : COLOR.tealDeep }}>{ordinal(i + 1)}</span>
+                <div aria-hidden="true" style={{ width: 58, height: 58, margin: "0 auto 14px", borderRadius: 14, background: grad, display: "grid", placeItems: "center", boxShadow: "inset 0 0 0 2px rgba(255,255,255,.35), 0 8px 20px rgba(27,58,87,.14)" }}>
+                  <span className="serif" style={{ fontSize: 30, color: "#fff", lineHeight: 1 }}>{(g.name || "?").charAt(0)}</span>
+                </div>
+                <div className="serif" style={{ fontSize: 20, color: COLOR.navy, fontWeight: 500, lineHeight: 1.15 }}>{g.name}</div>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, margin: "8px 0 12px" }}>
+                  <span style={{ fontSize: 30, fontWeight: 700, color: accent, fontVariantNumeric: NUM, lineHeight: 1 }}>{g.score}</span>
+                  <span style={{ fontSize: 13, color: COLOR.inkMute, fontWeight: 600 }}>/ {denomFor(g)}</span>
+                </div>
+                <p style={{ fontSize: 13, color: COLOR.inkSoft, lineHeight: 1.5, margin: "0 0 12px" }}>{g.def}</p>
+                <div style={{ fontSize: 11.5, color: "var(--clay-text)", fontStyle: "italic", fontWeight: 600, borderTop: `1px solid ${COLOR.line}`, paddingTop: 10 }}>{firstRef(g.refs)}</div>
               </div>
-              <div className="serif" style={gfName}>{g.name}</div>
-              <div style={gfScoreRow}>
-                <span style={gfScore}>{g.score}</span>
-                <span style={{ fontSize: 13, color: "#A9895A", fontWeight: 600 }}>/ {denomFor(g)}</span>
-              </div>
-              <p style={gfPanelDef}>{g.def}</p>
-              <div style={gfVerse}>{firstRef(g.refs)}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-        {tieNote && (
-          <div style={transitionBox}>{tieNote}</div>
-        )}
+        {tieNote && <div style={transitionBox}>{tieNote}</div>}
         <p style={helper}>
           These are the places you are most clearly wired to serve. Every gift you carry is ranked
-          below, on a single scale, so you can see your whole profile at a glance.
+          below, each on its own scale, so you can see your whole profile at a glance.
         </p>
       </section>
 
-      {/* The gift ladder — all 25, calibrated */}
-      <section style={{ padding: "20px 0 4px" }}>
-        <div style={sectionLabel}>Your gift ladder · all 25 ranked</div>
+      {/* THE GIFT LADDER — all ranked, calibrated, tap to expand */}
+      <section style={{ padding: "22px 0 4px" }}>
+        <div style={sectionLabel}>Your gift ladder · all {ranked.length} ranked</div>
         <div style={chart}>
-          <div style={gfScale}>
-            <span style={gfScaleName} />
-            <span style={{ position: "relative", flex: 1, height: 14 }}>
-              {ticks.map((t) => (
-                <span key={t} style={{ position: "absolute", left: `${(t / per) * 100}%`, transform: "translateX(-50%)", fontSize: 10.5, color: "#B4BEC9", fontWeight: 600 }}>{t}</span>
-              ))}
-            </span>
-            <span style={{ width: 34 }} />
-          </div>
           {ranked.map((g) => {
-            const color = g.tier === "top" ? "#C4923E" : g.tier === "mid" ? "#2E7D8A" : "#9AA7B3";
+            const color = tierColor(g.tier);
             const isOpen = open === g.letter;
+            const frac = Math.min(1, g.score / (denomFor(g) || 1));
             return (
-              <div key={g.letter} style={{ borderBottom: "1px solid #F0F2F4" }} className="avoid-break">
-                <button onClick={() => setOpen(isOpen ? null : g.letter)} style={gfRow} className="bar">
-                  <span style={{ ...gfRank, color: g.tier === "top" ? "#B07C2E" : "#8CA0B3" }}>{g.rank + 1}</span>
-                  <span style={gfRowName}>{g.name}{g.tier === "top" && <span style={{ color: "#C4923E", marginLeft: 6 }}>★</span>}</span>
-                  <span style={gfTrack}>
-                    <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, (g.score / denomFor(g)) * 100)}%`, background: color, borderRadius: 999 }} />
+              <div key={g.letter} style={{ borderTop: g.rank === 0 ? "none" : "1px solid #F0F2F4" }} className="avoid-break">
+                <button onClick={() => setOpen(isOpen ? null : g.letter)} className="bar"
+                  style={{ width: "100%", display: "grid", gridTemplateColumns: "26px minmax(140px,1.3fr) 2.2fr 46px 16px", alignItems: "center", gap: 14, padding: "12px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                  <span style={{ ...rRank, color: g.tier === "top" ? "var(--gold-deep-text)" : COLOR.inkMute }}>{g.rank + 1}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                    <BandMark color={color} />
+                    <span style={{ fontSize: 14.5, fontWeight: 600, color: COLOR.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</span>
                   </span>
-                  <span style={{ ...gfRowScore, color }}>{g.score}</span>
+                  <BarTrack frac={frac} color={color} refs={[1 / 3, 2 / 3]} />
+                  <span style={{ ...rScore, color, display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                    <span aria-hidden="true" style={{ fontSize: 9, color }}>{glyphFor(color)}</span>{g.score}
+                  </span>
                   <span className="no-print" style={chevron(isOpen)}>›</span>
                 </button>
-                <div className={`gift-study${isOpen ? " is-open" : ""}`} style={gfStudy}>
+                <div className={`gift-study${isOpen ? " is-open" : ""}`} style={detail}>
                   <p style={{ ...detailP, marginTop: 0 }}>{g.def}</p>
-                  <div style={gfVerseCallout}>
-                    <span style={{ fontSize: 10.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, display: "block", marginBottom: 4 }}>In Scripture</span>
-                    {g.refs}
+                  <div style={{ background: "var(--blush)", border: "1px solid #EADFC9", borderRadius: 12, padding: "12px 16px", margin: "0 0 14px" }}>
+                    <div style={{ ...blockH, color: "var(--clay-text)", marginBottom: 4 }}>In Scripture</div>
+                    <span style={{ fontSize: 13, color: COLOR.inkSoft, lineHeight: 1.5 }}>{g.refs}</span>
                   </div>
-                  <div style={gfTwoCol}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 18 }}>
                     <div><div style={blockH}>Where this gift serves</div><p style={{ ...detailP, margin: 0 }}>{g.roles}</p></div>
-                    <div><div style={blockH}>Growing in this gift</div><p style={{ ...detailP, margin: 0 }}>{g.develop}</p></div>
+                    <div><div style={goldLabel}>Growing in this gift</div><p style={{ ...detailP, margin: 0 }}>{g.develop}</p></div>
                   </div>
                 </div>
               </div>
@@ -495,95 +535,96 @@ function GiftRank({ scored }) {
         <p style={helper}>
           Every gift is scored against itself, on the same scale, so the ladder shows your true order.
           A lower gift is not a weakness; it simply is not where you are most strongly wired. Tap any
-          gift to read where it serves and how to grow in it. Your full report prints all twenty-five.
+          gift to read where it serves and how to grow in it. Your full report prints them all.
         </p>
       </section>
 
-      {/* Your gift constellation — what the top gifts form together */}
+      {/* YOUR GIFT CONSTELLATION — what the top gifts form together */}
       {(() => {
         const c = giftConstellation(ranked.map((r) => r.letter));
+        if (!c) return null;
         return (
-          <section style={{ padding: "20px 0 4px" }} className="avoid-break">
-            <div style={{ ...sectionLabel, color: "#B07C2E" }}>Your gift constellation</div>
-            <div style={{ background: PARCH, border: "1px solid #E7D6B4", borderRadius: 16, padding: "22px 22px 20px", breakInside: "avoid" }}>
-              <div className="serif" style={{ fontSize: 23, color: "#3A2E18", lineHeight: 1.15 }}>{c.name}</div>
-              <p style={{ fontSize: 14.5, color: "#6B5B3E", lineHeight: 1.6, margin: "10px 0 14px" }}>{c.body}</p>
-              <div style={{ fontSize: 10.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 6 }}>Where this fits</div>
-              <ul style={{ margin: "0 0 14px", paddingLeft: 18 }}>
-                {c.fits.map((f, i) => (
-                  <li key={i} style={{ fontSize: 13.5, color: "#6B5B3E", lineHeight: 1.5, marginBottom: 4 }}>{f}</li>
-                ))}
-              </ul>
-              <p style={{ fontSize: 13.5, color: "#6B5B3E", lineHeight: 1.55, margin: "0 0 12px" }}>
-                <strong style={{ color: "#8A6D3B" }}>Watch for:</strong> {c.watch}
-              </p>
-              <div style={{ fontSize: 11.5, color: "#8A6D3B", fontWeight: 600, fontStyle: "italic", borderTop: "1px solid #E7D6B4", paddingTop: 10 }}>{c.verse}</div>
+          <section style={{ padding: "22px 0 4px" }} className="avoid-break">
+            <div style={sectionLabel}>Your gift constellation</div>
+            <div style={{ background: COLOR.paper, border: `1px solid ${COLOR.line}`, borderLeft: `4px solid ${COLOR.gold}`, borderRadius: 16, padding: "26px 28px", breakInside: "avoid" }}>
+              <div className="serif" style={{ fontSize: 23, color: COLOR.navy, fontWeight: 500, lineHeight: 1.15 }}>{c.name}</div>
+              <p style={{ ...topDef, fontSize: 15, margin: "12px 0 16px", lineHeight: 1.6 }}>{c.body}</p>
+              {Array.isArray(c.fits) && c.fits.length > 0 && (
+                <>
+                  <div style={blockH}>Where this fits</div>
+                  <ul style={{ margin: "6px 0 16px", paddingLeft: 18 }}>
+                    {c.fits.map((f, i) => (
+                      <li key={i} style={{ fontSize: 14, color: COLOR.inkSoft, lineHeight: 1.55, marginBottom: 4 }}>{f}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {c.watch && (
+                <p style={{ fontSize: 14, color: COLOR.inkSoft, lineHeight: 1.55, margin: "0 0 16px" }}>
+                  <strong style={{ color: "var(--gold-deep-text)" }}>Watch for:</strong> {c.watch}
+                </p>
+              )}
+              {c.verse && (
+                <div style={{ background: "var(--blush)", border: "1px solid #EADFC9", borderRadius: 12, padding: "12px 16px" }}>
+                  <span style={{ fontSize: 12, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--clay-text)", fontWeight: 700 }}>Scripture · {c.verse}</span>
+                </div>
+              )}
             </div>
           </section>
         );
       })()}
 
-      {/* Your top gift, up close — a richer deep dive on the #1 gift only */}
+      {/* YOUR TOP GIFT, UP CLOSE — deep dive on the #1 gift only */}
       {(() => {
-        const topLetter = scored.top_letter || scored.ranked[0]?.letter;
+        const topLetter = scored?.top_letter || scored?.ranked?.[0]?.letter;
         const g = GIFTS[topLetter];
         if (!g) return null;
-        const items = scored.playback?.top_items || [];
+        const items = scored?.playback?.top_items || [];
         const devSteps = String(g.develop || "")
           .split(". ")
           .map((s) => s.replace(/\.$/, "").trim())
           .filter(Boolean);
         const weeks = [
-          {
-            label: "Week 1 · Notice",
-            body: `Watch for the places your gift of ${g.name} is already quietly at work, and thank God for each one. Sit with the passages above and ask Him to show you what this gift is for.`,
-          },
-          {
-            label: "Week 2 · Learn",
-            body: `${devSteps[0] ? devSteps[0] + "." : "Study how this gift shows up in Scripture."} Give it real, unhurried time this week rather than a passing thought.`,
-          },
-          {
-            label: "Week 3 · Practice",
-            body: `${devSteps[1] ? devSteps[1] + "." : "Take one small, low-risk step to use this gift with someone you trust."} Start small and let it be genuine rather than polished.`,
-          },
-          {
-            label: "Week 4 · Serve",
-            body: `${devSteps[2] || devSteps[1] ? (devSteps[2] || devSteps[1]) + "." : "Offer this gift in one concrete act of service."} Then ask a mature believer for honest feedback, and plan how you will keep serving from ${g.name.toLowerCase()} beyond these four weeks.`,
-          },
+          { label: "Week 1 · Notice", body: `Watch for the places your gift of ${g.name} is already quietly at work, and thank God for each one. Sit with the passages above and ask Him to show you what this gift is for.` },
+          { label: "Week 2 · Learn", body: `${devSteps[0] ? devSteps[0] + "." : "Study how this gift shows up in Scripture."} Give it real, unhurried time this week rather than a passing thought.` },
+          { label: "Week 3 · Practice", body: `${devSteps[1] ? devSteps[1] + "." : "Take one small, low-risk step to use this gift with someone you trust."} Start small and let it be genuine rather than polished.` },
+          { label: "Week 4 · Serve", body: `${(devSteps[2] || devSteps[1]) ? (devSteps[2] || devSteps[1]) + "." : "Offer this gift in one concrete act of service."} Then ask a mature believer for honest feedback, and plan how you will keep serving from ${(g.name || "this gift").toLowerCase()} beyond these four weeks.` },
         ];
-        const goldLabel = { fontSize: 10.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 6, marginTop: 16 };
         return (
-          <section style={{ padding: "20px 0 4px" }} className="avoid-break">
-            <div style={{ ...sectionLabel, color: "#B07C2E" }}>Your top gift, up close</div>
-            <div style={{ background: "#fff", border: "1px solid #E7D6B4", borderRadius: 16, padding: "24px 24px 22px", boxShadow: "0 10px 30px rgba(176,124,46,.10)" }}>
+          <section style={{ padding: "22px 0 4px", breakInside: "avoid" }} className="avoid-break break-before">
+            <div style={sectionLabel}>Your top gift, up close</div>
+            <div style={{ ...topCard, borderLeft: `4px solid ${COLOR.gold}` }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-                <span style={gfRankTag}>#1</span>
-                <div className="serif" style={{ fontSize: 26, color: "#3A2E18", lineHeight: 1.1 }}>{g.name}</div>
+                <span style={{ ...topRank, color: "var(--gold-deep-text)" }}>#1 gift</span>
+                <div className="serif" style={{ fontSize: 26, color: COLOR.navy, fontWeight: 500, lineHeight: 1.1 }}>{g.name}</div>
               </div>
-              <p style={{ fontSize: 14.5, color: "#6B5B3E", lineHeight: 1.6, margin: "12px 0 4px" }}>{g.def}</p>
+              <p style={{ ...topDef, fontSize: 15, margin: "12px 0 0", lineHeight: 1.6 }}>{g.def}</p>
 
-              <div style={{ ...goldLabel, marginTop: 18 }}>Where it shows up</div>
-              <p style={{ fontSize: 13.5, color: "#6B5B3E", lineHeight: 1.55, margin: 0 }}>{g.roles}</p>
+              <div style={{ ...blockH, marginTop: 20 }}>Where it shows up</div>
+              <p style={{ ...topDef, fontSize: 14.5, margin: "6px 0 0" }}>{g.roles}</p>
 
               {items.length > 0 && (
                 <>
-                  <div style={goldLabel}>What your answers show</div>
-                  <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 6px" }}>The statements you scored highest on for this gift.</p>
+                  <div style={{ ...blockH, marginTop: 20 }}>What your answers show</div>
+                  <p style={{ fontSize: 13, color: COLOR.inkMute, margin: "4px 0 8px" }}>The statements you scored highest on for this gift.</p>
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
                     {items.slice(0, 6).map((it, i) => (
-                      <li key={i} style={{ fontSize: 13.5, color: "#6B5B3E", lineHeight: 1.5, marginBottom: 5 }}>{it.text}</li>
+                      <li key={i} style={{ fontSize: 14, color: COLOR.inkSoft, lineHeight: 1.5, marginBottom: 5 }}>{it?.text}</li>
                     ))}
                   </ul>
                 </>
               )}
+            </div>
 
-              <div style={goldLabel}>Your next four weeks</div>
-              <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 8px" }}>A simple, gentle way to keep growing in {g.name}.</p>
-              <div style={{ borderTop: "1px solid #EFE6CF" }}>
+            {/* Four-week practice — mist card */}
+            <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 16, padding: "24px 26px", background: COLOR.mist, marginTop: 16, breakInside: "avoid" }}>
+              <div style={{ ...blockH, color: COLOR.tealDeep }}>Your next four weeks</div>
+              <p style={{ fontSize: 13, color: COLOR.inkMute, margin: "4px 0 8px" }}>A simple, gentle way to keep growing in {g.name}.</p>
+              <div style={{ borderTop: `1px solid ${COLOR.line}` }}>
                 {weeks.map((w) => (
-                  <div key={w.label} style={{ padding: "12px 0", borderBottom: "1px solid #EFE6CF" }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#B07C2E", textTransform: "uppercase", letterSpacing: ".05em" }}>{w.label}</div>
-                    <div style={{ fontSize: 14, color: "#4A3F2A", lineHeight: 1.5, marginTop: 3 }}>{w.body}</div>
+                  <div key={w.label} style={{ padding: "12px 0", borderBottom: `1px solid ${COLOR.line}` }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold-deep-text)", textTransform: "uppercase", letterSpacing: ".05em" }}>{w.label}</div>
+                    <div style={{ fontSize: 14, color: COLOR.ink, lineHeight: 1.5, marginTop: 3 }}>{w.body}</div>
                   </div>
                 ))}
               </div>
@@ -598,52 +639,41 @@ function GiftRank({ scored }) {
     </>
   );
 }
-const gfTriptych = { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, margin: "6px 0 4px" };
-const gfPanel = { background: PARCH, border: "1px solid #E7D6B4", borderRadius: 16, padding: "22px 20px 20px", textAlign: "center", position: "relative", boxShadow: "0 10px 30px rgba(176,124,46,.12)" };
-const gfIllum = { position: "relative", width: 72, height: 72, margin: "0 auto 12px", borderRadius: 12, border: "1.5px solid #D8B877", background: "linear-gradient(160deg,#FBF3DF,#F0DFB4)", display: "grid", placeItems: "center", boxShadow: "inset 0 0 0 3px rgba(255,255,255,.55)" };
-const gfCap = { fontSize: 46, fontWeight: 600, color: "#B07C2E", lineHeight: 1 };
-const gfRankTag = { position: "absolute", top: -10, right: -10, background: "#1B3A57", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999 };
-const gfName = { fontSize: 21, color: "#3A2E18", lineHeight: 1.15 };
-const gfScoreRow = { display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, margin: "6px 0 10px" };
-const gfScore = { fontSize: 30, fontWeight: 700, color: "#C4923E", lineHeight: 1, fontFamily: "'Inter',sans-serif", fontVariantNumeric: NUM };
-const gfPanelDef = { fontSize: 13, color: "#6B5B3E", lineHeight: 1.5, margin: "0 0 12px" };
-const gfVerse = { fontSize: 11.5, color: "#8A6D3B", fontWeight: 600, borderTop: "1px solid #E7D6B4", paddingTop: 10, fontStyle: "italic" };
-const gfScale = { display: "flex", alignItems: "center", gap: 14, padding: "8px 16px 2px" };
-const gfScaleName = { width: 172 };
-const gfRow = { display: "flex", alignItems: "center", gap: 14, width: "100%", padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
-const gfRank = { width: 22, fontSize: 13, fontWeight: 700, textAlign: "center", flexShrink: 0, fontVariantNumeric: "tabular-nums" };
-const gfRowName = { width: 150, fontSize: 14.5, fontWeight: 600, color: "#1C2B3A", flexShrink: 0 };
-const gfTrack = { position: "relative", flex: 1, height: 12, background: "#EEF1F4", borderRadius: 999, overflow: "hidden" };
-const gfRowScore = { width: 34, textAlign: "right", fontSize: 14, fontWeight: 700, flexShrink: 0, fontVariantNumeric: "tabular-nums" };
-const gfStudy = { padding: "0 16px 16px 58px" };
-const gfVerseCallout = { background: PARCH, border: "1px solid #E7D6B4", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#6B5B3E", lineHeight: 1.5, margin: "4px 0 12px" };
-const gfTwoCol = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 18 };
 
 /* ---------------- Fivefold Calling (ranked sum) ---------------- */
 function RankedSum({ scored }) {
-  const per = scored.max_per || 15;
-  const ranked = scored.ranked;
-  const topScore = ranked[0]?.score;
-  const secondScore = ranked[1]?.score;
-  const primaries = ranked.filter((r) => r.score === topScore);
-  const secondaries = ranked.filter((r) => r.score === secondScore && r.score !== topScore);
+  const per = scored?.max_per || 15;
+  const ranked = Array.isArray(scored?.ranked) ? scored.ranked : [];
+  const top = ranked[0]?.score;
+  const primaries = ranked.filter((r) => r.score === top);
+  const coPrimary = primaries.length > 1;
+  // Rank by score tie-group, not array index, so co-primaries (equal score)
+  // share the same rank number and colour instead of being split into gold #1 /
+  // teal #2. Falls back to index if a score is missing.
+  const uniqueScores = [...new Set(ranked.map((r) => r.score))].sort((a, b) => b - a);
+  const rankOf = (r, i) => {
+    const rk = uniqueScores.indexOf(r.score);
+    return rk < 0 ? i : rk;
+  };
+  const rankColor = (rank) => (rank === 0 ? COLOR.gold : rank === 1 ? COLOR.teal : "#8CA0B3");
+
   return (
     <>
+      {/* PRIMARY CALLING — hero (or co-primary pair when tied) */}
       <section style={{ padding: "8px 0" }}>
-        <div style={sectionLabel}>Your calling</div>
-        <div style={topGrid}>
-          {[...primaries, ...secondaries].slice(0, 2).map((r, i) => {
+        <div style={sectionLabel}>{coPrimary ? "Your co-primary callings" : "Your primary calling"}</div>
+        <div style={{ display: "grid", gridTemplateColumns: coPrimary ? "1fr 1fr" : "1fr", gap: 16 }}>
+          {primaries.slice(0, 2).map((r) => {
             const m = FIVEFOLD[r.key] || {};
-            const label = primaries.length > 1 ? "Co-primary" : i === 0 ? "Primary" : "Secondary";
             return (
-              <div key={r.key} style={topCard}>
-                <div style={topRank}>{label}</div>
-                <div className="serif" style={topName}>{r.key}</div>
+              <div key={r.key} style={{ ...topCard, borderLeft: `4px solid ${COLOR.gold}`, breakInside: "avoid" }}>
+                <div style={{ ...topRank, color: "var(--gold-deep-text)" }}>{coPrimary ? "Co-primary" : "Primary calling"}</div>
+                <h2 className="serif" style={{ fontSize: 27, margin: "6px 0 0", color: COLOR.navy, fontWeight: 500, letterSpacing: "-.01em", lineHeight: 1.12 }}>{r.key}</h2>
                 <div style={scoreRow}>
                   <span style={topScore}>{r.score}</span>
-                  <span style={{ fontSize: 14, color: "#8CA0B3" }}>/ {per}</span>
+                  <span style={{ fontSize: 14, color: COLOR.inkMute }}>/ {per}</span>
                 </div>
-                <p style={topDef}>{m.short}</p>
+                <p style={{ ...topDef, fontSize: 15, lineHeight: 1.6 }}>{m.short}</p>
               </div>
             );
           })}
@@ -653,41 +683,62 @@ function RankedSum({ scored }) {
           and where it can go wrong if left unchecked.
         </p>
       </section>
-      <section style={{ padding: "24px 0 8px" }}>
+
+      {/* ALL FIVE CALLINGS — template bar group with reference lines */}
+      <section style={{ padding: "24px 0 6px" }} className="avoid-break">
         <div style={sectionLabel}>All five callings</div>
         <div style={chart}>
-          {(() => {
-            // Rank by score tie-group, not array index, so co-primaries (equal
-            // score) share the same rank number and colour instead of being
-            // split into gold #1 / teal #2. Falls back to index if a score is
-            // missing.
-            const uniqueScores = [...new Set(ranked.map((r) => r.score))].sort((a, b) => b - a);
-            return ranked.map((r, i) => {
-            const rk = uniqueScores.indexOf(r.score);
-            const rank = rk < 0 ? i : rk;
-            const color = rank === 0 ? "#C4923E" : rank === 1 ? "#2E7D8A" : "#8CA0B3";
+          {ranked.map((r, i) => {
+            const rank = rankOf(r, i);
+            const color = rankColor(rank);
+            return (
+              <ScoreBar key={r.key} frac={per ? r.score / per : 0} color={color} refs={[1 / 3, 2 / 3]}
+                label={<span style={{ display: "inline-flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color, fontVariantNumeric: NUM, flex: "none" }}>{rank + 1}</span>
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.key}</span>
+                </span>}
+                valueText={<>{r.score}<span style={{ color: COLOR.inkMute, fontWeight: 500 }}> / {per}</span></>} />
+            );
+          })}
+        </div>
+        <p style={helper}>
+          Each calling is scored against itself, out of {per}, never against other people. Callings that
+          scored the same share a rank and colour — they are equally strong in you.
+        </p>
+      </section>
+
+      {/* CALLING BY CALLING — accent-border detail cards */}
+      <section style={{ padding: "18px 0 8px", breakBefore: "page" }} className="break-before">
+        <div style={sectionLabel}>Calling by calling</div>
+        <h2 className="serif" style={{ ...discH2, margin: "0 0 16px" }}>What each one looks like in ministry</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {ranked.map((r, i) => {
+            const rank = rankOf(r, i);
+            const color = rankColor(rank);
             const m = FIVEFOLD[r.key] || {};
             return (
-              <div key={r.key} style={{ borderBottom: "1px solid #F0F2F4", padding: "6px 4px" }}>
-                <div style={barBtn}>
-                  <span style={rRank}>{rank + 1}</span>
-                  <span style={rName}>{r.key}</span>
-                  <BarTrack frac={r.score / per} color={color} refs={[1 / 3, 2 / 3]} />
-                  <span style={{ ...rScore, color, display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
-                    <span aria-hidden="true" style={{ fontSize: 9, color }}>{glyphFor(color)}</span>{r.score}
-                  </span>
-                  <span />
+              <div key={r.key} style={{ border: `1px solid ${COLOR.line}`, borderLeft: `4px solid ${color}`, borderRadius: 14, padding: "22px 26px", background: COLOR.paper, breakInside: "avoid" }}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div className="serif" style={{ fontSize: 20, color: COLOR.navy, fontWeight: 500 }}>{r.key}</div>
+                  <BandMark color={color} label={<span style={{ fontVariantNumeric: NUM }}>{r.score} / {per}</span>} />
                 </div>
-                <div style={{ padding: "2px 16px 14px 52px" }}>
-                  <p style={detailP}>{m.short}</p>
-                  <Block h="Where it can go wrong" t={m.shadow} />
-                  <Block h="Ministry application" t={m.application} />
-                  <div style={refLine}>{m.ref}</div>
-                </div>
+                {m.short && <p style={{ ...detailP, margin: "12px 0 0" }}>{m.short}</p>}
+                {m.application && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ ...blockH, color: COLOR.tealDeep }}>In ministry</div>
+                    <p style={{ ...topDef, fontSize: 14, margin: "6px 0 0", lineHeight: 1.55 }}>{m.application}</p>
+                  </div>
+                )}
+                {m.shadow && (
+                  <div style={{ marginTop: 14, background: "var(--blush)", border: "1px solid #EADFC9", borderLeft: "4px solid var(--gold)", borderRadius: 12, padding: "14px 18px" }}>
+                    <div style={{ ...blockH, color: "var(--clay-text)", marginBottom: 5 }}>Where it can go wrong</div>
+                    <p style={{ margin: 0, fontSize: 14, color: COLOR.ink, lineHeight: 1.55 }}>{m.shadow}</p>
+                  </div>
+                )}
+                {m.ref && <div style={refLine}>{m.ref}</div>}
               </div>
             );
-            });
-          })()}
+          })}
         </div>
       </section>
     </>
@@ -695,158 +746,288 @@ function RankedSum({ scored }) {
 }
 
 /* ---------------- Rooted / Leadership Health (domain bands) ---------------- */
+// Compact axis label for the domain radar — the full name still rides on the
+// bars and cards, so shortening here never loses information.
+function shortDomainLabel(name) {
+  if (!name) return "";
+  let s = String(name).split(" & ")[0].split(":")[0].trim();
+  if (s.length > 16) s = s.split(/\s+/)[0];
+  return s;
+}
 function DomainBandsReport({ scored }) {
-  const per = scored.scale_max || 5;
-  const domains = scored.domains;
+  const per = scored?.scale_max || 5;
+  // Guard every access — a missing scored.domains must degrade to an empty
+  // section, never throw and blank the whole report.
+  const domains = Array.isArray(scored?.domains) ? scored.domains : [];
   const top2 = domains.slice(0, 2);
   const bottom2 = [...domains].slice(-2).reverse();
-  const bandFn = scored.slug === "rooted" ? rootedBand : domainBand;
-  const bandRefs = cutoffFracs(scored.slug === "rooted" ? ROOTED_BANDS : DOMAIN_BANDS, per);
-  const meta = DOMAIN_META[scored.slug] || {};
-  const copy = DOMAIN_REPORT_COPY[scored.slug] || {
+  const isRooted = scored?.slug === "rooted";
+  const bandFn = isRooted ? rootedBand : domainBand;
+  const bands = isRooted ? ROOTED_BANDS : DOMAIN_BANDS;
+  const bandRefs = cutoffFracs(bands, per);
+  const meta = DOMAIN_META[scored?.slug] || {};
+  const copy = DOMAIN_REPORT_COPY[scored?.slug] || {
     snapshot: "Your results, domain by domain",
-    strong: "Your strengths",
+    strong: "Where you're strongest",
     grow: "Where to grow",
     helper: "These are simply where the next season of growth is, not a verdict.",
   };
+  // Signature: a radar reads well for 5–8 areas; otherwise the banded bars
+  // themselves carry the hero, with band-cutoff reference lines.
+  const useRadar = domains.length >= 5 && domains.length <= 8;
+  const overall = domains.length
+    ? domains.reduce((a, d) => a + (d.average || 0), 0) / domains.length
+    : 0;
+  const overallBand = bandFn(overall);
+  const strongRef = bands[0]?.min ?? per;
+  const radarAxes = domains.map((d) => {
+    const band = bandFn(d.average || 0);
+    return {
+      label: shortDomainLabel(d.domain), sub: (d.average || 0).toFixed(1), subColor: band.color,
+      value: d.average || 0, color: band.color, shape: shapeForColor(band.color),
+    };
+  });
+
+  const BandBars = () => (
+    <div style={chart}>
+      {domains.map((d) => {
+        const band = bandFn(d.average || 0);
+        return (
+          <ScoreBar key={d.domain} label={d.domain} frac={(d.average || 0) / per} band={band}
+            refs={bandRefs} scoreMinWidth={132}
+            valueText={`${(d.average || 0).toFixed(1)} · ${band.label}`} />
+        );
+      })}
+    </div>
+  );
+
   return (
     <>
-      <section style={{ padding: "8px 0" }}>
+      {/* SIGNATURE — domain radar (5–8 areas) or hero bars, + a one-line read */}
+      <section style={{ padding: "8px 0" }} className="avoid-break">
         <div style={sectionLabel}>{copy.snapshot}</div>
-        <div style={chart}>
-          {domains.map((d) => {
-            const band = bandFn(d.average);
+        <h2 className="serif" style={discH2}>Your whole profile at a glance</h2>
+        {useRadar ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 20, alignItems: "center" }} className="domain-hero-grid">
+            <div style={discChartCard}>
+              <div style={discChartTitle}>{isRooted ? "Your roots at a glance" : "Every area at a glance"}</div>
+              <RadarChart axes={radarAxes} max={per} cx={170} cy={168} radius={104}
+                viewBox="-60 -6 460 352" maxWidth={470} reference={strongRef} referenceLabel={bands[0]?.label}
+                fill="rgba(31,94,104,.14)" stroke={COLOR.tealDeep} ariaLabel="Domain profile radar" />
+              <p style={discChartCaption}>Each area is scored against itself, out of {per}, never against other people.</p>
+            </div>
+            <div style={{ ...discChartCard, padding: "22px 24px" }}>
+              <div style={discChartTitle}>What this shows</div>
+              <p style={{ ...topDef, fontSize: 14.5, lineHeight: 1.55 }}>
+                Across {domains.length} areas you're averaging{" "}
+                <strong style={{ color: COLOR.navy, fontVariantNumeric: NUM }}>{overall.toFixed(1)}</strong> out of {per} — most land in the{" "}
+                <strong style={{ color: overallBand.color }}>{overallBand.label}</strong> range. The shape shows where your
+                foundation is deep and where the next season of growth is waiting.
+              </p>
+              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 9 }}>
+                {bands.map((b) => (
+                  <BandMark key={b.label} color={b.color}
+                    label={<span style={{ fontVariantNumeric: NUM }}>{b.label} · {b.min.toFixed(1)}+</span>} style={{ fontSize: 12.5 }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <BandBars />
+        )}
+      </section>
+
+      {/* EVERY AREA — banded bars w/ cutoff reference lines (when radar is hero) */}
+      {useRadar && domains.length > 0 && (
+        <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Every area, side by side</div>
+          <BandBars />
+          <p style={helper}>Reference lines mark the band cutoffs. Your bar shows exactly where each area lands.</p>
+        </section>
+      )}
+
+      {/* WHERE YOU'RE STRONGEST — accent cards */}
+      {top2.length > 0 && (
+        <section style={{ padding: "20px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>{copy.strong}</div>
+          <div style={topGrid}>
+            {top2.map((d) => {
+              const band = bandFn(d.average || 0);
+              return (
+                <div key={d.domain} style={{ ...topCard, borderLeft: `4px solid ${band.color}`, breakInside: "avoid" }}>
+                  <div className="serif" style={{ ...topName, fontSize: 20, color: COLOR.navy }}>{d.domain}</div>
+                  <div style={{ ...scoreRow, marginTop: 6 }}>
+                    <span style={{ ...topScore, fontSize: 28, color: band.color }}>{(d.average || 0).toFixed(1)}</span>
+                    <span style={{ fontSize: 14, color: COLOR.inkMute, fontWeight: 600 }}>/ {per}</span>
+                  </div>
+                  <BandMark color={band.color} label={band.label} style={{ fontSize: 13 }} />
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* WHERE TO GROW — mist next-step + blush scripture accent */}
+      {bottom2.length > 0 && (
+        <section style={{ padding: "20px 0 8px" }}>
+          <div style={sectionLabel}>{copy.grow}</div>
+          {bottom2.map((d) => {
+            const m = meta[d.domain] || {};
+            const band = bandFn(d.average || 0);
             return (
-              <ScoreBar key={d.domain} label={d.domain} frac={d.average / per} band={band}
-                refs={bandRefs} scoreMinWidth={128}
-                valueText={`${d.average.toFixed(1)} · ${band.label}`} />
+              <div key={d.domain} style={{ ...growCard, breakInside: "avoid" }} className="avoid-break">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+                  <div className="serif" style={{ fontSize: 19, color: COLOR.navy, fontWeight: 600 }}>{d.domain}</div>
+                  <BandMark color={band.color} label={<span style={{ fontVariantNumeric: NUM }}>{(d.average || 0).toFixed(1)} · {band.label}</span>} style={{ fontSize: 14 }} />
+                </div>
+                {m.step && (
+                  <div style={mistStep}>
+                    <div style={{ ...blockH, color: COLOR.tealDeep }}>A next step</div>
+                    <p style={{ margin: "6px 0 0", fontSize: 14, color: COLOR.ink, lineHeight: 1.55 }}>{m.step}</p>
+                  </div>
+                )}
+                {m.ref && <div style={blushRef}><span style={blushRefLabel}>Anchor</span>{m.ref}</div>}
+              </div>
             );
           })}
-        </div>
-      </section>
-      <section style={{ padding: "20px 0 4px" }}>
-        <div style={sectionLabel}>{copy.strong}</div>
-        <div style={topGrid}>
-          {top2.map((d) => (
-            <div key={d.domain} style={topCard}>
-              <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
-              <div style={{ ...scoreRow, marginTop: 4 }}>
-                <span style={{ ...topScore, fontSize: 26 }}>{d.average.toFixed(1)}</span>
-                <BandMark color={bandFn(d.average).color} label={bandFn(d.average).label} style={{ fontSize: 13 }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section style={{ padding: "20px 0 8px" }}>
-        <div style={sectionLabel}>{copy.grow}</div>
-        {bottom2.map((d) => {
-          const m = meta[d.domain] || {};
-          return (
-            <div key={d.domain} style={growCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <BandMark color={bandFn(d.average).color} label={`${d.average.toFixed(1)} · ${bandFn(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
-              </div>
-              <Block h="A next step" t={m.step} />
-              {m.ref && <div style={refLine}>{m.ref}</div>}
-            </div>
-          );
-        })}
-        <p style={helper}>{copy.helper}</p>
-      </section>
+          <p style={helper}>{copy.helper}</p>
+        </section>
+      )}
     </>
   );
 }
 
 /* ---------------- Spiritual Growth (Discipleship Wheel) ---------------- */
 function SpiritualGrowthReport({ scored }) {
-  const per = scored.scale_max || 5;
-  const domains = scored.domains; // sorted by average desc
+  const per = scored?.scale_max || 5;
+  // Guard every access — a missing scored.domains degrades to empty, never throws.
+  const domains = Array.isArray(scored?.domains) ? scored.domains : []; // sorted desc
   const byName = Object.fromEntries(domains.map((d) => [d.domain, d]));
   const order = SPIRITUAL_GROWTH_ORDER.filter((n) => byName[n]);
   const top2 = domains.slice(0, 2);
-  const bottom2 = [...domains].slice(-2).reverse();
+  const focus = [...domains].slice(-2).reverse(); // lowest two, weakest first
   const meta = SPIRITUAL_GROWTH_DOMAINS;
+  const bandRefs = cutoffFracs(DOMAIN_BANDS, per);
+
+  const totalFor = (d) => (d ? Math.round((d.average || 0) * (d.count || 10)) : 0);
+  const maxFor = (d) => (d?.count || 10) * per;
+  const overall = domains.length ? domains.reduce((a, d) => a + (d.average || 0), 0) / domains.length : 0;
+  const overallBand = domainBand(overall);
 
   // Discipleship Wheel — shared RadarChart with ring value labels, a dashed
   // Strength reference ring, and band-colored SCORE_STATE vertex shapes.
   const wheelAxes = order.map((name) => {
     const d = byName[name];
     const avg = d?.average || 0;
-    const total = d ? Math.round(avg * (d.count || 10)) : 0;
-    const maxTotal = (d?.count || 10) * per;
     const band = domainBand(avg);
-    return { label: shortDisc(name), sub: `${total}/${maxTotal}`, subColor: COLOR.teal, value: avg, color: band.color, shape: shapeForColor(band.color) };
+    return { label: shortDisc(name), sub: `${totalFor(d)}/${maxFor(d)}`, subColor: band.color, value: avg, color: band.color, shape: shapeForColor(band.color) };
   });
 
   return (
     <>
-      <section style={{ padding: "8px 0" }}>
+      {/* SIGNATURE — the discipleship wheel + a one-line read beside it */}
+      <section style={{ padding: "8px 0" }} className="avoid-break">
         <div style={sectionLabel}>Your Discipleship Wheel</div>
-        <div style={{ ...chart, padding: "18px 12px", display: "flex", justifyContent: "center" }}>
-          <RadarChart axes={wheelAxes} max={per} cx={170} cy={168} radius={108}
-            viewBox="0 0 340 336" maxWidth={420} reference={4} referenceLabel="Strength"
-            fill="rgba(46,125,138,.22)" stroke={COLOR.teal} ariaLabel="Discipleship Wheel" />
+        <h2 className="serif" style={discH2}>Your whole walk at a glance</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 20, alignItems: "center" }} className="domain-hero-grid">
+          <div style={discChartCard}>
+            <div style={discChartTitle}>The shape of your wheel</div>
+            <RadarChart axes={wheelAxes} max={per} cx={170} cy={168} radius={104}
+              viewBox="-50 -6 440 352" maxWidth={460} reference={4} referenceLabel="Strength"
+              fill="rgba(46,125,138,.20)" stroke={COLOR.teal} ariaLabel="Discipleship Wheel" />
+            <p style={discChartCaption}>The more a discipline shades toward the edge, the stronger it is this season.</p>
+          </div>
+          <div style={{ ...discChartCard, padding: "22px 24px" }}>
+            <div style={discChartTitle}>What this shows</div>
+            <p style={{ ...topDef, fontSize: 14.5, lineHeight: 1.55 }}>
+              Across six disciplines you're averaging{" "}
+              <strong style={{ color: COLOR.navy, fontVariantNumeric: NUM }}>{overall.toFixed(1)}</strong> out of {per} — most land in the{" "}
+              <strong style={{ color: overallBand.color }}>{overallBand.label}</strong> range. A round wheel rolls smoothly; the flat
+              spots show where your walk is still filling in.
+            </p>
+            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 9 }}>
+              {DOMAIN_BANDS.map((b) => (
+                <BandMark key={b.label} color={b.color}
+                  label={<span style={{ fontVariantNumeric: NUM }}>{b.label} · {b.min.toFixed(1)}+</span>} style={{ fontSize: 12.5 }} />
+              ))}
+            </div>
+          </div>
         </div>
-        <p style={helper}>
-          The more a discipline is shaded toward the edge, the stronger it is in this season. The shape of
-          your wheel shows the whole picture at once, where your walk with God rolls smoothly, and where
-          it's still filling in.
-        </p>
       </section>
 
-      <section style={{ padding: "16px 0 4px" }}>
-        <div style={sectionLabel}>Every discipline</div>
-        <div style={chart}>
-          {domains.map((d) => {
-            const band = domainBand(d.average);
-            const total = Math.round(d.average * (d.count || 10));
+      {/* EVERY DISCIPLINE — banded bars with cutoff reference lines */}
+      {domains.length > 0 && (
+        <section style={{ padding: "16px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Every discipline</div>
+          <div style={chart}>
+            {domains.map((d) => {
+              const band = domainBand(d.average || 0);
+              return (
+                <ScoreBar key={d.domain} label={d.domain} frac={(d.average || 0) / per} band={band}
+                  refs={bandRefs} scoreMinWidth={150}
+                  valueText={`${totalFor(d)}/${maxFor(d)} · ${band.label}`} />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* WHERE YOU'RE STRONGEST — accent cards (band + meaning) */}
+      {top2.length > 0 && (
+        <section style={{ padding: "20px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Where you're strongest</div>
+          <div style={topGrid}>
+            {top2.map((d) => {
+              const band = domainBand(d.average || 0);
+              return (
+                <div key={d.domain} style={{ ...topCard, borderLeft: `4px solid ${band.color}`, breakInside: "avoid" }}>
+                  <div className="serif" style={{ ...topName, fontSize: 20, color: COLOR.navy }}>{d.domain}</div>
+                  <div style={{ margin: "8px 0 10px" }}>
+                    <BandMark color={band.color} label={<span style={{ fontVariantNumeric: NUM }}>{totalFor(d)}/{maxFor(d)} · {band.label}</span>} style={{ fontSize: 13 }} />
+                  </div>
+                  <p style={topDef}>{meta[d.domain]?.blurb}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ONE DISCIPLINE FOR THIS SEASON — mist next-step + blush scripture */}
+      {focus.length > 0 && (
+        <section style={{ padding: "20px 0 8px" }}>
+          <div style={sectionLabel}>One discipline for this season</div>
+          <p style={{ ...topDef, fontSize: 14.5, maxWidth: 560, marginBottom: 14 }}>
+            Growth comes from tending one root at a time, not all at once. Start with the discipline that has the most room.
+          </p>
+          {focus.map((d, i) => {
+            const m = meta[d.domain] || {};
+            const band = domainBand(d.average || 0);
+            const isPrimary = i === 0;
             return (
-              <ScoreBar key={d.domain} label={d.domain} frac={d.average / per} band={band}
-                refs={cutoffFracs(DOMAIN_BANDS, per)} scoreMinWidth={150}
-                valueText={`${total}/${(d.count || 10) * per} · ${band.label}`} />
+              <div key={d.domain} style={{ ...growCard, ...(isPrimary ? { borderLeft: `4px solid ${COLOR.teal}` } : {}), breakInside: "avoid" }} className="avoid-break">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+                  <div className="serif" style={{ fontSize: 19, color: COLOR.navy, fontWeight: 600 }}>
+                    {d.domain}{isPrimary && <span style={primaryTag}>Start here</span>}
+                  </div>
+                  <BandMark color={band.color} label={<span style={{ fontVariantNumeric: NUM }}>{totalFor(d)}/{maxFor(d)} · {band.label}</span>} style={{ fontSize: 14 }} />
+                </div>
+                {m.step && (
+                  <div style={mistStep}>
+                    <div style={{ ...blockH, color: COLOR.tealDeep }}>A next step</div>
+                    <p style={{ margin: "6px 0 0", fontSize: 14, color: COLOR.ink, lineHeight: 1.55 }}>{m.step}</p>
+                  </div>
+                )}
+                {m.ref && <div style={blushRef}><span style={blushRefLabel}>Anchor</span>{m.ref}</div>}
+              </div>
             );
           })}
-        </div>
-      </section>
-
-      <section style={{ padding: "20px 0 4px" }}>
-        <div style={sectionLabel}>Where you're strongest</div>
-        <div style={topGrid}>
-          {top2.map((d) => (
-            <div key={d.domain} style={topCard}>
-              <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
-              <div style={{ ...scoreRow, marginTop: 4 }}>
-                <span style={{ ...topScore, fontSize: 26 }}>{Math.round(d.average * (d.count || 10))}</span>
-                <BandMark color={domainBand(d.average).color} label={`/ ${(d.count || 10) * per} · ${domainBand(d.average).label}`} style={{ fontSize: 13, fontVariantNumeric: NUM }} />
-              </div>
-              <p style={topDef}>{meta[d.domain]?.blurb}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section style={{ padding: "20px 0 8px" }}>
-        <div style={sectionLabel}>Where to grow next</div>
-        {bottom2.map((d) => {
-          const m = meta[d.domain] || {};
-          return (
-            <div key={d.domain} style={growCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <BandMark color={domainBand(d.average).color} label={`${Math.round(d.average * (d.count || 10))}/${(d.count || 10) * per} · ${domainBand(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
-              </div>
-              <Block h="A next step" t={m.step} />
-              {m.ref && <div style={refLine}>{m.ref}</div>}
-            </div>
-          );
-        })}
-        <p style={helper}>
-          This is a mirror for one moment, not a grade on your walk with God. Pick one discipline to focus
-          on this season. Growth comes from tending one root at a time, not all at once.
-        </p>
-      </section>
+          <p style={helper}>
+            This is a mirror for one moment, not a grade on your walk with God. Pick one discipline to focus on this season.
+          </p>
+        </section>
+      )}
     </>
   );
 }
@@ -867,261 +1048,325 @@ function b5TraitName(k) {
 
 function BigFiveReport({ scored }) {
   const [planDone, setPlanDone] = useState({}); // growth-plan checkbox state (in-memory)
-  const traits = scored.traits || [];
-  const facets = scored.facets || [];
-  const playback = scored.playback || { high: [], low: [] };
-  const planTargets = scored.plan_targets || [];
+  const traits = Array.isArray(scored?.traits) ? scored.traits : [];
+  const facets = Array.isArray(scored?.facets) ? scored.facets : [];
+  const playback = scored?.playback || {};
+  const pbHigh = Array.isArray(playback.high) ? playback.high : [];
+  const pbLow = Array.isArray(playback.low) ? playback.low : [];
+  const planTargets = Array.isArray(scored?.plan_targets) ? scored.plan_targets : [];
   const byKey = Object.fromEntries(traits.map((t) => [t.key, t]));
-  const order = BIG5_TRAIT_ORDER.filter((k) => byKey[k]); // O, C, E, A, ES
+  const order = (BIG5_TRAIT_ORDER || []).filter((k) => byKey[k]); // O, C, E, A, ES
 
-  // Radar (0-100) via the shared RadarChart: ring value labels, a dashed
-  // midpoint reference ring, trait-colored vertices carrying SCORE_STATE shapes.
+  const bandColor = (b) => B5_BAND_COLOR[b] || COLOR.inkMute;
+  const bandLabel = (b) => B5_BAND_LABEL[b] || "—";
+  // Level badge coloring, matching the DISC/Enneagram template treatment.
+  const levelBadge = (b) =>
+    b === "high" ? { color: "#1F5E68", background: "#EEF3F6" }
+      : b === "moderate" ? { color: "#8A6420", background: "#F0E4CB" }
+        : { color: "#5E7183", background: "#EEF1F4" };
+
+  // Signature hero: the five traits as a radar. Ring value labels, a dashed 50
+  // reference ring, trait-colored vertices carrying SCORE_STATE shapes.
   const b5Axes = order.map((k) => {
-    const t = byKey[k];
-    return { label: B5_SHORT[k], sub: t.pct, subColor: BIG5_TRAIT_META[k].color, value: t.pct, color: BIG5_TRAIT_META[k].color, shape: shapeForColor(B5_BAND_COLOR[t.band]) };
+    const t = byKey[k] || {}, meta = BIG5_TRAIT_META[k] || {};
+    return { label: B5_SHORT[k] || meta.name || k, sub: t.pct, subColor: meta.color, value: t.pct || 0, color: meta.color || COLOR.teal, shape: shapeForColor(bandColor(t.band)) };
   });
 
-  const sigStrengths = facets.filter((f) => f.pct >= 70);
-  const lowPref = facets.filter((f) => f.pct <= 39);
-  const highest = [...traits].sort((a, b) => b.pct - a.pct)[0];
+  const sigStrengths = facets.filter((f) => (f?.pct || 0) >= 70);
+  const lowPref = facets.filter((f) => (f?.pct || 0) <= 39);
+  const interactions = (() => { try { return big5Interactions(traits) || []; } catch { return []; } })();
 
   return (
     <>
-      {/* Trait profile radar */}
-      <section style={{ padding: "8px 0" }}>
-        <div style={sectionLabel}>Your trait profile</div>
-        <div style={{ ...chart, padding: "18px 12px", display: "flex", justifyContent: "center" }}>
-          <RadarChart axes={b5Axes} max={100} cx={170} cy={168} radius={108}
-            viewBox="-44 0 428 336" maxWidth={480} reference={50} referenceLabel="mid"
-            fill="rgba(31,94,104,.16)" stroke={COLOR.tealDeep} ariaLabel="Big Five trait profile" />
-        </div>
-        <p style={helper}>
-          Every trait is scored 0 to 100 against the trait itself, never against other people. There are no good
-          or bad scores; each position carries its own strengths and watch-outs. This shape is your whole
-          personality at a glance.
-        </p>
-      </section>
-
-      {/* Banded bars */}
-      <section style={{ padding: "16px 0 4px" }}>
-        <div style={sectionLabel}>Your five traits</div>
-        <div style={chart}>
-          {order.map((k) => {
-            const t = byKey[k], meta = BIG5_TRAIT_META[k];
-            return (
-              <div key={k} style={{ padding: "14px 14px", borderBottom: "1px solid #F0F2F4" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "#1C2B3A" }}>{meta.name}</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: B5_BAND_COLOR[t.band] }}>{t.pct} · {B5_BAND_LABEL[t.band]}</span>
-                </div>
-                <div style={b5TrackWrap}>
-                  <div style={{ ...b5Zone, left: "40%", width: "30%", background: "#E9EDF0" }} />
-                  <div style={{ ...b5Zone, left: "70%", width: "30%", background: "#E1E7EB" }} />
-                  <div style={{ ...b5FillBar, width: `${t.pct}%`, background: meta.color }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9AA7B3", marginTop: 5 }}>
-                  <span>{meta.lowWord}</span><span>{meta.highWord}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <p style={helper}>Shaded zones mark Low (0–39), Moderate (40–69), and High (70–100). Your bar shows exactly where you land.</p>
-      </section>
-
-      {/* Per-trait depth */}
-      <section style={{ padding: "20px 0 4px" }}>
-        <div style={sectionLabel}>Your traits in depth</div>
-        {order.map((k) => {
-          const t = byKey[k], meta = BIG5_TRAIT_META[k];
-          const reportBand = k === "ES" ? t.n_band : t.band;
-          const rd = (k === "ES" ? BIG5_TRAITS.N : BIG5_TRAITS[k])[reportBand];
-          const bc = B5_BAND_COLOR[t.band];
-          const near = big5Boundary(t.pct);
-          return (
-            <div key={k} style={b5Card}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                <div>
-                  <div className="serif" style={{ fontSize: 22, color: "#1C2B3A" }}>{meta.name}</div>
-                  <div style={{ fontSize: 13, color: "#8CA0B3", marginTop: 2 }}>{meta.tag}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 30, fontWeight: 700, color: bc, lineHeight: 1, fontVariantNumeric: NUM }}>{t.pct}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: bc, textTransform: "uppercase", letterSpacing: ".06em" }}>{B5_BAND_LABEL[t.band]}</div>
-                </div>
-              </div>
-              {k === "ES" && <p style={{ ...detailP, fontStyle: "italic", color: "#5A6A78", margin: "12px 0 0" }}>{meta.note}</p>}
-              <p style={{ ...detailP, marginTop: 14 }}>{rd.snapshot}</p>
-              <div style={b5TwoCol}>
-                <div>
-                  <div style={blockH}>Strengths</div>
-                  <ul style={b5List}>{rd.strengths.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
-                </div>
-                <div>
-                  <div style={blockH}>Watch-outs</div>
-                  <ul style={b5List}>{rd.watchouts.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
-                </div>
-              </div>
-              <Block h="Ministry & leadership application" t={rd.application} />
-              <div style={{ marginBottom: 12 }}>
-                <div style={blockH}>Growth steps</div>
-                <ol style={b5Ol}>{rd.growth.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ol>
-              </div>
-              <div style={devotionBox}>
-                <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 5 }}>Anchor Scripture</div>
-                <p style={{ fontSize: 14.5, color: "#4A3F2A", margin: 0, lineHeight: 1.55, fontStyle: "italic" }}>&ldquo;{rd.scripture.text}&rdquo;</p>
-                <div style={{ fontSize: 12.5, color: "#8A6D3B", marginTop: 6, fontWeight: 600 }}>{rd.scripture.ref}</div>
-              </div>
-              {near && <div style={transitionBox}>Your score sits near the line between two bands. Read both this report and the neighboring band; elements of each will likely apply to you.</div>}
+      {/* YOUR SHAPE — signature trait radar + tidy five-trait list */}
+      {order.length > 0 && (
+        <section style={{ padding: "8px 0" }} className="avoid-break">
+          <div style={sectionLabel}>Your trait profile</div>
+          <h2 className="serif" style={discH2}>Your whole personality at a glance</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 20, alignItems: "center" }} className="b5-hero-grid">
+            <div style={discChartCard}>
+              <div style={discChartTitle}>Five-trait profile</div>
+              <RadarChart axes={b5Axes} max={100} cx={170} cy={168} radius={104}
+                viewBox="-44 0 428 336" maxWidth={470} reference={50} referenceLabel="mid"
+                fill="rgba(31,94,104,.14)" stroke={COLOR.tealDeep} ariaLabel="Big Five trait profile" />
+              <p style={discChartCaption}>Each trait is scored 0 to 100 against itself, never against other people.</p>
             </div>
-          );
-        })}
-      </section>
+            <div style={{ ...discChartCard, padding: "20px 22px" }}>
+              <div style={discChartTitle}>Where you land</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {order.map((k) => {
+                  const t = byKey[k] || {}, meta = BIG5_TRAIT_META[k] || {};
+                  return (
+                    <div key={k} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", alignItems: "center", gap: 12, padding: "10px 0", borderTop: `1px solid ${COLOR.line}` }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                        <span style={{ flex: "none", width: 9, height: 9, borderRadius: "50%", background: meta.color || COLOR.teal }} />
+                        <span style={{ fontSize: 14, fontWeight: 600, color: COLOR.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta.name || k}</span>
+                      </span>
+                      <span style={{ fontSize: 17, fontWeight: 700, color: bandColor(t.band), fontVariantNumeric: NUM }}>{t.pct ?? "—"}</span>
+                      <BandMark color={bandColor(t.band)} label={bandLabel(t.band)} style={{ fontSize: 12.5 }} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <p style={helper}>
+            There are no good or bad scores; each position carries its own strengths and watch-outs. This shape is
+            your personality at a glance.
+          </p>
+        </section>
+      )}
 
-      {/* How your traits work together */}
-      {(() => {
-        const pairs = big5Interactions(traits);
-        if (pairs.length === 0) return null;
-        return (
-          <section style={{ padding: "20px 0 4px" }} className="avoid-break">
-            <div style={sectionLabel}>How your traits work together</div>
-            {pairs.map((p) => (
-              <div key={p.pairName} style={{ ...growCard, breakInside: "avoid" }}>
-                <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{p.title}</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#8CA0B3", marginTop: 2 }}>{p.aName} + {p.bName}</div>
+      {/* FIVE TRAITS — banded bars with 40 / 70 cutoff reference lines */}
+      {order.length > 0 && (
+        <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Your five traits</div>
+          <h2 className="serif" style={discH2}>Ranked against each trait itself</h2>
+          <div style={chart}>
+            {order.map((k, i) => {
+              const t = byKey[k] || {}, meta = BIG5_TRAIT_META[k] || {};
+              return (
+                <ScoreBar key={k} frac={(t.pct || 0) / 100} fillColor={meta.color} color={bandColor(t.band)}
+                  refs={[0.4, 0.7]} scoreMinWidth={120}
+                  rowStyle={i === 0 ? { borderTop: "none" } : {}}
+                  label={meta.name || k}
+                  valueText={`${t.pct ?? "—"} · ${bandLabel(t.band)}`} />
+              );
+            })}
+          </div>
+          <p style={helper}>Reference lines mark the Low (0–39), Moderate (40–69), and High (70–100) cutoffs. Your bar shows exactly where you land.</p>
+        </section>
+      )}
+
+      {/* TRAIT BY TRAIT — colored left-border detail cards */}
+      {order.length > 0 && (
+        <section style={{ padding: "18px 0 4px", breakBefore: "page" }} className="break-before">
+          <div style={sectionLabel}>Trait by trait</div>
+          <h2 className="serif" style={discH2}>What each one means for you</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
+            {order.map((k) => {
+              const t = byKey[k] || {}, meta = BIG5_TRAIT_META[k] || {};
+              const reportBand = k === "ES" ? t.n_band : t.band;
+              const rd = ((k === "ES" ? BIG5_TRAITS.N : BIG5_TRAITS[k]) || {})[reportBand] || {};
+              const bc = bandColor(t.band);
+              const near = (() => { try { return big5Boundary(t.pct); } catch { return false; } })();
+              const strengths = Array.isArray(rd.strengths) ? rd.strengths : [];
+              const watchouts = Array.isArray(rd.watchouts) ? rd.watchouts : [];
+              const growth = Array.isArray(rd.growth) ? rd.growth : [];
+              return (
+                <div key={k} style={{ border: `1px solid ${COLOR.line}`, borderLeft: `4px solid ${meta.color || COLOR.teal}`, borderRadius: 14, padding: "24px 26px", background: COLOR.paper, breakInside: "avoid" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="serif" style={{ fontSize: 20, color: COLOR.navy, fontWeight: 600 }}>{meta.name || k}</div>
+                      {meta.tag && <div style={{ fontSize: 13, color: COLOR.inkMute, marginTop: 2 }}>{meta.tag}</div>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                      <span style={{ fontSize: 30, fontWeight: 700, color: bc, lineHeight: 1, fontVariantNumeric: NUM }}>{t.pct ?? "—"}</span>
+                      <span style={{ ...discLevelBadge, ...levelBadge(t.band) }}>{bandLabel(t.band)}</span>
+                    </div>
+                  </div>
+                  {k === "ES" && meta.note && <p style={{ ...detailP, fontStyle: "italic", color: COLOR.inkSoft, margin: "12px 0 0" }}>{meta.note}</p>}
+                  {rd.snapshot && <p style={{ ...detailP, marginTop: 14 }}>{rd.snapshot}</p>}
+                  {(strengths.length > 0 || watchouts.length > 0) && (
+                    <div style={b5TwoCol}>
+                      {strengths.length > 0 && (
+                        <div>
+                          <div style={{ ...blockH, color: COLOR.tealDeep }}>Strengths</div>
+                          <ul style={b5List}>{strengths.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+                        </div>
+                      )}
+                      {watchouts.length > 0 && (
+                        <div>
+                          <div style={{ ...blockH, color: "var(--gold-deep-text)" }}>Watch-outs</div>
+                          <ul style={b5List}>{watchouts.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <Block h="Ministry & leadership application" t={rd.application} />
+                  {growth.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={blockH}>Growth steps</div>
+                      <ol style={b5Ol}>{growth.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ol>
+                    </div>
+                  )}
+                  {rd.scripture?.text && (
+                    <div style={{ background: "var(--blush)", border: "1px solid #EADFC9", borderRadius: 12, padding: "16px 18px", marginTop: 8 }}>
+                      <div style={{ fontSize: 11.5, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--clay-text)", fontWeight: 700, marginBottom: 6 }}>Anchor Scripture</div>
+                      <p style={{ fontSize: 14.5, color: COLOR.ink, margin: 0, lineHeight: 1.55, fontStyle: "italic", fontFamily: FONT_SERIF }}>&ldquo;{rd.scripture.text}&rdquo;</p>
+                      {rd.scripture.ref && <div style={{ fontSize: 12.5, color: "var(--clay-text)", marginTop: 6, fontWeight: 600 }}>{rd.scripture.ref}</div>}
+                    </div>
+                  )}
+                  {near && <div style={transitionBox}>Your score sits near the line between two bands. Read both this report and the neighboring band; elements of each will likely apply to you.</div>}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* HOW YOUR TRAITS WORK TOGETHER — top-border interaction cards */}
+      {interactions.length > 0 && (
+        <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>How your traits work together</div>
+          <h2 className="serif" style={discH2}>Where two traits shape each other</h2>
+          <div style={{ display: "grid", gridTemplateColumns: interactions.length > 1 ? "1fr 1fr" : "1fr", gap: 16, marginTop: 4 }} className="b5-pair-grid">
+            {interactions.map((p) => (
+              <div key={p.pairName} style={{ border: `1px solid ${COLOR.line}`, borderTop: `3px solid ${COLOR.teal}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                <div className="serif" style={{ fontSize: 18, color: COLOR.navy, fontWeight: 600 }}>{p.title}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: COLOR.inkMute, marginTop: 2 }}>{p.aName} + {p.bName}</div>
                 <p style={{ ...detailP, margin: "10px 0 0" }}>{p.body}</p>
               </div>
             ))}
-            <p style={helper}>
-              No single trait tells the whole story. These are the places two of your traits combine and shape
-              each other, for better and for watching. Read them as a mirror for growth, never a verdict.
-            </p>
-          </section>
-        );
-      })()}
+          </div>
+          <p style={helper}>
+            No single trait tells the whole story. These are the places two of your traits combine and shape each
+            other. Read them as a mirror for growth, never a verdict.
+          </p>
+        </section>
+      )}
 
-      {/* Facets */}
-      <section style={{ padding: "20px 0 4px" }}>
-        <div style={sectionLabel}>Six expanded facets</div>
-        <div style={chart}>
-          {facets.map((f) => {
-            const meta = BIG5_FACETS[f.key];
-            return (
-              <ScoreBar key={f.key} label={meta.name} frac={f.pct / 100}
-                fillColor={meta.color} color={B5_BAND_COLOR[f.band]} refs={[0.4, 0.7]} scoreMinWidth={120}
-                valueText={`${f.pct} · ${B5_BAND_LABEL[f.band]}`} />
-            );
-          })}
-        </div>
-        <p style={helper}>Facets add practical color to the core traits. Anything at 70+ is a signature strength; 39 or below is a low-preference area.</p>
-      </section>
+      {/* SIX FACETS — compact ScoreBar group */}
+      {facets.length > 0 && (
+        <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Six expanded facets</div>
+          <h2 className="serif" style={discH2}>Practical color on the core traits</h2>
+          <div style={chart}>
+            {facets.map((f, i) => {
+              const meta = BIG5_FACETS[f.key] || {};
+              return (
+                <ScoreBar key={f.key} label={meta.name || f.key} frac={(f.pct || 0) / 100}
+                  fillColor={meta.color} color={bandColor(f.band)} refs={[0.4, 0.7]} scoreMinWidth={120}
+                  rowStyle={i === 0 ? { borderTop: "none" } : {}}
+                  valueText={`${f.pct ?? "—"} · ${bandLabel(f.band)}`} />
+              );
+            })}
+          </div>
+          <p style={helper}>Anything at 70+ is a signature strength; 39 or below is a low-preference area.</p>
+        </section>
+      )}
 
       {(sigStrengths.length > 0 || lowPref.length > 0) && (
-        <section style={{ padding: "16px 0 4px" }}>
+        <section style={{ padding: "8px 0 4px" }} className="avoid-break">
           {sigStrengths.length > 0 && (
             <>
               <div style={sectionLabel}>Signature strengths</div>
-              {sigStrengths.map((f) => (
-                <div key={f.key} style={growCard}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{BIG5_FACETS[f.key].name}</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#2E7D8A" }}>{f.pct} · High</div>
-                  </div>
-                  <p style={{ ...detailP, margin: "8px 0 0" }}>{BIG5_FACETS[f.key].high}</p>
-                </div>
-              ))}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 8 }} className="b5-pair-grid">
+                {sigStrengths.map((f) => {
+                  const meta = BIG5_FACETS[f.key] || {};
+                  return (
+                    <div key={f.key} style={{ border: `1px solid ${COLOR.line}`, borderTop: `3px solid ${COLOR.teal}`, borderRadius: 14, padding: "20px 22px", background: COLOR.paper, breakInside: "avoid" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                        <div className="serif" style={{ fontSize: 18, color: COLOR.navy, fontWeight: 600 }}>{meta.name || f.key}</div>
+                        <BandMark color={B5_BAND_COLOR.high} label={`${f.pct} · High`} style={{ fontSize: 13.5 }} />
+                      </div>
+                      <p style={{ ...detailP, margin: "8px 0 0" }}>{meta.high}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </>
           )}
           {lowPref.length > 0 && (
             <>
               <div style={{ ...sectionLabel, marginTop: 18 }}>Low-preference areas</div>
-              {lowPref.map((f) => (
-                <div key={f.key} style={growCard}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{BIG5_FACETS[f.key].name}</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#8CA0B3" }}>{f.pct} · Low</div>
-                  </div>
-                  <p style={{ ...detailP, margin: "8px 0 0" }}>{BIG5_FACETS[f.key].low}</p>
-                </div>
-              ))}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="b5-pair-grid">
+                {lowPref.map((f) => {
+                  const meta = BIG5_FACETS[f.key] || {};
+                  return (
+                    <div key={f.key} style={{ border: `1px solid ${COLOR.line}`, borderTop: "3px solid #8CA0B3", borderRadius: 14, padding: "20px 22px", background: COLOR.paper, breakInside: "avoid" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                        <div className="serif" style={{ fontSize: 18, color: COLOR.navy, fontWeight: 600 }}>{meta.name || f.key}</div>
+                        <BandMark color={B5_BAND_COLOR.low} label={`${f.pct} · Low`} style={{ fontSize: 13.5 }} />
+                      </div>
+                      <p style={{ ...detailP, margin: "8px 0 0" }}>{meta.low}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </>
           )}
         </section>
       )}
 
-      {/* What your answers show — plain playback of the reader's own responses */}
-      {(playback.high.length > 0 || playback.low.length > 0) && (
-        <section style={{ padding: "20px 0 4px" }}>
+      {/* WHAT YOUR ANSWERS SHOW — two-column playback card */}
+      {(pbHigh.length > 0 || pbLow.length > 0) && (
+        <section style={{ padding: "18px 0 4px" }} className="avoid-break">
           <div style={sectionLabel}>What your answers show</div>
+          <h2 className="serif" style={discH2}>Your own words, played back</h2>
           <p style={{ ...helper, marginTop: 0, marginBottom: 16 }}>
-            These are simply the statements you answered most decidedly, played back to you. They are not a
-            verdict, just a mirror of your own words, and they show where your personality speaks most clearly.
+            These are simply the statements you answered most decidedly. They are not a verdict, just a mirror of
+            your own words, and they show where your personality speaks most clearly.
           </p>
-          <div style={ldGrid2}>
-            <div style={{ ...growCard, borderTop: "3px solid #2E7D8A" }}>
-              <div style={{ ...ldBlockH, color: "#2E7D8A" }}>Where you agreed most strongly</div>
-              <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 8px" }}>The statements that sound the most like you.</p>
-              <ul style={ldUl}>{playback.high.slice(0, 5).map((p, i) => (
-                <li key={i} style={ldLi}>{p.text} <span style={{ color: "#8CA0B3", fontWeight: 600 }}>&middot; {b5TraitName(p.trait)}</span></li>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="b5-pair-grid">
+            <div style={{ border: `1px solid ${COLOR.line}`, borderTop: `3px solid ${COLOR.teal}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+              <div style={{ ...blockH, color: COLOR.tealDeep }}>Where you agreed most strongly</div>
+              <p style={{ fontSize: 13, color: COLOR.inkMute, margin: "0 0 10px" }}>The statements that sound the most like you.</p>
+              <ul style={{ ...b5List, paddingLeft: 18 }}>{pbHigh.slice(0, 5).map((p, i) => (
+                <li key={i} style={{ ...b5Li, marginBottom: 8 }}>{p.text} <span style={{ color: COLOR.inkMute, fontWeight: 600 }}>&middot; {b5TraitName(p.trait)}</span></li>
               ))}</ul>
             </div>
-            <div style={{ ...growCard, borderTop: "3px solid #C4923E" }}>
-              <div style={{ ...ldBlockH, color: "#B07C2E" }}>Where you disagreed most strongly</div>
-              <p style={{ fontSize: 13, color: "#8CA0B3", margin: "0 0 8px" }}>The statements that sound the least like you.</p>
-              <ul style={ldUl}>{playback.low.slice(0, 5).map((p, i) => (
-                <li key={i} style={ldLi}>{p.text} <span style={{ color: "#8CA0B3", fontWeight: 600 }}>&middot; {b5TraitName(p.trait)}</span></li>
+            <div style={{ border: `1px solid ${COLOR.line}`, borderTop: "3px solid var(--gold)", borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+              <div style={{ ...blockH, color: "var(--gold-deep-text)" }}>Where you disagreed most strongly</div>
+              <p style={{ fontSize: 13, color: COLOR.inkMute, margin: "0 0 10px" }}>The statements that sound the least like you.</p>
+              <ul style={{ ...b5List, paddingLeft: 18 }}>{pbLow.slice(0, 5).map((p, i) => (
+                <li key={i} style={{ ...b5Li, marginBottom: 8 }}>{p.text} <span style={{ color: COLOR.inkMute, fontWeight: 600 }}>&middot; {b5TraitName(p.trait)}</span></li>
               ))}</ul>
             </div>
           </div>
         </section>
       )}
 
-      {/* Your growth plan — targets the two most extreme traits, reusing bigfive.js content */}
+      {/* YOUR GROWTH PLAN — mist plan card with clear steps */}
       {planTargets.length > 0 && (
-        <section style={{ padding: "20px 0 4px" }}>
+        <section style={{ padding: "18px 0 4px" }} className="avoid-break">
           <div style={sectionLabel}>Your growth plan</div>
+          <h2 className="serif" style={discH2}>Two traits to carry this season</h2>
           <p style={{ ...helper, marginTop: 0, marginBottom: 16 }}>
-            These two traits sit farthest from the middle, so they shape how you lead more than any others.
-            Here are a few concrete steps for each, drawn straight from your trait report above. Pick one or
-            two to carry this season, not all at once.
+            These two traits sit farthest from the middle, so they shape how you lead more than any others. Here
+            are a few concrete steps for each. Pick one or two to carry this season, not all at once.
           </p>
-          {planTargets.map((pt) => {
-            const t = byKey[pt.key];
-            if (!t) return null;
-            const meta = BIG5_TRAIT_META[pt.key];
-            const reportBand = pt.key === "ES" ? t.n_band : t.band;
-            const rd = (pt.key === "ES" ? BIG5_TRAITS.N : BIG5_TRAITS[pt.key])[reportBand];
-            if (!rd) return null;
-            return (
-              <div key={pt.key} style={{ ...growCard, borderLeft: `4px solid ${meta.color}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-                  <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{meta.name}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: B5_BAND_COLOR[t.band] }}>{pt.pct} &middot; {B5_BAND_LABEL[t.band]}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {planTargets.map((pt) => {
+              const t = byKey[pt.key];
+              if (!t) return null;
+              const meta = BIG5_TRAIT_META[pt.key] || {};
+              const reportBand = pt.key === "ES" ? t.n_band : t.band;
+              const rd = ((pt.key === "ES" ? BIG5_TRAITS.N : BIG5_TRAITS[pt.key]) || {})[reportBand] || {};
+              const growth = Array.isArray(rd.growth) ? rd.growth : [];
+              return (
+                <div key={pt.key} style={{ border: `1px solid ${COLOR.line}`, borderLeft: `4px solid ${meta.color || COLOR.teal}`, borderRadius: 14, padding: "22px 24px", background: COLOR.mist, breakInside: "avoid" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+                    <div className="serif" style={{ fontSize: 19, color: COLOR.navy, fontWeight: 600 }}>{meta.name || pt.key}</div>
+                    <BandMark color={bandColor(t.band)} label={`${pt.pct ?? t.pct ?? "—"} · ${bandLabel(t.band)}`} style={{ fontSize: 13.5 }} />
+                  </div>
+                  <p style={{ fontSize: 13, color: COLOR.inkMute, margin: "4px 0 10px" }}>Your growth edge in {(meta.name || pt.key).toLowerCase()}.</p>
+                  {growth.length > 0 && (
+                    <div style={{ background: COLOR.paper, border: `1px solid ${COLOR.line}`, borderRadius: 12, padding: "6px 16px" }}>
+                      {growth.slice(0, 3).map((step, i) => {
+                        const id = `${pt.key}-${i}`;
+                        return (
+                          <label key={id} style={{ display: "flex", gap: 12, padding: "11px 0", borderTop: i === 0 ? "none" : `1px solid ${COLOR.line}`, cursor: "pointer", alignItems: "flex-start" }}>
+                            <input type="checkbox" checked={!!planDone[id]} onChange={(e) => setPlanDone({ ...planDone, [id]: e.target.checked })} style={{ marginTop: 3 }} />
+                            <span style={{ fontSize: 14, color: COLOR.inkSoft, lineHeight: 1.5, textDecoration: planDone[id] ? "line-through" : "none", opacity: planDone[id] ? 0.55 : 1 }}>{step}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <Block h="In practice" t={rd.application} />
                 </div>
-                <p style={{ fontSize: 13, color: "#8CA0B3", margin: "4px 0 10px" }}>Your growth edge in {meta.name.toLowerCase()}.</p>
-                <div>
-                  {rd.growth.slice(0, 3).map((step, i) => {
-                    const id = `${pt.key}-${i}`;
-                    return (
-                      <label key={id} style={{ display: "flex", gap: 12, padding: "9px 0", borderTop: i === 0 ? "none" : "1px solid #F0F2F4", cursor: "pointer", alignItems: "flex-start" }}>
-                        <input type="checkbox" checked={!!planDone[id]} onChange={(e) => setPlanDone({ ...planDone, [id]: e.target.checked })} style={{ marginTop: 3 }} />
-                        <span style={{ fontSize: 14, color: "#3A4A58", lineHeight: 1.5, textDecoration: planDone[id] ? "line-through" : "none", opacity: planDone[id] ? 0.55 : 1 }}>{step}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <Block h="In practice" t={rd.application} />
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </section>
       )}
 
-      <section style={{ padding: "16px 0 8px" }}>
+      <section style={{ padding: "14px 0 8px" }}>
         <p style={helper}>
           How to read this: every score compares you to the trait, not to other people, so a &ldquo;low&rdquo; is
           never a failing grade. Traits describe how you naturally operate; they don&rsquo;t limit what God can do
-          through you. Use this as a mirror for growth and a starting point for honest conversation, never as a verdict.
+          through you. Use this as a mirror for growth and a starting point for honest conversation, never a verdict.
         </p>
       </section>
     </>
@@ -1141,16 +1386,27 @@ const KDP_CLAR_LABEL = { "very-clear": "Very Clear", clear: "Clear", moderate: "
 const KDP_CLAR_COLOR = { "very-clear": "#1F5E68", clear: "#2E7D8A", moderate: "#C4923E", slight: "#8CA0B3" };
 
 function KingdomReport({ scored }) {
-  const code = scored.code;
+  const code = scored?.code || "";
   const t = KDP_TYPES[code];
-  const temp = KDP_TEMPERAMENTS[scored.temperament] || {};
-  const emblem = KDP_EMBLEMS[scored.temperament];
-  const byKey = Object.fromEntries((scored.scales || []).map((s) => [s.key, s]));
   if (!t) return null;
+  const temp = KDP_TEMPERAMENTS[scored?.temperament] || {};
+  const emblem = KDP_EMBLEMS[scored?.temperament];
+  const scales = Array.isArray(scored?.scales) ? scored.scales : [];
+  const byKey = Object.fromEntries(scales.map((s) => [s.key, s]));
+  const typeName = String(t.name || code).replace(/^The /, "");
+  const letters = String(code).split("");
+  const church = t.church || {};
+  const family = Array.isArray(t.family) ? t.family : [];
+  const relationships = Array.isArray(t.relationships) ? t.relationships : [];
+  const wired = Array.isArray(t.wired) ? t.wired : [];
+  const watchouts = Array.isArray(t.watchouts) ? t.watchouts : [];
+  const verses = Array.isArray(t.verses) ? t.verses : [];
+  const next30 = Array.isArray(t.next30) ? t.next30 : [];
+
   // A "slight" clarity means a near 50/50 lean that could flip the whole
   // 4-letter type. Name each slight preference and the type it would read as
   // if that one letter went the other way.
-  const slightNotes = (scored.scales || [])
+  const slightNotes = scales
     .filter((s) => s && s.clarity === "slight")
     .map((s) => {
       const p = KDP_PAIRS.find((pp) => pp.key === s.key);
@@ -1164,32 +1420,44 @@ function KingdomReport({ scored }) {
       return { label: p.label, curName, altName, flippedCode, altType };
     })
     .filter(Boolean);
+
   return (
     <>
-      {/* Type hero */}
-      <section style={{ padding: "8px 0 4px" }}>
-        <div style={{ background: "linear-gradient(135deg,#1B3A57,#0E2036)", borderRadius: 20, padding: "28px 26px", color: "#fff" }}>
-          <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", gap: 7 }}>
-              {code.split("").map((l, i) => (
-                <span key={i} style={kdpLetter}>{l}</span>
-              ))}
+      {/* TYPE HERO — four letter tiles on navy + serif name + essence */}
+      <section style={{ padding: "8px 0 4px" }} className="avoid-break">
+        <div style={sectionLabel}>Your Kingdom Design</div>
+        <div style={kdpHero}>
+          <svg viewBox="0 0 300 300" width="300" height="300" aria-hidden="true"
+            style={{ position: "absolute", right: -46, top: -30, opacity: 0.1, pointerEvents: "none" }}>
+            <g fill="none" stroke="#E4CE8C" strokeWidth="1.5">
+              <rect x="40" y="40" width="220" height="220" rx="18" />
+              <circle cx="150" cy="150" r="72" />
+            </g>
+          </svg>
+          <div style={{ position: "relative", display: "flex", gap: 26, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              {letters.map((l, i) => (<span key={i} style={kdpLetter} className="serif">{l}</span>))}
             </div>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ fontSize: 12, letterSpacing: ".16em", textTransform: "uppercase", color: "#E4CE8C", fontWeight: 700 }}>Your Kingdom Design</div>
-              <div className="serif" style={{ fontSize: 30, margin: "4px 0 3px", color: "#fff" }}>{t.name}</div>
-              <div style={{ fontSize: 14, color: "rgba(255,255,255,.82)" }}>Biblical mirror: {t.mirror} &middot; {temp.name}</div>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontFamily: FONT_SERIF, fontSize: 12.5, fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase", color: "#E4CE8C", marginBottom: 6 }}>
+                {t.mirror ? `Biblical mirror · ${t.mirror}` : "Kingdom Design"}{temp.name ? ` · ${temp.name}` : ""}
+              </div>
+              <h2 className="serif" style={{ fontSize: 30, margin: "0 0 12px", color: "#fff", fontWeight: 500, letterSpacing: "-.01em" }}>{t.name}</h2>
+              {t.snapshot && <p style={{ fontSize: 15, color: "rgba(255,255,255,.84)", margin: 0, lineHeight: 1.55 }}>{t.snapshot}</p>}
             </div>
-            {emblem && <img src={emblem} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 78, height: 78, borderRadius: 15, objectFit: "cover", border: "1px solid rgba(255,255,255,.15)" }} />}
+            {emblem && (
+              <img src={emblem} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }}
+                style={{ width: 74, height: 74, borderRadius: 15, objectFit: "cover", border: "1px solid rgba(228,206,140,.3)", flex: "0 0 auto" }} />
+            )}
           </div>
         </div>
         {slightNotes.length > 0 && (
           <div style={transitionBox}>
             {slightNotes.length === 1 ? (
-              <>Your <strong>{slightNotes[0].label}</strong> preference is a slight lean, so your type could
-              read differently there. You leaned {slightNotes[0].curName}, but {slightNotes[0].altName} is
-              almost as strong, which would read as <strong>{slightNotes[0].flippedCode}</strong>{" "}
-              ({slightNotes[0].altType}). Hold both.</>
+              <>Your <strong>{slightNotes[0].label}</strong> preference is a slight lean, so your type could read
+              differently there. You leaned {slightNotes[0].curName}, but {slightNotes[0].altName} is almost as
+              strong, which would read as <strong>{slightNotes[0].flippedCode}</strong> ({slightNotes[0].altType}).
+              Hold both.</>
             ) : (
               <>A few of your preferences are slight leans, so your type could read differently on them:{" "}
               {slightNotes.map((sn, i) => (
@@ -1201,30 +1469,42 @@ function KingdomReport({ scored }) {
         )}
       </section>
 
-      {/* Four preferences — spectrum bars */}
-      <section style={{ padding: "20px 0 4px" }}>
-        <div style={sectionLabel}>Your four preferences</div>
+      {/* PREFERENCE SPECTRUM — signature: four spectrum bars with a midline */}
+      <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+        <div style={sectionLabel}>Where you sit on each spectrum</div>
+        <h2 className="serif" style={discH2}>Your four preferences</h2>
         <div style={chart}>
-          {KDP_PAIRS.map((p) => {
-            const sc = byKey[p.key] || { a: 0, b: 0, total: 15, letter: p.a, clarity: "slight" };
-            const total = sc.total || 15;
-            const markerLeft = Math.round((sc.b / total) * 100);
-            const col = KDP_CLAR_COLOR[sc.clarity] || "#2E7D8A";
+          {KDP_PAIRS.map((p, idx) => {
+            const sc = byKey[p.key] || {};
+            const total = sc.total || 0;
+            const frac = total ? Math.max(0, Math.min(1, (sc.b || 0) / total))
+              : (sc.pct != null ? Math.max(0, Math.min(1, sc.pct / 100)) : 0.5);
+            const markerLeft = Math.round(frac * 100);
+            const col = KDP_CLAR_COLOR[sc.clarity] || COLOR.teal;
+            const isA = sc.letter === p.a;
+            const isB = sc.letter === p.b;
+            const winName = isA ? p.a_name : isB ? p.b_name : "—";
             return (
-              <div key={p.key} style={{ padding: "16px 14px", borderBottom: "1px solid #F0F2F4" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1C2B3A" }}>{p.label}</span>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: col }}>{sc.letter === p.a ? p.a_name : p.b_name} &middot; {KDP_CLAR_LABEL[sc.clarity]}</span>
+              <div key={p.key} style={{ padding: "16px 14px", borderTop: idx === 0 ? "none" : `1px solid ${COLOR.line}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, gap: 10 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: COLOR.ink }}>{p.label}</span>
+                  <BandMark color={col} label={`${winName} · ${KDP_CLAR_LABEL[sc.clarity] || "—"}`} style={{ fontSize: 13.5 }} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12 }}>
-                  <span style={{ ...kdpPole, ...(sc.letter === p.a ? kdpPoleOn : {}) }}>{p.a}</span>
-                  <div style={{ position: "relative", height: 12, background: "#EEF1F4", borderRadius: 999 }}>
-                    <div style={{ position: "absolute", left: "50%", top: -3, bottom: -3, width: 1, background: "#D3DAE1" }} />
-                    <div style={{ position: "absolute", top: -3, height: 18, width: 18, borderRadius: "50%", background: col, border: "2px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.22)", left: `calc(${markerLeft}% - 9px)` }} />
-                  </div>
-                  <span style={{ ...kdpPole, ...(sc.letter === p.b ? kdpPoleOn : {}) }}>{p.b}</span>
+                  <span style={{ ...kdpPole, ...(isA ? kdpPoleOn : {}) }}>{p.a}</span>
+                  <span style={{ position: "relative", display: "block", height: 12, background: CHART.trackBg, borderRadius: 999 }}>
+                    <span aria-hidden="true" style={{ position: "absolute", left: "50%", top: -3, bottom: -3, width: 1, background: CHART.anchor, opacity: 0.6 }} />
+                    <span style={{ position: "absolute", top: -4, height: 20, width: 20, borderRadius: "50%", background: col, border: "3px solid #fff", boxShadow: "0 1px 5px rgba(16,32,52,.28)", left: `calc(${markerLeft}% - 10px)` }} />
+                  </span>
+                  <span style={{ ...kdpPole, ...(isB ? kdpPoleOn : {}) }}>{p.b}</span>
                 </div>
-                <div style={{ textAlign: "center", fontSize: 12, color: "#8CA0B3", marginTop: 7 }}>{sc.a} chose {p.a_name.toLowerCase()} &middot; {sc.b} chose {p.b_name.toLowerCase()}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: COLOR.inkMute, marginTop: 6 }}>
+                  <span>{p.a_name}</span>
+                  {(sc.a != null || sc.b != null) && (
+                    <span style={{ fontVariantNumeric: NUM }}>{sc.a ?? 0} · {sc.b ?? 0}</span>
+                  )}
+                  <span>{p.b_name}</span>
+                </div>
               </div>
             );
           })}
@@ -1232,16 +1512,17 @@ function KingdomReport({ scored }) {
         <p style={helper}>Every preference is one end of a spectrum you both use. The marker shows your natural lean, and clarity tells you how strong that lean is, never how good or spiritual it is. A Slight lean means you use both sides almost equally, so read both and keep what fits.</p>
       </section>
 
-      {/* Preference pair meaning */}
-      <section style={{ padding: "16px 0 4px" }}>
+      {/* WHAT EACH PREFERENCE MEANS — paper cards with highlighted pole rows */}
+      <section style={{ padding: "18px 0 4px" }} className="avoid-break">
         <div style={sectionLabel}>What each preference means</div>
-        <div style={b5TwoCol}>
+        <h2 className="serif" style={discH2}>The two ends of each pair</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 4 }} className="b5-pair-grid">
           {KDP_PAIRS.map((p) => {
             const sc = byKey[p.key] || {};
             const isA = sc.letter === p.a;
             return (
-              <div key={p.key} style={{ ...b5Card, marginBottom: 0 }}>
-                <div style={{ fontSize: 12, letterSpacing: ".1em", textTransform: "uppercase", color: "#2E7D8A", fontWeight: 700 }}>{p.label}</div>
+              <div key={p.key} style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                <div style={{ ...blockH, color: COLOR.tealDeep }}>{p.label}</div>
                 <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
                   <div style={{ ...kdpPoleRow, ...(isA ? kdpPoleRowOn : {}) }}>
                     <b>{p.a_name} ({p.a})</b><span>{p.a_desc}</span>
@@ -1256,32 +1537,36 @@ function KingdomReport({ scored }) {
         </div>
       </section>
 
-      {/* Temperament */}
-      <section style={{ padding: "20px 0 4px" }}>
+      {/* TEMPERAMENT — paper card with emblem + facts */}
+      <section style={{ padding: "18px 0 4px" }} className="avoid-break">
         <div style={sectionLabel}>Your temperament</div>
-        <div style={{ ...b5Card, display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
-          {emblem && <img src={emblem} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 92, height: 92, borderRadius: 16, objectFit: "cover", flex: "0 0 auto" }} />}
+        <h2 className="serif" style={discH2}>The family you belong to</h2>
+        <div style={{ border: `1px solid ${COLOR.line}`, borderLeft: "4px solid var(--gold)", borderRadius: 14, padding: "24px 26px", background: COLOR.paper, display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap", breakInside: "avoid" }}>
+          {emblem && <img src={emblem} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 88, height: 88, borderRadius: 16, objectFit: "cover", flex: "0 0 auto" }} />}
           <div style={{ flex: 1, minWidth: 220 }}>
-            <div className="serif" style={{ fontSize: 22, color: "#1C2B3A" }}>{temp.name} <span style={{ fontSize: 15, color: "#8CA0B3" }}>({scored.temperament})</span></div>
-            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "10px 0 4px" }}>
-              <div><div style={blockH}>Core drive</div><div style={kdpFact}>{temp.drive}</div></div>
-              <div><div style={blockH}>Kingdom gift</div><div style={kdpFact}>{temp.contribution}</div></div>
-              <div><div style={blockH}>Key risk</div><div style={kdpFact}>{temp.risk}</div></div>
+            <div className="serif" style={{ fontSize: 20, color: COLOR.navy, fontWeight: 600 }}>
+              {temp.name || "Temperament"} {scored?.temperament && <span style={{ fontSize: 15, color: COLOR.inkMute }}>({scored.temperament})</span>}
+            </div>
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap", margin: "14px 0 2px" }}>
+              {temp.drive && <div><div style={blockH}>Core drive</div><div style={kdpFact}>{temp.drive}</div></div>}
+              {temp.contribution && <div><div style={blockH}>Kingdom gift</div><div style={kdpFact}>{temp.contribution}</div></div>}
+              {temp.risk && <div><div style={blockH}>Key risk</div><div style={kdpFact}>{temp.risk}</div></div>}
             </div>
           </div>
         </div>
       </section>
 
-      {/* 16-type grid */}
-      <section style={{ padding: "16px 0 4px" }}>
+      {/* THE SIXTEEN DESIGNS — grid, yours highlighted */}
+      <section style={{ padding: "18px 0 4px" }} className="avoid-break">
         <div style={sectionLabel}>The sixteen designs</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+        <h2 className="serif" style={discH2}>Where yours sits</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginTop: 4 }}>
           {KDP_ORDER.map((c) => {
             const on = c === code;
             return (
-              <div key={c} style={{ textAlign: "center", padding: "11px 6px", borderRadius: 10, border: `1px solid ${on ? "#C4923E" : "#E7E9EC"}`, background: on ? "#FBF6EC" : "#fff" }}>
-                <div className="serif" style={{ fontWeight: 700, fontSize: 15, color: on ? "#8A6420" : "#1C2B3A" }}>{c}</div>
-                <div style={{ fontSize: 10.5, color: "#8CA0B3", marginTop: 2, lineHeight: 1.2 }}>{(KDP_NAMES[c] || "").replace(/^The /, "")}</div>
+              <div key={c} style={{ textAlign: "center", padding: "12px 6px", borderRadius: 12, border: `1px solid ${on ? COLOR.gold : COLOR.line}`, background: on ? "#FBF6EC" : COLOR.paper }}>
+                <div className="serif" style={{ fontWeight: 600, fontSize: 15, color: on ? "var(--gold-deep-text)" : COLOR.ink, fontVariantNumeric: NUM }}>{c}</div>
+                <div style={{ fontSize: 10.5, color: COLOR.inkMute, marginTop: 2, lineHeight: 1.2 }}>{(KDP_NAMES[c] || "").replace(/^The /, "")}</div>
               </div>
             );
           })}
@@ -1289,78 +1574,146 @@ function KingdomReport({ scored }) {
         <p style={helper}>Each row is a temperament family. Yours is highlighted. Reading the profiles of your spouse, children, and teammates will do as much for those relationships as reading your own.</p>
       </section>
 
-      {/* Full profile */}
-      <section style={{ padding: "22px 0 4px" }}>
-        <div style={sectionLabel}>Your Kingdom Design Profile</div>
-        <div style={b5Card}>
-          <p style={{ ...detailP, fontSize: 15.5, marginTop: 0 }}>{t.snapshot}</p>
-          <div style={{ marginBottom: 4 }}>
-            <div style={blockH}>How God wired you</div>
-            <ul style={b5List}>{t.wired.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+      {/* YOUR DESIGN — how God wired you */}
+      <section style={{ padding: "18px 0 4px", breakBefore: "page" }} className="break-before">
+        <div style={sectionLabel}>Your design</div>
+        <h2 className="serif" style={discH2}>How God wired you</h2>
+        {wired.length > 0 && (
+          <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "24px 26px", background: COLOR.paper, breakInside: "avoid" }}>
+            <ul style={b5List}>{wired.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
           </div>
-        </div>
-
-        <div style={{ ...b5Card, borderLeft: "5px solid #C4923E" }}>
-          <div style={blockH}>Your biblical mirror: {t.mirror}</div>
-          <p style={{ ...detailP, marginTop: 6 }}>{t.mirror_story}</p>
-          {t.also && <div style={refLine}>Also see: {t.also}</div>}
-        </div>
-
-        <div style={b5Card}>
-          <Block h="Your place in the Kingdom of God" t={t.kingdom} />
-          <div style={blockH}>In your church</div>
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ ...detailP, margin: "4px 0 8px" }}><b>Serve best in:</b> {t.church.roles}</p>
-            <p style={{ ...detailP, margin: "0 0 8px" }}><b>How you lead:</b> {t.church.lead}</p>
-            <p style={{ ...detailP, margin: "0 0 8px" }}><b>Your team needs from you:</b> {t.church.team_needs}</p>
-            <p style={{ ...detailP, margin: 0 }}><b>You need from your team:</b> {t.church.you_need}</p>
-          </div>
-          <div style={b5TwoCol}>
-            <div><div style={blockH}>In your family</div><ul style={b5List}>{t.family.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul></div>
-            <div><div style={blockH}>In relationships</div><ul style={b5List}>{t.relationships.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul></div>
-          </div>
-        </div>
-
-        <div style={{ ...b5Card, background: "#FBFAF7" }}>
-          <div style={blockH}>Watch-out areas</div>
-          <ul style={b5List}>{t.watchouts.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
-          {t.sanctification && <div style={{ ...transitionBox, marginTop: 12 }}><b>Sanctification focus:</b> {t.sanctification}</div>}
-          <div style={{ marginTop: 14 }}><Block h="Under stress" t={t.stress} /></div>
-        </div>
-
-        <div style={b5Card}>
-          <div style={b5TwoCol}>
-            <div><div style={blockH}>Disciplines that come naturally</div><p style={{ ...detailP, margin: "4px 0 0" }}>{t.disc_natural}</p></div>
-            <div><div style={blockH}>Disciplines that stretch you</div><p style={{ ...detailP, margin: "4px 0 0" }}>{t.disc_stretch}</p></div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <div style={blockH}>Verses to live by</div>
-            <ul style={b5List}>{t.verses.map((s, i) => <li key={i} style={{ ...b5Li, fontStyle: "italic" }}>{s}</li>)}</ul>
-          </div>
-        </div>
-
-        <div style={devotionBox}>
-          <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 6 }}>A prayer for the {t.name.replace(/^The /, "")}</div>
-          <p style={{ fontSize: 14.5, color: "#4A3F2A", margin: 0, lineHeight: 1.6, fontStyle: "italic" }}>{t.prayer}</p>
-        </div>
-
-        <div style={{ ...b5Card, marginTop: 16 }}>
-          <div style={blockH}>Your next 30 days</div>
-          <div style={{ display: "grid", gap: 9, marginTop: 6 }}>
-            {t.next30.map((s, i) => (
-              <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                <span style={{ flex: "0 0 auto", width: 18, height: 18, borderRadius: 5, border: "1.5px solid #C4923E", marginTop: 1 }} />
-                <span style={{ fontSize: 14, color: "#4A5B6D", lineHeight: 1.5 }}>{s}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p style={helper}>Your type explains you; it never excuses you. Every design is called to Christlikeness, which always includes growth in your weaker areas. Read this as a mirror for discipleship, a common language for your family and team, and a starting point, never a box or a verdict.</p>
+        )}
       </section>
+
+      {/* BIBLICAL MIRROR — gold left-border card */}
+      {(t.mirror_story || t.mirror) && (
+        <section style={{ padding: "8px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Your biblical mirror</div>
+          <h2 className="serif" style={discH2}>{t.mirror || "A pattern in Scripture"}</h2>
+          <div style={{ border: `1px solid ${COLOR.line}`, borderLeft: "4px solid var(--gold)", borderRadius: 14, padding: "24px 26px", background: COLOR.paper, breakInside: "avoid" }}>
+            {t.mirror_story && <p style={{ ...detailP, margin: 0 }}>{t.mirror_story}</p>}
+            {t.also && <div style={refLine}>Also see: {t.also}</div>}
+          </div>
+        </section>
+      )}
+
+      {/* KINGDOM PLACE — calling, church, family, relationships */}
+      <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+        <div style={sectionLabel}>Your place in the Kingdom</div>
+        <h2 className="serif" style={discH2}>Where you serve and lead</h2>
+        {t.kingdom && (
+          <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "24px 26px", background: COLOR.paper, marginBottom: 16, breakInside: "avoid" }}>
+            <p style={{ ...detailP, margin: 0 }}>{t.kingdom}</p>
+          </div>
+        )}
+        {(church.roles || church.lead || church.team_needs || church.you_need) && (
+          <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "24px 26px", background: COLOR.mist, marginBottom: 16, breakInside: "avoid" }}>
+            <div style={{ ...blockH, color: COLOR.tealDeep }}>In your church</div>
+            <div style={{ marginTop: 8 }}>
+              {church.roles && <p style={{ ...detailP, margin: "0 0 8px" }}><b style={{ color: COLOR.ink }}>Serve best in:</b> {church.roles}</p>}
+              {church.lead && <p style={{ ...detailP, margin: "0 0 8px" }}><b style={{ color: COLOR.ink }}>How you lead:</b> {church.lead}</p>}
+              {church.team_needs && <p style={{ ...detailP, margin: "0 0 8px" }}><b style={{ color: COLOR.ink }}>Your team needs from you:</b> {church.team_needs}</p>}
+              {church.you_need && <p style={{ ...detailP, margin: 0 }}><b style={{ color: COLOR.ink }}>You need from your team:</b> {church.you_need}</p>}
+            </div>
+          </div>
+        )}
+        {(family.length > 0 || relationships.length > 0) && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="b5-pair-grid">
+            {family.length > 0 && (
+              <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                <div style={{ ...blockH, color: COLOR.tealDeep }}>In your family</div>
+                <ul style={b5List}>{family.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+              </div>
+            )}
+            {relationships.length > 0 && (
+              <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                <div style={{ ...blockH, color: COLOR.tealDeep }}>In relationships</div>
+                <ul style={b5List}>{relationships.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* WATCH-OUTS & SANCTIFICATION — mist card */}
+      {(watchouts.length > 0 || t.sanctification || t.stress) && (
+        <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Where you grow</div>
+          <h2 className="serif" style={discH2}>Watch-outs and sanctification</h2>
+          <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "24px 26px", background: COLOR.mist, breakInside: "avoid" }}>
+            {watchouts.length > 0 && (
+              <>
+                <div style={{ ...blockH, color: "var(--gold-deep-text)" }}>Watch-out areas</div>
+                <ul style={b5List}>{watchouts.map((s, i) => <li key={i} style={b5Li}>{s}</li>)}</ul>
+              </>
+            )}
+            {t.sanctification && <div style={{ ...transitionBox, marginTop: 14 }}><b>Sanctification focus:</b> {t.sanctification}</div>}
+            {t.stress && <div style={{ marginTop: 14 }}><Block h="Under stress" t={t.stress} /></div>}
+          </div>
+        </section>
+      )}
+
+      {/* SPIRITUAL RHYTHMS — disciplines + verses */}
+      {(t.disc_natural || t.disc_stretch || verses.length > 0) && (
+        <section style={{ padding: "18px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Spiritual rhythms</div>
+          <h2 className="serif" style={discH2}>Disciplines and verses to live by</h2>
+          {(t.disc_natural || t.disc_stretch) && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }} className="b5-pair-grid">
+              {t.disc_natural && (
+                <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                  <div style={{ ...blockH, color: COLOR.tealDeep }}>Comes naturally</div>
+                  <p style={{ ...detailP, margin: "8px 0 0" }}>{t.disc_natural}</p>
+                </div>
+              )}
+              {t.disc_stretch && (
+                <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+                  <div style={{ ...blockH, color: "var(--gold-deep-text)" }}>Stretches you</div>
+                  <p style={{ ...detailP, margin: "8px 0 0" }}>{t.disc_stretch}</p>
+                </div>
+              )}
+            </div>
+          )}
+          {verses.length > 0 && (
+            <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.paper, breakInside: "avoid" }}>
+              <div style={blockH}>Verses to live by</div>
+              <ul style={b5List}>{verses.map((s, i) => <li key={i} style={{ ...b5Li, fontStyle: "italic" }}>{s}</li>)}</ul>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* A PRAYER — blush devotion card */}
+      {t.prayer && (
+        <div style={{ marginTop: 24, breakInside: "avoid", background: "var(--blush)", border: "1px solid #EADFC9", borderRadius: 20, padding: "34px 38px" }} className="avoid-break">
+          <div aria-hidden="true" style={{ fontFamily: FONT_SERIF, fontSize: 52, lineHeight: 0.4, color: COLOR.gold, opacity: 0.55 }}>&ldquo;</div>
+          <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 20, lineHeight: 1.5, color: COLOR.ink, margin: "6px 0 16px" }}>{t.prayer}</div>
+          <div style={{ fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--clay-text)", fontWeight: 700 }}>A prayer for the {typeName}</div>
+        </div>
+      )}
+
+      {/* YOUR NEXT 30 DAYS — mist checklist card */}
+      {next30.length > 0 && (
+        <section style={{ padding: "24px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Your next 30 days</div>
+          <h2 className="serif" style={discH2}>A short obedience list</h2>
+          <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "22px 24px", background: COLOR.mist, breakInside: "avoid" }}>
+            <div style={{ display: "grid", gap: 10 }}>
+              {next30.map((s, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span style={{ flex: "0 0 auto", width: 18, height: 18, borderRadius: 5, border: "1.5px solid var(--gold)", marginTop: 1 }} />
+                  <span style={{ fontSize: 14, color: COLOR.inkSoft, lineHeight: 1.5 }}>{s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p style={helper}>Your type explains you; it never excuses you. Every design is called to Christlikeness, which always includes growth in your weaker areas. Read this as a mirror for discipleship, a common language for your family and team, and a starting point, never a box or a verdict.</p>
+        </section>
+      )}
     </>
   );
 }
+const kdpHero = { position: "relative", overflow: "hidden", background: "linear-gradient(155deg,#1B3A57 0%,#0E2036 100%)", borderRadius: 20, padding: "30px 32px", color: "#fff", boxShadow: "0 16px 40px rgba(16,32,52,.18)" };
 const kdpLetter = { fontFamily: "'Fraunces',Georgia,serif", fontSize: 40, fontWeight: 600, background: "rgba(255,255,255,.08)", border: "1px solid rgba(228,206,140,.35)", borderRadius: 12, width: 54, height: 64, display: "flex", alignItems: "center", justifyContent: "center", color: "#E4CE8C" };
 const kdpPole = { fontFamily: "'Fraunces',serif", fontSize: 20, fontWeight: 600, color: "#B4BEC9", width: 26, textAlign: "center" };
 const kdpPoleOn = { color: "#1B3A57" };
@@ -1822,13 +2175,14 @@ function ForgivenessReport({ scored }) {
 
 /* ---------------- Church Planter (candidate self-assessment) ---------------- */
 function PlanterReport({ scored }) {
-  const per = scored.scale_max || 5;
-  const tier = PLANTER_TIERS[scored.tier] || PLANTER_TIERS.develop;
-  const domains = scored.domains; // sorted by average desc
+  const per = scored?.scale_max || 5;
+  const tier = PLANTER_TIERS[scored?.tier] || PLANTER_TIERS.develop;
+  // Guard the data spine — a missing scored.domains must not throw.
+  const domains = Array.isArray(scored?.domains) ? scored.domains : []; // sorted by average desc
   const byName = Object.fromEntries(domains.map((d) => [d.domain, d]));
   const order = Object.keys(PLANTER_CHARACTERISTICS).filter((n) => byName[n]);
   const top3 = domains.slice(0, 3);
-  const weakPrimaries = domains.filter((d) => d.primary && d.average < 3.5);
+  const weakPrimaries = domains.filter((d) => d.primary && (d.average || 0) < 3.5);
   const watch = (weakPrimaries.length ? weakPrimaries : [...domains].slice(-3).reverse()).slice(0, 3);
   // Derive every count from the data. A single (unmarried) candidate drops
   // "Spousal Cooperation", so the totals shift; never hardcode them.
@@ -1837,6 +2191,8 @@ function PlanterReport({ scored }) {
     || order.filter((n) => PLANTER_PRIMARY.includes(n)).length;
   // Near-tie among the top-3 "excel" characteristics: equal averages aren't a rank.
   const excelTie = top3.some((d, i) => i > 0 && top3[i - 1] && d.average === top3[i - 1].average);
+  const pray = Array.isArray(PLANTER_PRAY) ? PLANTER_PRAY : [];
+  const scriptures = Array.isArray(PLANTER_SCRIPTURES) ? PLANTER_SCRIPTURES : [];
 
   // Readiness radar — shared RadarChart with a numbered legend (names are too
   // long for the tips). Gold vertices mark the five primary characteristics;
@@ -1849,21 +2205,32 @@ function PlanterReport({ scored }) {
 
   return (
     <>
-      <section style={{ padding: "8px 0" }}>
+      {/* READINESS HERO — tier_label + weighted composite as a feature card */}
+      <section style={{ padding: "8px 0", breakInside: "avoid" }} className="avoid-break">
         <div style={sectionLabel}>Your readiness</div>
-        <div style={{ ...topCard, borderLeft: `5px solid ${tier.color}` }}>
-          <div style={{ ...topRank, color: tier.color }}>Readiness · developmental, never a verdict</div>
-          <div className="serif" style={{ fontSize: 28, color: "#1C2B3A", marginTop: 4 }}>{tier.label}</div>
-          <p style={{ ...topDef, fontSize: 15, marginTop: 10 }}>{tier.body}</p>
-          <div style={{ marginTop: 12, fontSize: 13.5, color: "#4A5B6D" }}>
-            Weighted readiness score: <strong style={{ color: "#1B3A57" }}>{scored.composite?.toFixed(1)}</strong> / {per}
-            <span style={{ color: "#8CA0B3" }}> · the {primaryCount} primary characteristics count double.</span>
+        <div style={{ ...topCard, borderLeft: `5px solid ${tier.color}`, display: "flex", gap: 26, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0, flex: "1 1 300px" }}>
+            <div style={{ ...topRank, color: tier.color }}>Readiness · developmental, never a verdict</div>
+            <div className="serif" style={{ fontSize: 28, color: "#1C2B3A", marginTop: 4, lineHeight: 1.1 }}>{tier.label}</div>
+            <p style={{ ...topDef, fontSize: 15, marginTop: 10 }}>{tier.body}</p>
+          </div>
+          {/* The weighted composite, given its own feature block. */}
+          <div style={{ flex: "0 0 auto", minWidth: 150, background: COLOR.mist, border: `1px solid ${COLOR.line}`, borderRadius: 14, padding: "18px 20px", textAlign: "center" }}>
+            <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: COLOR.inkMute, fontWeight: 700, marginBottom: 6 }}>Weighted score</div>
+            <div style={{ fontSize: 40, fontWeight: 700, color: tier.color, lineHeight: 1, fontVariantNumeric: NUM }}>
+              {scored?.composite != null ? scored.composite.toFixed(1) : "—"}
+              <span style={{ fontSize: 16, color: COLOR.inkMute, fontWeight: 600 }}> / {per}</span>
+            </div>
+            <div style={{ fontSize: 12, color: COLOR.inkMute, marginTop: 8, lineHeight: 1.4 }}>
+              the {primaryCount} primary characteristics count double
+            </div>
           </div>
         </div>
       </section>
 
       <section style={{ padding: "20px 0 4px" }}>
         <div style={sectionLabel}>All {totalCount} characteristics</div>
+        <h2 className="serif" style={discH2}>Your readiness at a glance</h2>
         <div style={{ ...chart, padding: "18px 12px", display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 24 }}>
           <RadarChart axes={planterAxes} max={per} cx={175} cy={172} radius={108}
             viewBox="0 0 350 344" maxWidth={380} numbered reference={4} referenceLabel="Strength"
@@ -1882,32 +2249,37 @@ function PlanterReport({ scored }) {
         </div>
         <div style={chart}>
           {domains.map((d) => {
-            const band = domainBand(d.average);
+            const band = domainBand(d.average || 0);
+            // Primaries carry the readiness decision — gold-mark them so they
+            // read out from the supporting characteristics.
+            const markColor = d.primary ? COLOR.gold : band.color;
             return (
-              <ScoreBar key={d.domain} frac={d.average / per} band={band}
+              <ScoreBar key={d.domain} frac={(d.average || 0) / per} band={band} color={markColor} fillColor={band.color}
                 refs={cutoffFracs(DOMAIN_BANDS, per)} scoreMinWidth={128}
                 label={<>{d.domain}{d.primary && <span style={primaryTag}>Primary</span>}</>}
-                valueText={`${d.average.toFixed(1)} · ${band.label}`} />
+                valueText={`${(d.average || 0).toFixed(1)} · ${band.label}`} />
             );
           })}
         </div>
         <p style={helper}>
           The {primaryCount} gold points are the primary characteristics that carry the readiness decision. A strong
-          plant leans hardest on those.
+          plant leans hardest on those. The faint lines mark the Steady and Strength thresholds.
         </p>
       </section>
 
       <section style={{ padding: "20px 0 4px" }}>
         <div style={sectionLabel}>Where you'll excel</div>
+        <h2 className="serif" style={discH2}>Your clearest strengths</h2>
         {top3.map((d) => {
           const m = PLANTER_CHARACTERISTICS[d.domain] || {};
+          const band = domainBand(d.average || 0);
           return (
-            <div key={d.domain} style={growCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div key={d.domain} style={{ ...growCard, borderLeft: `4px solid ${band.color}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <BandMark color={domainBand(d.average).color} label={`${d.average.toFixed(1)} · ${domainBand(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
+                <BandMark color={band.color} label={`${(d.average || 0).toFixed(1)} · ${band.label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
-              <p style={{ ...detailP, margin: "8px 0 0" }}>{m.blurb}</p>
+              {m.blurb && <p style={{ ...detailP, margin: "8px 0 0" }}>{m.blurb}</p>}
               <Block h="Lean into it" t={m.leanIn} />
             </div>
           );
@@ -1919,38 +2291,49 @@ function PlanterReport({ scored }) {
 
       <section style={{ padding: "16px 0 4px" }}>
         <div style={sectionLabel}>What to watch for</div>
+        <h2 className="serif" style={discH2}>Where to steward and grow</h2>
         {watch.map((d) => {
           const m = PLANTER_CHARACTERISTICS[d.domain] || {};
+          const band = domainBand(d.average || 0);
           return (
-            <div key={d.domain} style={growCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div key={d.domain} style={{ ...growCard, borderLeft: `4px solid ${band.color}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>
                   {d.domain}{d.primary && <span style={primaryTag}>Primary</span>}
                 </div>
-                <BandMark color={domainBand(d.average).color} label={`${d.average.toFixed(1)} · ${domainBand(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
+                <BandMark color={band.color} label={`${(d.average || 0).toFixed(1)} · ${band.label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
-              <Block h="A next step" t={m.step} />
+              {/* Next step in a mist card so it reads as an invitation, not a bar. */}
+              <div style={{ background: COLOR.mist, border: `1px solid ${COLOR.line}`, borderRadius: 12, padding: "14px 16px", marginTop: 12 }}>
+                <div style={{ ...blockH, color: COLOR.tealDeep, marginBottom: 6 }}>A next step</div>
+                <p style={{ fontSize: 13.5, color: "#3A4A5A", margin: 0, lineHeight: 1.6 }}>
+                  {m.step || `Name one concrete practice that would strengthen ${d.domain} this season, and bring it into your assessor conversation.`}
+                </p>
+              </div>
             </div>
           );
         })}
         <p style={helper}>These are areas to steward and grow, not marks against you. Growth here is exactly what the assessor conversation is for.</p>
       </section>
 
-      <section style={{ padding: "16px 0 4px" }}>
+      <section style={{ padding: "16px 0 4px", breakInside: "avoid" }} className="avoid-break">
         <div style={sectionLabel}>Things to think and pray on</div>
-        <div style={chart}>
-          {PLANTER_PRAY.map((q, i) => (
-            <div key={i} style={{ padding: "13px 14px", borderBottom: i < PLANTER_PRAY.length - 1 ? "1px solid #F0F2F4" : "none", fontSize: 14.5, color: "#2B3A4A", lineHeight: 1.5 }}>
-              {q}
-            </div>
-          ))}
+        <h2 className="serif" style={discH2}>Take these into prayer</h2>
+        <div style={{ background: "var(--blush)", border: "1px solid #EADFC9", borderRadius: 16, padding: "24px 28px" }}>
+          <div style={{ fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--clay-text)", fontWeight: 700, marginBottom: 14 }}>For reflection &amp; prayer</div>
+          <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+            {pray.map((q, i) => (
+              <li key={i} style={{ fontSize: 14.5, color: "#3A2E22", lineHeight: 1.55 }}>{q}</li>
+            ))}
+          </ol>
         </div>
       </section>
 
       <section style={{ padding: "16px 0 8px" }}>
         <div style={sectionLabel}>Scripture anchors</div>
+        <h2 className="serif" style={discH2}>Ground the work in these</h2>
         <div style={chart}>
-          {PLANTER_SCRIPTURES.map(([ref, note]) => (
+          {scriptures.map(([ref, note]) => (
             <div key={ref} style={rowGrid}>
               <span style={{ ...rName, fontStyle: "italic" }}>{ref}</span>
               <span style={{ gridColumn: "span 2", fontSize: 13.5, color: "#4A5B6D" }}>{note}</span>
@@ -1976,27 +2359,34 @@ function PlanterReport({ scored }) {
 
 /* ---------------- Church Growth (level matrix) ---------------- */
 function GrowthReport({ scored }) {
-  const winner = GROWTH_LEVELS[scored.winnerLevel];
-  const per = scored.levels[0]?.max || 30;
-  const t = scored.transition;
+  // Guard every access — a missing level/levels must degrade gracefully.
+  const levels = Array.isArray(scored?.levels) ? scored.levels : [];
+  const winner = GROWTH_LEVELS[scored?.winnerLevel] || {};
+  const per = levels[0]?.max || 30;
+  const t = scored?.transition;
   // When the scorer flags a close level (near 50/50), present the verdict
   // honestly as "between two levels" rather than one confident answer. Falls
   // back to the existing transition box when the new field is absent.
-  const altLevel = scored.alt_level != null ? GROWTH_LEVELS[scored.alt_level] : null;
-  const showClose = scored.level_close === true && !!altLevel;
-  const marginText = typeof scored.margin === "number"
+  const altLevel = scored?.alt_level != null ? GROWTH_LEVELS[scored.alt_level] : null;
+  const showClose = scored?.level_close === true && !!altLevel;
+  const marginText = typeof scored?.margin === "number"
     ? ` (only ${scored.margin} point${scored.margin === 1 ? "" : "s"} apart)`
     : "";
+  // Ladder ordered most-mature (5) at the top down to least (1), so the rung
+  // above the current one is literally the next level to move toward.
+  const rungs = [...levels].sort((a, b) => (b.level || 0) - (a.level || 0));
+  const nextNum = typeof scored?.winnerLevel === "number" && scored.winnerLevel < 5 ? scored.winnerLevel + 1 : null;
+  const nextLevel = nextNum ? GROWTH_LEVELS[nextNum] : null;
+
   return (
     <>
+      {/* YOUR LEVEL — feature card + close/transition disclosure + next-step */}
       <section style={{ padding: "8px 0" }}>
         <div style={sectionLabel}>Your church's level</div>
-        <div style={{ ...topCard, borderLeft: "5px solid #C4923E" }}>
-          <div className="serif" style={{ fontSize: 28, color: "#1C2B3A" }}>{winner.name}</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#1B3A57", margin: "6px 0 12px", letterSpacing: ".02em" }}>
-            {winner.message}
-          </div>
-          <p style={{ ...topDef, fontSize: 15 }}>{winner.desc}</p>
+        <div style={{ ...topCard, borderLeft: "5px solid var(--gold)", breakInside: "avoid" }}>
+          <div style={{ ...discBlendRank, color: "var(--gold-deep-text)", marginBottom: 4 }}>{winner.message}</div>
+          <div className="serif" style={{ fontSize: 28, color: COLOR.navy, fontWeight: 500, margin: "2px 0 10px", letterSpacing: "-.01em" }}>{winner.name}</div>
+          <p style={{ ...topDef, fontSize: 15, lineHeight: 1.55 }}>{winner.desc}</p>
         </div>
         {showClose && (
           <div style={transitionBox}>
@@ -2005,42 +2395,97 @@ function GrowthReport({ scored }) {
             leadership team rather than settling on one.
           </div>
         )}
-        {t && !showClose && (
+        {t && !showClose && GROWTH_LEVELS[t.a] && GROWTH_LEVELS[t.b] && (
           <div style={transitionBox}>
             Your church may be in transition between {GROWTH_LEVELS[t.a].name} and{" "}
             {GROWTH_LEVELS[t.b].name}. That's worth discussing with your leadership team, not a sign
             something's wrong.
           </div>
         )}
-      </section>
-      <section style={{ padding: "20px 0" }}>
-        <div style={sectionLabel}>All five stages, side by side</div>
-        <div style={chart}>
-          {scored.levels.map((l) => {
-            const g = GROWTH_LEVELS[l.level];
-            const isWin = l.level === scored.winnerLevel;
-            const color = isWin ? "#C4923E" : "#8CA0B3";
-            return (
-              <ScoreBar key={l.level} frac={l.score / per} color={color} refs={[0.5]}
-                nameStyle={{ fontWeight: isWin ? 700 : 600 }}
-                label={g.name}
-                valueText={<>{l.score}<span style={{ color: "#B4BEC9", fontWeight: 400 }}>/{per}</span></>} />
-            );
-          })}
+        <div style={{ ...mistStep, marginTop: 16, padding: "20px 22px" }} className="avoid-break">
+          <div style={{ ...blockH, color: COLOR.tealDeep }}>What moves you toward the next level</div>
+          {nextLevel ? (
+            <p style={{ margin: "8px 0 0", fontSize: 14.5, color: COLOR.ink, lineHeight: 1.6 }}>
+              The next rung is <strong style={{ color: COLOR.navy }}>{nextLevel.name}</strong>. {nextLevel.desc} Name the
+              one or two changes that would begin moving your church there, and build a focused plan with your leadership team.
+            </p>
+          ) : (
+            <p style={{ margin: "8px 0 0", fontSize: 14.5, color: COLOR.ink, lineHeight: 1.6 }}>
+              You're at the multiplying level — the furthest rung on the ladder. The growth now is to keep releasing
+              leaders and resources into new works, and to help other churches climb the same path you have.
+            </p>
+          )}
         </div>
       </section>
-      <section style={{ padding: "4px 0 8px" }}>
+
+      {/* THE LADDER — five rungs, current highlighted, scores as bars */}
+      {rungs.length > 0 && (
+        <section style={{ padding: "20px 0 4px" }} className="avoid-break">
+          <div style={sectionLabel}>Where you stand on the ladder</div>
+          <div style={{ ...chart, padding: "8px 18px" }}>
+            {rungs.map((l, i) => {
+              const g = GROWTH_LEVELS[l.level] || {};
+              const isWin = l.level === scored?.winnerLevel;
+              const isAlt = showClose && l.level === scored?.alt_level;
+              const color = isWin ? COLOR.gold : isAlt ? COLOR.teal : COLOR.inkMute;
+              const node = isWin
+                ? { background: COLOR.gold, color: "#fff", border: "none" }
+                : isAlt
+                  ? { background: "#fff", color: COLOR.tealDeep, border: `2px solid ${COLOR.teal}` }
+                  : { background: COLOR.mist, color: COLOR.inkMute, border: `1px solid ${COLOR.line}` };
+              return (
+                <div key={l.level} style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: 14, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid #F0F2F4" }}>
+                  <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
+                    {i < rungs.length - 1 && <span aria-hidden="true" style={{ position: "absolute", top: "50%", left: "50%", width: 2, height: "calc(100% + 24px)", marginLeft: -1, background: COLOR.line }} />}
+                    <span style={{ position: "relative", zIndex: 1, width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, fontVariantNumeric: NUM, ...node }}>{l.level}</span>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                      <span className="serif" style={{ fontSize: 16.5, color: isWin ? COLOR.navy : COLOR.ink, fontWeight: isWin ? 600 : 500 }}>
+                        {g.name}
+                        {isWin && <span style={primaryTag}>You are here</span>}
+                        {isAlt && <span style={{ ...primaryTag, color: COLOR.tealDeep, background: COLOR.mist2, borderColor: "#CFE3E5" }}>Runner-up</span>}
+                      </span>
+                      <span style={{ ...rScore, color, fontSize: 14, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        <span aria-hidden="true" style={{ fontSize: 9, color }}>{glyphFor(color)}</span>
+                        {l.score}<span style={{ color: COLOR.inkMute, fontWeight: 400 }}>/{per}</span>
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 7 }}>
+                      <BarTrack frac={per ? (l.score || 0) / per : 0} color={color} refs={[0.5]} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p style={helper}>
+            Each rung shows your score out of {per}. When two rungs sit close together, the level is a near call —
+            read both and weigh them with your team.
+          </p>
+        </section>
+      )}
+
+      {/* THE WHOLE PATH — compact stepped list of what each stage means */}
+      <section style={{ padding: "4px 0 8px" }} className="avoid-break">
         <div style={sectionLabel}>The whole path</div>
         <div style={chart}>
-          {[1, 2, 3, 4, 5].map((lvl) => (
-            <div key={lvl} style={{ padding: "12px 14px", borderBottom: "1px solid #F0F2F4" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <span className="serif" style={{ fontSize: 16, color: "#1C2B3A" }}>{GROWTH_LEVELS[lvl].name}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#2E7D8A" }}>{GROWTH_LEVELS[lvl].message}</span>
+          {[1, 2, 3, 4, 5].map((lvl, i) => {
+            const g = GROWTH_LEVELS[lvl] || {};
+            const isWin = lvl === scored?.winnerLevel;
+            return (
+              <div key={lvl} style={{ display: "grid", gridTemplateColumns: "30px 1fr", gap: 13, alignItems: "start", padding: "13px 14px", borderTop: i === 0 ? "none" : "1px solid #F0F2F4", background: isWin ? "rgba(196,146,62,.06)" : "transparent" }}>
+                <span style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 700, fontVariantNumeric: NUM, background: isWin ? COLOR.gold : COLOR.mist, color: isWin ? "#fff" : COLOR.inkMute, marginTop: 1 }}>{lvl}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                    <span className="serif" style={{ fontSize: 16, color: COLOR.navy, fontWeight: isWin ? 600 : 500 }}>{g.name}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: COLOR.tealDeep }}>{g.message}</span>
+                  </div>
+                  <p style={{ fontSize: 13, color: COLOR.inkSoft, margin: "5px 0 0", lineHeight: 1.5 }}>{g.desc}</p>
+                </div>
               </div>
-              <p style={{ fontSize: 13.5, color: "#4A5B6D", margin: "6px 0 0", lineHeight: 1.5 }}>{GROWTH_LEVELS[lvl].desc}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <p style={helper}>
           This assessment is a starting point for honest conversation, not a final verdict. Use it to
@@ -2284,28 +2729,49 @@ const discGrid = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, mar
 
 /* ---------------- Pastor Profile (3 pillars, 14 domains) ---------------- */
 function PastorReport({ scored }) {
-  const per = scored.scale_max || 5;
-  const domains = scored.domains;
+  const per = scored?.scale_max || 5;
+  // Guard every data access — a missing scored.domains/pillars must degrade to
+  // an empty section, never throw and blank the whole report.
+  const domains = Array.isArray(scored?.domains) ? scored.domains : [];
+  const pillars = Array.isArray(scored?.pillars) ? scored.pillars : [];
   const top2 = domains.slice(0, 2);
   const bottom2 = [...domains].slice(-2).reverse();
   // The 2nd pick (strong or focus) is only a real pick when it clears the next
   // domain by a margin. Within ~0.2 on the 1-5 scale, say it was close.
   const n = domains.length;
-  const strongClose = domains[1] && domains[2] && Math.abs(domains[1].average - domains[2].average) <= 0.2;
-  const focusClose = domains[n - 2] && domains[n - 3] && Math.abs(domains[n - 2].average - domains[n - 3].average) <= 0.2;
+  const strongClose = domains[1] && domains[2] && Math.abs((domains[1].average || 0) - (domains[2].average || 0)) <= 0.2;
+  const focusClose = domains[n - 2] && domains[n - 3] && Math.abs((domains[n - 2].average || 0) - (domains[n - 3].average || 0)) <= 0.2;
+  // Domains per pillar — the three pillars hold DIFFERENT numbers of domains,
+  // so each pillar average is drawn from a different base. Derive the counts
+  // from the data and disclose the differing denominators below.
+  const countIn = (pillarName) => domains.filter((d) => PASTOR_DOMAINS[d.domain]?.pillar === pillarName).length;
+  const counts = pillars.map((p) => countIn(p.pillar)).filter((c) => c > 0);
+  const denomsDiffer = counts.length > 1 && new Set(counts).size > 1;
+  const refFracs = cutoffFracs(DOMAIN_BANDS, per);
   return (
     <>
-      <section style={{ padding: "8px 0" }}>
+      {/* SIGNATURE — three pillars as a scaled 3-bar visual with band references */}
+      <section style={{ padding: "8px 0", breakInside: "avoid" }} className="avoid-break">
         <div style={sectionLabel}>Your three pillars</div>
-        <div style={topGrid}>
-          {scored.pillars.map((p) => {
-            const band = domainBand(p.average);
+        <h2 className="serif" style={discH2}>Character, competence, contribution</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 16 }}>
+          {pillars.map((p) => {
+            const avg = p.average || 0;
+            const band = domainBand(avg);
+            const cnt = countIn(p.pillar);
             return (
-              <div key={p.pillar} style={topCard}>
-                <div className="serif" style={{ ...topName, fontSize: 19 }}>{p.pillar}</div>
-                <div style={{ ...scoreRow, marginTop: 4 }}>
-                  <span style={{ ...topScore, fontSize: 26 }}>{p.average.toFixed(1)}</span>
-                  <BandMark color={band.color} label={band.label} style={{ fontSize: 13 }} />
+              <div key={p.pillar} style={{ ...topCard, borderTop: `4px solid ${band.color}`, padding: "20px 22px 22px", breakInside: "avoid" }}>
+                <div className="serif" style={{ fontSize: 18, color: COLOR.navy, fontWeight: 600, lineHeight: 1.2, minHeight: 44 }}>{p.pillar}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 5, margin: "8px 0 6px" }}>
+                  <span style={{ ...topScore, fontSize: 30 }}>{avg.toFixed(1)}</span>
+                  <span style={{ fontSize: 13, color: COLOR.inkMute, fontWeight: 600, fontVariantNumeric: NUM }}>/ {per}</span>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <BandMark color={band.color} label={band.label} style={{ fontSize: 12.5 }} />
+                </div>
+                <BarTrack frac={avg / per} color={band.color} refs={refFracs} height={10} />
+                <div style={{ fontSize: 12, color: COLOR.inkMute, marginTop: 10, fontVariantNumeric: NUM }}>
+                  {cnt} domain{cnt === 1 ? "" : "s"} in this pillar
                 </div>
               </div>
             );
@@ -2314,24 +2780,30 @@ function PastorReport({ scored }) {
         <p style={helper}>
           Character, Competence, and Contribution are meant to grow together. When one pillar runs far
           ahead of another, that gap is worth as much attention as any single low score.
+          {denomsDiffer && <> The three pillars hold different numbers of domains ({counts.join(", ")}), so each
+          average is drawn from a different base — read them side by side, not as a strict ranking.</>}{" "}
+          The faint lines on each bar mark the Steady and Strength thresholds.
         </p>
       </section>
 
       <section style={{ padding: "22px 0 4px" }}>
         <div style={sectionLabel}>Every domain</div>
+        <h2 className="serif" style={discH2}>How each area scored</h2>
         {PASTOR_PILLARS.map((pillar) => {
           const ds = domains.filter((d) => (PASTOR_DOMAINS[d.domain]?.pillar) === pillar);
           if (!ds.length) return null;
           return (
             <div key={pillar} style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#1B3A57", margin: "0 0 8px" }}>{pillar}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1B3A57", margin: "0 0 8px" }}>
+                {pillar} <span style={{ color: COLOR.inkMute, fontWeight: 600, fontVariantNumeric: NUM }}>· {ds.length} domain{ds.length === 1 ? "" : "s"}</span>
+              </div>
               <div style={chart}>
                 {ds.map((d) => {
-                  const band = domainBand(d.average);
+                  const band = domainBand(d.average || 0);
                   return (
-                    <ScoreBar key={d.domain} label={d.domain} frac={d.average / per} band={band}
-                      refs={cutoffFracs(DOMAIN_BANDS, per)} scoreMinWidth={128}
-                      valueText={`${d.average.toFixed(1)} · ${band.label}`} />
+                    <ScoreBar key={d.domain} label={d.domain} frac={(d.average || 0) / per} band={band}
+                      refs={refFracs} scoreMinWidth={128}
+                      valueText={`${(d.average || 0).toFixed(1)} · ${band.label}`} />
                   );
                 })}
               </div>
@@ -2340,18 +2812,22 @@ function PastorReport({ scored }) {
         })}
       </section>
 
-      <section style={{ padding: "8px 0 4px" }}>
+      <section style={{ padding: "8px 0 4px", breakInside: "avoid" }} className="avoid-break">
         <div style={sectionLabel}>Where you're strong</div>
+        <h2 className="serif" style={discH2}>Your two clearest strengths</h2>
         <div style={topGrid}>
-          {top2.map((d) => (
-            <div key={d.domain} style={topCard}>
-              <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
-              <div style={{ ...scoreRow, marginTop: 4 }}>
-                <span style={{ ...topScore, fontSize: 26 }}>{d.average.toFixed(1)}</span>
-                <BandMark color={domainBand(d.average).color} label={domainBand(d.average).label} style={{ fontSize: 13 }} />
+          {top2.map((d) => {
+            const band = domainBand(d.average || 0);
+            return (
+              <div key={d.domain} style={{ ...topCard, borderLeft: `4px solid ${band.color}`, breakInside: "avoid" }}>
+                <div className="serif" style={{ ...topName, fontSize: 20 }}>{d.domain}</div>
+                <div style={{ ...scoreRow, marginTop: 4 }}>
+                  <span style={{ ...topScore, fontSize: 26 }}>{(d.average || 0).toFixed(1)}</span>
+                  <BandMark color={band.color} label={band.label} style={{ fontSize: 13 }} />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         {strongClose && (
           <p style={helper}>The next domain scored nearly as high, so this second pick was close.</p>
@@ -2360,15 +2836,23 @@ function PastorReport({ scored }) {
 
       <section style={{ padding: "20px 0 8px" }}>
         <div style={sectionLabel}>Where to focus</div>
+        <h2 className="serif" style={discH2}>Where the next growth is</h2>
         {bottom2.map((d) => {
           const m = PASTOR_DOMAINS[d.domain] || {};
+          const band = domainBand(d.average || 0);
           return (
-            <div key={d.domain} style={growCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div key={d.domain} style={{ ...growCard, borderLeft: `4px solid ${band.color}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                 <div className="serif" style={{ fontSize: 19, color: "#1C2B3A" }}>{d.domain}</div>
-                <BandMark color={domainBand(d.average).color} label={`${d.average.toFixed(1)} · ${domainBand(d.average).label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
+                <BandMark color={band.color} label={`${(d.average || 0).toFixed(1)} · ${band.label}`} style={{ fontSize: 14, fontVariantNumeric: NUM }} />
               </div>
-              <Block h="A next step" t={m.step} />
+              {/* Development prompt in a mist card — a warm next step, not just a bar. */}
+              <div style={{ background: COLOR.mist, border: `1px solid ${COLOR.line}`, borderRadius: 12, padding: "14px 16px", marginTop: 12 }}>
+                <div style={{ ...blockH, color: COLOR.tealDeep, marginBottom: 6 }}>A development prompt</div>
+                <p style={{ fontSize: 13.5, color: "#3A4A5A", margin: 0, lineHeight: 1.6 }}>
+                  {m.step || `Give ${d.domain} some deliberate attention this season — name one small, repeatable practice that would strengthen it, and invite one trusted person to walk it with you.`}
+                </p>
+              </div>
             </div>
           );
         })}
@@ -2415,19 +2899,43 @@ function WellbeingCard({ wb }) {
 
 /* ---------------- Generic domain-average fallback ---------------- */
 function DomainReport({ scored }) {
-  const per = scored.scale_max || 5;
+  const per = scored?.scale_max || 5;
+  // Guard every access — degrade to an empty section rather than throwing.
+  const domains = Array.isArray(scored?.domains) ? scored.domains : [];
+  const bandRefs = cutoffFracs(DOMAIN_BANDS, per);
+  const overall = domains.length ? domains.reduce((a, d) => a + (d.average || 0), 0) / domains.length : 0;
+  const overallBand = domainBand(overall);
   return (
     <section style={{ padding: "16px 0" }}>
       <div style={sectionLabel}>Your results</div>
+      <h2 className="serif" style={discH2}>Your results, area by area</h2>
+      {domains.length > 0 && (
+        <p style={{ ...topDef, fontSize: 14.5, maxWidth: 560, marginBottom: 16 }}>
+          Across {domains.length} area{domains.length === 1 ? "" : "s"} you're averaging{" "}
+          <strong style={{ color: COLOR.navy, fontVariantNumeric: NUM }}>{overall.toFixed(1)}</strong> out of {per} — most land in the{" "}
+          <strong style={{ color: overallBand.color }}>{overallBand.label}</strong> range.
+        </p>
+      )}
       <div style={chart}>
-        {scored.domains.map((d) => {
-          const band = domainBand(d.average);
+        {domains.map((d) => {
+          const band = domainBand(d.average || 0);
           return (
-            <ScoreBar key={d.domain} label={d.domain} frac={d.average / per} band={band}
-              refs={cutoffFracs(DOMAIN_BANDS, per)} valueText={`${d.average}`} />
+            <ScoreBar key={d.domain} label={d.domain} frac={(d.average || 0) / per} band={band}
+              refs={bandRefs} scoreMinWidth={132}
+              valueText={`${(d.average || 0).toFixed(1)} · ${band.label}`} />
           );
         })}
       </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 14 }}>
+        {DOMAIN_BANDS.map((b) => (
+          <BandMark key={b.label} color={b.color}
+            label={<span style={{ fontVariantNumeric: NUM }}>{b.label} · {b.min.toFixed(1)}+</span>} style={{ fontSize: 12.5 }} />
+        ))}
+      </div>
+      <p style={helper}>
+        Each area is scored against itself, out of {per}. Reference lines mark the band cutoffs, so you can see at a
+        glance where each area lands.
+      </p>
     </section>
   );
 }
@@ -2558,6 +3066,11 @@ const devotionBox = { background: "#FBF6EC", border: "1px solid #EADFC9", border
 const primaryTag = { fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#B07C2E", background: "#F5EFE6", border: "1px solid #EADFC9", padding: "2px 7px", borderRadius: 999, marginLeft: 8, verticalAlign: "middle" };
 const growCard = { background: "#fff", border: "1px solid #E7E9EC", borderRadius: 14, padding: "18px 20px", marginBottom: 14 };
 const transitionBox = { background: "var(--blush,#F5EFE6)", border: "1px solid #EADFC9", borderRadius: 12, padding: "14px 16px", marginTop: 14, fontSize: 14, color: "#4A5B6D", lineHeight: 1.55 };
+// A mist "next step" panel (serif-labelled) and a small blush scripture accent —
+// the template treatment for a grow / focus card's action + anchor.
+const mistStep = { background: COLOR.mist, border: `1px solid ${COLOR.line}`, borderRadius: 12, padding: "14px 16px", marginTop: 12 };
+const blushRef = { marginTop: 10, background: "var(--blush)", border: "1px solid #EADFC9", borderRadius: 10, padding: "8px 13px", fontSize: 12.5, color: "var(--clay-text)", fontWeight: 600, fontStyle: "italic", display: "inline-block", fontVariantNumeric: NUM };
+const blushRefLabel = { letterSpacing: ".12em", textTransform: "uppercase", fontSize: 10, fontWeight: 700, marginRight: 7, fontStyle: "normal" };
 const ft = { textAlign: "center", padding: "34px 0 0", fontSize: 12.5, color: "#7C8A9C" };
 
 /* ============================================================================
@@ -2853,14 +3366,33 @@ function LeadershipReport({ scored }) {
         )}
       </section>
 
-      {/* The stool */}
+      {/* The stool — signature visual in a clean framed container + a reference scale */}
       <section style={{ padding: "12px 0 4px" }} className="avoid-break">
-        <div style={{ ...chart, padding: "20px 16px 22px", background: "linear-gradient(180deg,#FCFAF6,#fff)" }}>
+        <div style={sectionLabel}>Your leadership stool</div>
+        <h2 className="serif" style={discH2}>What holds your leadership up</h2>
+        <div style={{ ...chart, padding: "22px 20px 24px", background: "linear-gradient(180deg,#FCFAF6,#fff)" }}>
           <LeadershipStool legs={legs} seat={seat} active={active} setActive={setActive} grown={grown} />
+          {/* Reference scale — reads each leg's percent-of-max against the four
+              health bands (Developing 40 · Solid 60 · Signature 80). */}
+          <div style={{ maxWidth: 468, margin: "10px auto 0", padding: "0 6px" }}>
+            <div style={{ position: "relative", height: 10, background: "#EEF1F4", borderRadius: 999 }}>
+              {[40, 60, 80].map((v) => (
+                <span key={v} aria-hidden="true" style={{ position: "absolute", left: `${v}%`, top: -2, bottom: -2, width: 1, background: CHART.anchor, opacity: 0.6 }} />
+              ))}
+            </div>
+            <div style={{ position: "relative", height: 15, marginTop: 3 }}>
+              {[0, 40, 60, 80, 100].map((v) => (
+                <span key={v} style={{ position: "absolute", left: `${v}%`, transform: v === 0 ? "none" : v === 100 ? "translateX(-100%)" : "translateX(-50%)", fontSize: 10, color: COLOR.inkMute, fontWeight: 600, fontVariantNumeric: NUM }}>{v}</span>
+              ))}
+            </div>
+            <div style={{ fontSize: 11.5, color: COLOR.inkMute, textAlign: "center", marginTop: 6, lineHeight: 1.4 }}>
+              Each leg fills to its percent-of-max. Lines mark the Developing (40), Solid (60), and Signature (80) thresholds.
+            </div>
+          </div>
           {/* leg legend / interactive detail */}
           <div style={ldLegRow}>
             {LEG_ORDER.map((k) => {
-              const meta = LEGS[k], leg = legs[k], b = bandOf(leg.band);
+              const meta = LEGS[k], leg = legs[k] || {}, b = bandOf(leg.band);
               const on = active === k;
               return (
                 <button key={k} type="button"
@@ -2891,6 +3423,7 @@ function LeadershipReport({ scored }) {
       {/* Snapshot bars */}
       <section style={{ padding: "18px 0 4px" }}>
         <div style={sectionLabel}>Your snapshot</div>
+        <h2 className="serif" style={discH2}>The three legs and the seat</h2>
         <div style={chart}>
           {snapshot.map((s) => {
             const meta = LEGS[s.key], b = bandOf(s.band);
@@ -2918,6 +3451,7 @@ function LeadershipReport({ scored }) {
       {/* Style in depth */}
       <section style={{ padding: "18px 0 4px" }} className="avoid-break">
         <div style={sectionLabel}>Your style in depth</div>
+        <h2 className="serif" style={discH2}>The genius and the shadow</h2>
         <div style={{ ...ldFeature, borderTop: `4px solid ${accent}` }}>
           <div style={ldGrid2}>
             <div>
@@ -2929,9 +3463,9 @@ function LeadershipReport({ scored }) {
               <p style={ldP}>{style.shadow}</p>
             </div>
           </div>
-          <div style={ldBiblical}>
-            <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#B07C2E", fontWeight: 700, marginBottom: 6 }}>Biblical picture · {style.biblical.name}</div>
-            <p style={{ margin: 0, fontSize: 15, color: "#4A3F2A", lineHeight: 1.55 }}><em>{style.biblical.text}</em> <span style={{ color: "#8A6D3B", fontWeight: 600 }}>({style.biblical.ref})</span></p>
+          <div style={{ ...ldBiblical, background: "var(--blush)" }}>
+            <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--clay-text)", fontWeight: 700, marginBottom: 6 }}>Biblical picture · {style.biblical?.name}</div>
+            <p style={{ margin: 0, fontSize: 15, color: "#4A3F2A", lineHeight: 1.55 }}><em>{style.biblical?.text}</em> <span style={{ color: "#8A6D3B", fontWeight: 600 }}>({style.biblical?.ref})</span></p>
           </div>
           <div style={ldGrid2}>
             <div><div style={ldBlockH}>Best-fit roles</div><p style={ldP}>{style.bestFit}</p></div>
@@ -2943,6 +3477,7 @@ function LeadershipReport({ scored }) {
       {/* Where you land among the six */}
       <section style={{ padding: "18px 0 4px" }}>
         <div style={sectionLabel}>The six styles</div>
+        <h2 className="serif" style={discH2}>Where you land among them</h2>
         <div style={ldSixGrid}>
           {STYLE_ORDER.map((code) => {
             const s = STYLES[code], mine = code === style.code, open = peek === code;
@@ -2967,6 +3502,7 @@ function LeadershipReport({ scored }) {
       {/* Nine foundations */}
       <section style={{ padding: "18px 0 4px" }}>
         <div style={sectionLabel}>Your nine foundations</div>
+        <h2 className="serif" style={discH2}>Three foundations under each leg</h2>
         <div style={chart}>
           {LEG_ORDER.map((legKey) => {
             const meta = LEGS[legKey];
@@ -2974,7 +3510,7 @@ function LeadershipReport({ scored }) {
               <div key={legKey} style={{ padding: "10px 16px 4px", borderBottom: "1px solid #F0F2F4" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: meta.color, textTransform: "uppercase", letterSpacing: ".06em", margin: "4px 0 8px" }}>{meta.name}</div>
                 {FOUNDATION_ORDER_BY_LEG[legKey].map((fk) => {
-                  const f = foundation[fk], fm = FOUNDATIONS[fk], b = bandOf(f.band);
+                  const f = foundation[fk] || {}, fm = FOUNDATIONS[fk] || {}, b = bandOf(f.band);
                   const isTop = fk === scored.strongest_foundation, isLow = fk === scored.lowest_foundation;
                   return (
                     <div key={fk} style={{ margin: "0 0 12px" }}>
@@ -3001,8 +3537,9 @@ function LeadershipReport({ scored }) {
       {/* Leg by leg */}
       <section style={{ padding: "18px 0 4px" }}>
         <div style={sectionLabel}>Leg by leg</div>
+        <h2 className="serif" style={discH2}>Strongest, middle, and weakest</h2>
         {[["Your strongest leg", strongLeg], ["Your middle leg", midLeg], ["Your weakest leg", weakLeg]].map(([label, lk]) => {
-          const meta = LEGS[lk], leg = legs[lk], b = bandOf(leg.band);
+          const meta = LEGS[lk], leg = legs[lk] || {}, b = bandOf(leg.band);
           const fs = FOUNDATION_ORDER_BY_LEG[lk].map((k) => ({ ...foundation[k], name: FOUNDATIONS[k].name }));
           const hi = [...fs].sort((a, z) => z.pct - a.pct)[0], lo = [...fs].sort((a, z) => a.pct - z.pct)[0];
           const narr = lk === strongLeg
@@ -3036,15 +3573,16 @@ function LeadershipReport({ scored }) {
       {/* The seat */}
       <section style={{ padding: "18px 0 4px" }} className="avoid-break">
         <div style={sectionLabel}>The seat · your Leadership score ({seat.pct})</div>
+        <h2 className="serif" style={discH2}>What the legs lift into leadership</h2>
         <div style={chart}>
           {comps.map((c) => {
-            const fm = FOUNDATIONS[c.key];
+            const fm = FOUNDATIONS[c.key] || {};
             const words = { high: "A clear strength", medium: "Developing and reliable in parts", low: "An area to grow into" };
             const col = c.level === "high" ? "#1F7A4D" : c.level === "medium" ? "#C4923E" : "#B4653A";
             return (
               <div key={c.key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", borderBottom: "1px solid #F0F2F4" }}>
                 <div style={{ minWidth: 150 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2B3A" }}>{fm.name.replace("Leadership ", "")}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2B3A" }}>{(fm.name || "").replace("Leadership ", "")}</div>
                   <div style={{ fontSize: 12, color: "#8CA0B3" }}>{fm.blurb}</div>
                 </div>
                 <div style={{ flex: 1 }}><div style={ldTrackSm}><div style={{ ...ldFill, width: grown ? `${c.pct}%` : "0%", background: SEAT.color }} /></div></div>
@@ -3060,6 +3598,7 @@ function LeadershipReport({ scored }) {
       {(patterns.high.length > 0 || patterns.low.length > 0) && (
         <section style={{ padding: "18px 0 4px" }}>
           <div style={sectionLabel}>What your answers show</div>
+          <h2 className="serif" style={discH2}>Read straight from your responses</h2>
           <div style={ldGrid2}>
             <div style={{ ...growCard, borderTop: "3px solid #1F7A4D" }}>
               <div style={{ ...ldBlockH, color: "#1F7A4D" }}>Where grace and gifting already meet</div>
@@ -3078,7 +3617,8 @@ function LeadershipReport({ scored }) {
       {/* 90-day plan */}
       <section style={{ padding: "18px 0 4px" }}>
         <div style={sectionLabel}>Your 90-day development plan</div>
-        <div style={chart}>
+        <h2 className="serif" style={discH2}>A quarter of concrete next steps</h2>
+        <div style={{ ...chart, background: COLOR.mist }}>
           {[
             ["Weeks 1–2", "Awareness", `Share this report with one trusted mentor and your supervisor or board chair. Ask: “Does this match what you see?”`],
             ["Weeks 3–6", `Weakest foundation · ${lowF.name}`, `Choose one concrete, repeatable practice that feeds ${lowF.name.toLowerCase()}. Start small and daily, not heroic and occasional, and track it like you track results.`],
@@ -3101,6 +3641,7 @@ function LeadershipReport({ scored }) {
       {/* Team pairings */}
       <section style={{ padding: "18px 0 4px" }}>
         <div style={sectionLabel}>Your style on a team</div>
+        <h2 className="serif" style={discH2}>Who complements you</h2>
         <div style={chart}>
           <div style={{ ...ldPairRow, background: "#FAFBFC", fontWeight: 700, color: "#8CA0B3", fontSize: 12, textTransform: "uppercase", letterSpacing: ".04em" }}>
             <span>Partner</span><span>They bring</span><span>You bring</span><span>Watch for</span>
@@ -3120,6 +3661,7 @@ function LeadershipReport({ scored }) {
       {/* Ten practices */}
       <section style={{ padding: "18px 0 4px" }}>
         <div style={sectionLabel}>Ten practices for a {style.name}</div>
+        <h2 className="serif" style={discH2}>Habits that grow this style</h2>
         <div style={chart}>
           <ol style={{ margin: 0, padding: "8px 20px 8px 40px", columns: 1 }}>
             {style.practices.map((pr, i) => (
@@ -3131,6 +3673,8 @@ function LeadershipReport({ scored }) {
 
       {/* Coaching + scripture */}
       <section style={{ padding: "18px 0 4px" }}>
+        <div style={sectionLabel}>Take it further</div>
+        <h2 className="serif" style={discH2}>Coaching and Scripture</h2>
         <div style={ldGrid2}>
           <div style={growCard}>
             <div style={ldBlockH}>Coaching conversation guide</div>
@@ -3142,8 +3686,8 @@ function LeadershipReport({ scored }) {
               <li style={ldLi}>What does loving God, loving people, and loving the world look like in your calendar next week?</li>
             </ol>
           </div>
-          <div style={{ ...growCard, background: "#FBF7EE", border: "1px solid #EADFC9" }}>
-            <div style={{ ...ldBlockH, color: "#B07C2E" }}>Scripture for the journey</div>
+          <div style={{ ...growCard, background: "var(--blush)", border: "1px solid #EADFC9" }}>
+            <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--clay-text)", fontWeight: 700, marginBottom: 8 }}>Scripture for the journey</div>
             <p style={ldScrip}>“Love the Lord your God with all your heart… Love your neighbor as yourself.” <span style={ldRef}>Matthew 22:37–39</span> · “Go and make disciples.” <span style={ldRef}>Matthew 28:19</span></p>
             <p style={ldScrip}><strong>Your strongest leg:</strong> gratitude — <span style={ldRef}>1 Corinthians 4:7</span></p>
             <p style={ldScrip}><strong>Your weakest leg:</strong> grace and growth — <span style={ldRef}>Philippians 1:6; 2 Peter 1:5–8</span></p>
