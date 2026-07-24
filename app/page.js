@@ -176,7 +176,7 @@ export default function Home() {
                               <Link key={a.slug} href={`/assessment/${a.slug}`} className="mega-item" onClick={() => setMenuOpen(false)}>
                                 <span className="mega-ico" dangerouslySetInnerHTML={{ __html: c.plate || "" }} />
                                 <span className="mega-txt">
-                                  <span className="mega-name">{a.is_featured && <span className="feat-star">★</span>}{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</span>
+                                  <span className="mega-name">{a.is_featured && <span className="feat-star">★</span>}{a.name}{a.slug === "wired-to-lead" ? " (DISC Assessment)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</span>
                                   <span className="mega-desc">{c.tag || a.subtitle}</span>
                                 </span>
                               </Link>
@@ -227,7 +227,7 @@ export default function Home() {
                     <div className="msheet-h">{g.label}</div>
                     {items.map((a) => (
                       <Link key={a.slug} href={`/assessment/${a.slug}`} className="msheet-item" onClick={closeMobile}>
-                        {a.is_featured && <span className="feat-star">★</span>}{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}
+                        {a.is_featured && <span className="feat-star">★</span>}{a.name}{a.slug === "wired-to-lead" ? " (DISC Assessment)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}
                       </Link>
                     ))}
                   </div>
@@ -515,7 +515,7 @@ function Finder({ assessments }) {
                     <Link key={a.slug} href={`/assessment/${a.slug}`} className="finder-rc">
                       <span className="finder-rc-ico" dangerouslySetInnerHTML={{ __html: c.plate || "" }} />
                       <span className="finder-rc-body">
-                        <span className="finder-rc-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</span>
+                        <span className="finder-rc-name">{a.name}{a.slug === "wired-to-lead" ? " (DISC Assessment)" : a.slug === "kingdom-design" ? " (Myers-Briggs)" : ""}</span>
                         <span className="finder-rc-desc">{c.tag || a.subtitle}</span>
                       </span>
                       <span className="finder-rc-go">Start →</span>

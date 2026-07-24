@@ -2485,19 +2485,14 @@ function ReportCover({ meta, contact, brand, scored }) {
         </g>
       </svg>
       <div style={{ position: "relative" }}>
-        <div className="cover-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 34, gap: 16 }}>
+        <div className="cover-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, gap: 16 }}>
           <img className="cover-logo" src="/musa-logo-white-h.png" alt="Mission USA Assessments"
-            style={{ height: 36, width: "auto", display: "block" }} />
+            style={{ height: 46, width: "auto", display: "block" }} />
           {/* Print-only navy wordmark: the white PNG logo would vanish on the
               lightened print cover, so we swap in ink text for print. */}
           <div className="cover-print-mark serif" aria-hidden="true" style={{ fontSize: 20, fontWeight: 600, color: COLOR.navy, letterSpacing: ".01em" }}>
             MISSION USA <span style={{ color: COLOR.gold }}>— Assessments</span>
           </div>
-          {brand?.logo_url && (
-            <span className="brand-chip" style={{ background: "#fff", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}>
-              <img src={brand.logo_url} alt={brand.name || ""} style={{ height: 32, width: "auto", display: "block" }} />
-            </span>
-          )}
         </div>
         <div className="cover-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
@@ -2506,6 +2501,14 @@ function ReportCover({ meta, contact, brand, scored }) {
             {summary && <div className="cover-summary" style={coverSummary}>{summary}</div>}
           </div>
           <div className="cover-meta" style={coverMeta}>
+            {/* Church co-brand: sits on the right, above the date. */}
+            {brand?.logo_url && (
+              <div className="brand-chip-wrap" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                <span className="brand-chip" style={{ background: "#fff", borderRadius: 8, padding: "6px 10px", display: "inline-flex" }}>
+                  <img src={brand.logo_url} alt={brand.name || ""} style={{ height: 34, width: "auto", display: "block" }} />
+                </span>
+              </div>
+            )}
             {dateStr && <div style={{ color: "#C7D3DF" }}>{dateStr}</div>}
             {c.email && <div>{c.email}</div>}
             <div style={{ marginTop: 8, color: "#6E8298" }}>{secondary}</div>
